@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useFinance } from "@/contexts/FinanceContext";
 
 interface DayData {
   day: number;
@@ -12,55 +13,50 @@ interface DayData {
 }
 
 interface FluxoCaixaHeatmapProps {
-  data: DayData[];
   month: string;
   year: number;
 }
 
-export function FluxoCaixaHeatmap({ data, month, year }: FluxoCaixaHeatmapProps) {
+export function FluxoCaixaHeatmap({ month, year }: FluxoCaixaHeatmapProps) {
+  const { transacoes } = useFinance();
   const [viewType, setViewType] = useState<"all" | "receitas" | "despesas" | "aportes">("all");
 
   const weekDays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
   
-  // Generate calendar grid
-  const firstDay = new Date(year, parseInt(month) - 1, 1).getDay();
-  const daysInMonth = new Date(year, parseInt(month), 0).getDate();
-  
-  const calendarDays: (DayData | null)[] = [];
-  
-  // Add empty cells for days before the first of the month
-  for (let i = 0; i < firstDay; i++) {
-    calendarDays.push(null);
-  }
-  
-  // Add the actual days
-  for (let day = 1; day <= daysInMonth; day++) {
-    const dayData = data.find(d => d.day === day) || {
-      day,
-      receitas: 0,
-      despesas: 0,
-      transferencias: 0,
-      aportes: 0,
-    };
-    calendarDays.push(dayData);
-  }
+  const calendarDays: (DayData | null)[] = useMemo(() => {
+    const firstDay = new Date(year, parseInt(month) - 1, 1).getDay();
+    const daysInMonth = new Date(year, parseInt(month), 0).getDate();
+    
+    const result: (DayData | null)[] = [];
+    
+    for (let i = 0; i < firstDay; i++) {
+      result.push(null);
+    }
+    
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dayData = transacoes
+        .filter(t => new Date(t.data).getDate() === day && new Date(t.data).getMonth() === parseInt(month) - 1 && new Date(t.data).getFullYear() === year)
+        .reduce((acc, t) => {
+          if (t.tipo === "receita") acc.receitas += t.valor;
+          else acc.despesas += t.valor;
+          return acc;
+        }, { day, receitas: 0, despesas: 0, transferencias: 0, aportes: 0 });
+      
+      result.push(dayData);
+    }
+    
+    return result;
+  }, [transacoes, month, year]);
 
   const getIntensity = (dayData: DayData | null): string => {
     if (!dayData) return "bg-transparent";
     
     let value = 0;
     switch (viewType) {
-      case "receitas":
-        value = dayData.receitas;
-        break;
-      case "despesas":
-        value = dayData.despesas;
-        break;
-      case "aportes":
-        value = dayData.aportes;
-        break;
-      default:
-        value = dayData.receitas + dayData.despesas + dayData.transferencias + dayData.aportes;
+      case "receitas": value = dayData.receitas; break;
+      case "despesas": value = dayData.despesas; break;
+      case "aportes": value = dayData.aportes; break;
+      default: value = dayData.receitas + dayData.despesas + dayData.transferencias + dayData.aportes;
     }
 
     if (value === 0) return "bg-muted/30";
@@ -106,7 +102,6 @@ export function FluxoCaixaHeatmap({ data, month, year }: FluxoCaixaHeatmapProps)
           </div>
         </div>
 
-        {/* Week days header */}
         <div className="grid grid-cols-7 gap-1 mb-2">
           {weekDays.map(day => (
             <div key={day} className="text-center text-xs text-muted-foreground py-1">
@@ -115,7 +110,6 @@ export function FluxoCaixaHeatmap({ data, month, year }: FluxoCaixaHeatmapProps)
           ))}
         </div>
 
-        {/* Calendar grid */}
         <div className="grid grid-cols-7 gap-1">
           {calendarDays.map((dayData, index) => (
             <Tooltip key={index}>
@@ -144,15 +138,7 @@ export function FluxoCaixaHeatmap({ data, month, year }: FluxoCaixaHeatmapProps)
                       <span>R$ {dayData.despesas.toLocaleString("pt-BR")}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-primary">Transferências:</span>
-                      <span>R$ {dayData.transferencias.toLocaleString("pt-BR")}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-accent">Aportes:</span>
-                      <span>R$ {dayData.aportes.toLocaleString("pt-BR")}</span>
-                    </div>
-                    <div className="border-t border-border pt-1 flex justify-between font-medium">
-                      <span>Saldo:</span>
+                      <span className="text-muted-foreground">Saldo:</span>
                       <span className={dayData.receitas - dayData.despesas >= 0 ? "text-success" : "text-destructive"}>
                         R$ {(dayData.receitas - dayData.despesas).toLocaleString("pt-BR")}
                       </span>
@@ -164,7 +150,6 @@ export function FluxoCaixaHeatmap({ data, month, year }: FluxoCaixaHeatmapProps)
           ))}
         </div>
 
-        {/* Legend */}
         <div className="flex items-center justify-center gap-4 mt-4 text-xs text-muted-foreground">
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 rounded bg-muted/30" /> Nenhum
