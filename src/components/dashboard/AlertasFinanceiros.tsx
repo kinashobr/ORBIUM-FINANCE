@@ -22,7 +22,8 @@ import {
   Settings,
   Plus,
   Eye,
-  EyeOff
+  EyeOff,
+  Settings2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -81,7 +82,7 @@ interface Alerta {
   };
   data: Date;
   lido: boolean;
-  ignorado: boolean;
+  ignorado: bool;
   metricas?: {
     valorAtual: number;
     valorMeta: number;
@@ -215,6 +216,7 @@ export function AlertasFinanceiros() {
   const [alertasLidos, setAlertasLidos] = useState<Set<string>>(new Set());
   const [alertasIgnorados, setAlertasIgnorados] = useState<Set<string>>(new Set());
   const [detalhesAberto, setDetalhesAberto] = useState<Alerta | null>(null);
+  const [configDialogAberto, setConfigDialogAberto] = useState<AlertaConfig | null>(null);
 
   // Backend: Cálculo inteligente de métricas
   const metricas = useMemo(() => {
@@ -523,6 +525,21 @@ export function AlertasFinanceiros() {
     ));
   }, []);
 
+  const abrirConfigDialog = useCallback((config: AlertaConfig) => {
+    setConfigDialogAberto(config);
+  }, []);
+
+  const fecharConfigDialog = useCallback(() => {
+    setConfigDialogAberto(null);
+  }, []);
+
+  const salvarConfig = useCallback((config: AlertaConfig) => {
+    setAlertasConfig(prev => prev.map(c => 
+      c.id === config.id ? { ...c, ...config } : c
+    ));
+    setConfigDialogAberto(null);
+  }, []);
+
   const getIcon = (tipo: string, categoria: string) => {
     switch (categoria) {
       case "financeiro":
@@ -730,21 +747,32 @@ export function AlertasFinanceiros() {
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
                           <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                            <Settings className="h-4 w-4" />
+                            <Settings2 className="h-4 w-4" />
                           </div>
                           <div>
                             <h4 className="font-semibold text-sm">{config.nome}</h4>
                             <p className="text-xs text-muted-foreground">{config.descricao}</p>
                           </div>
                         </div>
-                        <Button
-                          variant={config.ativo ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => toggleConfig(config.id)}
-                          className={config.ativo ? "bg-primary" : "border-border"}
-                        >
-                          {config.ativo ? "Ativo" : "Inativo"}
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant={config.ativo ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => toggleConfig(config.id)}
+                            className={config.ativo ? "bg-primary" : "border-border"}
+                          >
+                            {config.ativo ? "Ativo" : "Inativo"}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => abrirConfigDialog(config)}
+                            className="h-8 w-8 border-border"
+                            title="Configurar alerta"
+                          >
+                            <Settings className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                         <div>Categoria: <span className="font-medium text-foreground">{config.categoria}</span></div>
@@ -930,6 +958,126 @@ export function AlertasFinanceiros() {
                 </Button>
               )}
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Configuração de Alerta */}
+      <Dialog open={!!configDialogAberto} onOpenChange={fecharConfigDialog}>
+        <DialogContent className="max-w-md bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                <Settings2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold">Configurar Alerta</h3>
+                <p className="text-sm text-muted-foreground">{configDialogAberto?.nome}</p>
+              </div>
+            </DialogTitle>
+            <DialogDescription>
+              Personalize as configurações deste alerta
+            </DialogDescription>
+          </DialogHeader>
+
+          {configDialogAberto && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Status</label>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant={configDialogAberto.ativo ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setConfigDialogAberto(prev => prev ? { ...prev, ativo: !prev.ativo } : null)}
+                    className={configDialogAberto.ativo ? "bg-primary" : "border-border"}
+                  >
+                    {configDialogAberto.ativo ? "Ativo" : "Inativo"}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Tolerância (%)</label>
+                <Input
+                  type="number"
+                  value={configDialogAberto.tolerancia}
+                  onChange={(e) => setConfigDialogAberto(prev => prev ? { ...prev, tolerancia: Number(e.target.value) } : null)}
+                  className="bg-muted border-border"
+                  min="0"
+                  max="100"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Frequência</label>
+                <Select 
+                  value={configDialogAberto.frequencia} 
+                  onValueChange={(v) => setConfigDialogAberto(prev => prev ? { ...prev, frequencia: v as any } : null)}
+                >
+                  <SelectTrigger className="bg-muted border-border">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sempre">Sempre</SelectItem>
+                    <SelectItem value="diario">Diário</SelectItem>
+                    <SelectItem value="semanal">Semanal</SelectItem>
+                    <SelectItem value="mensal">Mensal</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Categoria</label>
+                <Select 
+                  value={configDialogAberto.categoria} 
+                  onValueChange={(v) => setConfigDialogAberto(prev => prev ? { ...prev, categoria: v as any } : null)}
+                >
+                  <SelectTrigger className="bg-muted border-border">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="financeiro">Financeiro</SelectItem>
+                    <SelectItem value="investimento">Investimento</SelectItem>
+                    <SelectItem value="seguro">Seguro</SelectItem>
+                    <SelectItem value="meta">Meta</SelectItem>
+                    <SelectItem value="sistema">Sistema</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Prioridade</label>
+                <Select 
+                  value={configDialogAberto.prioridade} 
+                  onValueChange={(v) => setConfigDialogAberto(prev => prev ? { ...prev, prioridade: v as any } : null)}
+                >
+                  <SelectTrigger className="bg-muted border-border">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="baixa">Baixa</SelectItem>
+                    <SelectItem value="media">Média</SelectItem>
+                    <SelectItem value="alta">Alta</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between mt-4">
+            <Button
+              variant="outline"
+              onClick={fecharConfigDialog}
+              className="border-border"
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="default"
+              onClick={() => configDialogAberto && salvarConfig(configDialogAberto)}
+            >
+              Salvar Configurações
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
