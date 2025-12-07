@@ -14,6 +14,10 @@ interface EvolucaoData {
   dividas: number;
 }
 
+interface EvolucaoPatrimonialChartProps {
+  data: EvolucaoData[];
+}
+
 const lineOptions = [
   { id: "patrimonioTotal", label: "Patrimônio", color: "hsl(199, 89%, 48%)" },
   { id: "receitas", label: "Receitas", color: "hsl(142, 76%, 36%)" },
@@ -22,7 +26,7 @@ const lineOptions = [
   { id: "dividas", label: "Dívidas", color: "hsl(38, 92%, 50%)" },
 ];
 
-export function EvolucaoPatrimonialChart() {
+export function EvolucaoPatrimonialChart({ data }: EvolucaoPatrimonialChartProps) {
   const { transacoes, emprestimos, veiculos, investimentosRF, criptomoedas, stablecoins, objetivos } = useFinance();
   const [periodo, setPeriodo] = useState("12m");
   const [activeLines, setActiveLines] = useState<Set<string>>(
