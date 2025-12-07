@@ -773,7 +773,7 @@ export function AlertasFinanceiros() {
                 detalhesAberto?.tipo === "success" && "bg-success/20 text-success",
                 detalhesAberto?.tipo === "info" && "bg-primary/20 text-primary"
               )}>
-                {detalhesAberto && <getIcon(detalhesAberto.tipo, detalhesAberto.categoria) className="h-5 w-5" />}
+                {detalhesAberto && getIcon(detalhesAberto.tipo, detalhesAberto.categoria)({ className: "h-5 w-5" })}
               </div>
               <div>
                 <h3 className="text-lg font-semibold">{detalhesAberto?.titulo}</h3>
