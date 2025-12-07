@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { AlertTriangle, Info, CheckCircle, X, ChevronRight, Bell, TrendingUp, TrendingDown, DollarSign, CreditCard, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -24,22 +24,31 @@ export function AlertasFinanceiros({ alertas: initialAlertas, onVerDetalhes, onI
   const { transacoes, emprestimos, getTotalReceitas, getTotalDespesas } = useFinance();
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
-  const alertas = useState(() => {
+  const alertas = useMemo(() => {
     const hoje = new Date();
     const currentMonth = hoje.getMonth();
     const currentYear = hoje.getFullYear();
-    
-    const transacoesMes = transacoes.filter(t => {
-      const date = new Date(t.data);
-      return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-    });
-    
-    const receitasMes = transacoesMes.filter(t => t.tipo === "receita").reduce((acc, t) => acc + t.valor, 0);
-    const despesasMes = transacoesMes.filter(t => t.tipo === "despesa").reduce((acc, t) => acc + t.valor, 0);
+
+    const transacoesMes = Array.isArray(transacoes)
+      ? transacoes.filter(t => {
+          if (!t || typeof t.data !== "string") return false;
+          const d = new Date(t.data);
+          return !isNaN(d.getTime()) && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+        })
+      : [];
+
+    const receitasMes = transacoesMes
+      .filter(t => t.tipo === "receita")
+      .reduce((acc, t) => acc + (Number(t.valor) || 0), 0);
+
+    const despesasMes = transacoesMes
+      .filter(t => t.tipo === "despesa")
+      .reduce((acc, t) => acc + (Number(t.valor) || 0), 0);
+
     const saldoMes = receitasMes - despesasMes;
-    
+
     const alertasDinamicos: Alerta[] = [];
-    
+
     if (despesasMes > receitasMes) {
       alertasDinamicos.push({
         id: "saldo-negativo",
@@ -48,11 +57,11 @@ export function AlertasFinanceiros({ alertas: initialAlertas, onVerDetalhes, onI
         detalhe: `Despesas R$ ${despesasMes.toLocaleString("pt-BR")} > Receitas R$ ${receitasMes.toLocaleString("pt-BR")}`,
       });
     }
-    
+
     const despesasFixas = transacoesMes
       .filter(t => ["Moradia", "Saúde", "Transporte", "Salário"].includes(t.categoria) && t.tipo === "despesa")
-      .reduce((acc, t) => acc + t.valor, 0);
-    
+      .reduce((acc, t) => acc + (Number(t.valor) || 0), 0);
+
     const indiceEndividamento = receitasMes > 0 ? (despesasFixas / receitasMes) * 100 : 0;
     if (indiceEndividamento > 50) {
       alertasDinamicos.push({
@@ -62,20 +71,35 @@ export function AlertasFinanceiros({ alertas: initialAlertas, onVerDetalhes, onI
         detalhe: `Despesas fixas representam ${indiceEndividamento.toFixed(1)}% da renda`,
       });
     }
-    
-    const proximoVencimento = emprestimos.length > 0 ? new Date() : null;
-    if (proximoVencimento) {
-      proximoVencimento.setDate(proximoVencimento.getDate() + 10);
+
+    const proximosVencimentos = Array.isArray(emprestimos)
+      ? emprestimos
+          .map(e => {
+            if (!e || !e.vencimento) return null;
+            const d = new Date(e.vencimento);
+            return isNaN(d.getTime()) ? null : { emprestimo: e, data: d };
+          })
+          .filter(Boolean)
+          .sort((a, b) => a.data.getTime() - b.data.getTime())
+          .slice(0, 1)
+      : [];
+
+    if (proximosVencimentos.length > 0) {
+      const { data, emprestimo } = proximosVencimentos[0];
       alertasDinamicos.push({
-        id: "emprestimo-vencimento",
+        id: `emprestimo-vencimento:${emprestimo.id}`,
         tipo: "info",
         mensagem: "Próximo vencimento de empréstimo",
-        detalhe: `Em ${proximoVencimento.toLocaleDateString("pt-BR")}`,
+        detalhe: `Em ${data.toLocaleDateString("pt-BR")}`,
       });
     }
-    
-    return [...alertasDinamicos, ...initialAlertas];
-  })[0];
+
+    const merged = new Map<string, Alerta>();
+    initialAlertas.forEach(a => merged.set(a.id, a));
+    alertasDinamicos.forEach(a => merged.set(a.id, a));
+
+    return Array.from(merged.values());
+  }, [transacoes, emprestimos]);
 
   const visibleAlertas = alertas.filter(a => !dismissed.has(a.id));
 
