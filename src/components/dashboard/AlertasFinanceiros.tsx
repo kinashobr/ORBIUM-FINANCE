@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { AlertTriangle, Info, CheckCircle, X, ChevronRight, Bell, TrendingUp, TrendingDown, DollarSign, CreditCard, Calendar } from "lucide-react";
+import { AlertTriangle, Info, CheckCircle, X, ChevronRight, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useFinance } from "@/contexts/FinanceContext";
@@ -11,7 +11,6 @@ interface Alerta {
   tipo: "warning" | "danger" | "info" | "success";
   mensagem: string;
   detalhe?: string;
-  data?: string;
 }
 
 interface AlertasFinanceirosProps {
@@ -21,21 +20,23 @@ interface AlertasFinanceirosProps {
 }
 
 export function AlertasFinanceiros({ alertas: initialAlertas, onVerDetalhes, onIgnorar }: AlertasFinanceirosProps) {
-  const { transacoes, emprestimos, getTotalReceitas, getTotalDespesas } = useFinance();
+  const { transacoes, emprestimos } = useFinance();
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
   const alertas = useMemo(() => {
-    const hoje = new Date();
-    const currentMonth = hoje.getMonth();
-    const currentYear = hoje.getFullYear();
+    if (!Array.isArray(transacoes) || transacoes.length === 0) return initialAlertas;
 
-    const transacoesMes = Array.isArray(transacoes)
-      ? transacoes.filter(t => {
-          if (!t || typeof t.data !== "string") return false;
-          const d = new Date(t.data);
-          return !isNaN(d.getTime()) && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-        })
-      : [];
+    const hoje = new Date();
+    const mes = hoje.getMonth();
+    const ano = hoje.getFullYear();
+
+    const transacoesMes = transacoes.filter(t => {
+      if (!t?.data) return false;
+      const d = new Date(t.data);
+      return d.getMonth() === mes && d.getFullYear() === ano;
+    });
+
+    if (transacoesMes.length === 0) return initialAlertas;
 
     const receitasMes = transacoesMes
       .filter(t => t.tipo === "receita")
@@ -45,50 +46,32 @@ export function AlertasFinanceiros({ alertas: initialAlertas, onVerDetalhes, onI
       .filter(t => t.tipo === "despesa")
       .reduce((acc, t) => acc + (Number(t.valor) || 0), 0);
 
-    const saldoMes = receitasMes - despesasMes;
-
     const alertasDinamicos: Alerta[] = [];
 
-    if (despesasMes > receitasMes) {
+    if (receitasMes > 0 && despesasMes > receitasMes) {
       alertasDinamicos.push({
         id: "saldo-negativo",
         tipo: "danger",
         mensagem: "Saldo negativo no mês",
-        detalhe: `Despesas R$ ${despesasMes.toLocaleString("pt-BR")} > Receitas R$ ${receitasMes.toLocaleString("pt-BR")}`,
+        detalhe: `Despesas R$ ${despesasMes.toLocaleString("pt-BR")} > Receitas R$ ${receitasMes.toLocaleString("pt-BR")}`
       });
     }
 
-    const despesasFixas = transacoesMes
-      .filter(t => ["Moradia", "Saúde", "Transporte", "Salário"].includes(t.categoria) && t.tipo === "despesa")
-      .reduce((acc, t) => acc + (Number(t.valor) || 0), 0);
-
-    const indiceEndividamento = receitasMes > 0 ? (despesasFixas / receitasMes) * 100 : 0;
-    if (indiceEndividamento > 50) {
+    if (Array.isArray(emprestimos) && emprestimos.length > 0) {
       alertasDinamicos.push({
-        id: "endividamento-alto",
-        tipo: "warning",
-        mensagem: "Endividamento acima de 50%",
-        detalhe: `Despesas fixas representam ${indiceEndividamento.toFixed(1)}% da renda`,
+        id: "emprestimos-ativos",
+        tipo: "info",
+        mensagem: "Empréstimos cadastrados",
+        detalhe: `${emprestimos.length} ativo(s)`
       });
     }
-
-    const alertasEmprestimos = Array.isArray(emprestimos) && emprestimos.length > 0
-      ? [{
-          id: "emprestimo-vencimento",
-          tipo: "info" as const,
-          mensagem: "Empréstimos cadastrados",
-          detalhe: `${emprestimos.length} empréstimo(s) ativo(s)`,
-        }]
-      : [];
-
-    alertasDinamicos.push(...alertasEmprestimos);
 
     const merged = new Map<string, Alerta>();
     initialAlertas.forEach(a => merged.set(a.id, a));
     alertasDinamicos.forEach(a => merged.set(a.id, a));
 
     return Array.from(merged.values());
-  }, [transacoes, emprestimos]);
+  }, [transacoes, emprestimos, initialAlertas]);
 
   const visibleAlertas = alertas.filter(a => !dismissed.has(a.id));
 
@@ -120,7 +103,7 @@ export function AlertasFinanceiros({ alertas: initialAlertas, onVerDetalhes, onI
       <div className="glass-card p-5 animate-fade-in-up">
         <div className="flex items-center gap-2 mb-4">
           <Bell className="h-5 w-5 text-primary" />
-          <h3 className="text-lg font-semibold text-foreground">Alertas Financeiros</h3>
+          <h3 className="text-lg font-semibold">Alertas Financeiros</h3>
         </div>
         <div className="flex items-center justify-center py-8 text-muted-foreground">
           <CheckCircle className="h-5 w-5 mr-2 text-success" />
@@ -135,7 +118,7 @@ export function AlertasFinanceiros({ alertas: initialAlertas, onVerDetalhes, onI
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Bell className="h-5 w-5 text-primary" />
-          <h3 className="text-lg font-semibold text-foreground">Alertas Financeiros</h3>
+          <h3 className="text-lg font-semibold">Alertas Financeiros</h3>
           <span className="text-xs bg-destructive/20 text-destructive px-2 py-0.5 rounded-full">
             {visibleAlertas.length}
           </span>
@@ -156,7 +139,7 @@ export function AlertasFinanceiros({ alertas: initialAlertas, onVerDetalhes, onI
               <div className="flex items-center gap-3">
                 <Icon className="h-4 w-4 shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-foreground">{alerta.mensagem}</p>
+                  <p className="text-sm font-medium">{alerta.mensagem}</p>
                   {alerta.detalhe && (
                     <p className="text-xs text-muted-foreground mt-0.5">{alerta.detalhe}</p>
                   )}
