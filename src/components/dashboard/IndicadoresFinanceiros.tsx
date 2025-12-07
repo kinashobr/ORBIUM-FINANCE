@@ -32,13 +32,45 @@ export function IndicadoresFinanceiros({ indicadores }: IndicadoresFinanceirosPr
     const ativos = totalInvestimentos + veiculos.reduce((acc, v) => acc + v.valorFipe, 0);
     const passivos = totalDividas;
 
+    // Cálculo real das variações mensais
+    const meses = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
+    const receitasPorMes = meses.map(mes => 
+      transacoes
+        .filter(t => t.tipo === "receita" && t.data.includes(`-${mes}-`))
+        .reduce((acc, t) => acc + t.valor, 0)
+    );
+    const despesasPorMes = meses.map(mes => 
+      transacoes
+        .filter(t => t.tipo === "despesa" && t.data.includes(`-${mes}-`))
+        .reduce((acc, t) => acc + t.valor, 0)
+    );
+
+    // Remove meses sem dados (valor 0)
+    const receitasValidas = receitasPorMes.filter(r => r > 0);
+    const despesasValidas = despesasPorMes.filter(d => d > 0);
+
+    let crescimentoReceitas = 0;
+    let crescimentoDespesas = 0;
+
+    if (receitasValidas.length >= 2) {
+      const mesAtual = receitasValidas[receitasValidas.length - 1];
+      const mesAnterior = receitasValidas[receitasValidas.length - 2];
+      crescimentoReceitas = mesAnterior > 0 ? ((mesAtual - mesAnterior) / mesAnterior) * 100 : 0;
+    }
+
+    if (despesasValidas.length >= 2) {
+      const mesAtual = despesasValidas[despesasValidas.length - 1];
+      const mesAnterior = despesasValidas[despesasValidas.length - 2];
+      crescimentoDespesas = mesAnterior > 0 ? ((mesAtual - mesAnterior) / mesAnterior) * 100 : 0;
+    }
+
     return {
       liquidez: ativos > 0 ? (ativos / passivos) : 0,
       endividamento: ativos > 0 ? (passivos / ativos) * 100 : 0,
       margemPoupanca: receitas > 0 ? ((receitas - despesas) / receitas) * 100 : 0,
       rentabilidade: totalInvestimentos > 0 ? 12.5 : 0,
-      crescimentoReceitas: 8.2,
-      crescimentoDespesas: 3.5,
+      crescimentoReceitas,
+      crescimentoDespesas,
       solvencia: ativos > 0 ? (ativos / passivos) : 0,
       exposicaoCripto: totalInvestimentos > 0 ? (criptomoedas.reduce((acc, c) => acc + c.valorBRL, 0) / totalInvestimentos) * 100 : 0,
       pesoRF: totalInvestimentos > 0 ? (investimentosRF.reduce((acc, inv) => acc + inv.valor, 0) / totalInvestimentos) * 100 : 0,
