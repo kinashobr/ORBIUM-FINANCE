@@ -378,6 +378,11 @@ const Index = () => {
     ];
   }, [investimentosRF, stablecoins, objetivos, criptomoedas]);
 
+  const handleResetCustomization = () => {
+    setSections(defaultSections);
+    setLayout("fluid");
+  };
+
   const renderSection = (sectionId: string) => {
     switch (sectionId) {
       case "patrimonio-cards":
@@ -391,13 +396,7 @@ const Index = () => {
       case "indicadores":
         return <IndicadoresFinanceiros indicadores={indicadores} />;
       case "alertas":
-        return (
-          <AlertasFinanceiros
-            alertas={alertas}
-            onVerDetalhes={(id) => console.log("Ver detalhes", id)}
-            onIgnorar={(id) => console.log("Ignorar", id)}
-          />
-        );
+        return <AlertasFinanceiros />;
       case "tabela-consolidada":
         return <TabelaConsolidada data={tabelaConsolidada} />;
       case "objetivos":
@@ -435,10 +434,7 @@ const Index = () => {
               layout={layout}
               onSectionsChange={setSections}
               onLayoutChange={setLayout}
-              onReset={() => {
-                setSections(defaultSections);
-                setLayout("fluid");
-              }}
+              onReset={handleResetCustomization}
             />
           </div>
         </div>

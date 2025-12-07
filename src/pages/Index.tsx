@@ -401,13 +401,7 @@ const Index = () => {
       case "indicadores":
         return <IndicadoresFinanceiros indicadores={indicadores} />;
       case "alertas":
-        return (
-          <AlertasFinanceiros
-            alertas={alertas}
-            onVerDetalhes={(id) => toast.info(`Ver detalhes do alerta ${id}`)}
-            onIgnorar={(id) => toast.success(`Alerta ${id} ignorado`)}
-          />
-        );
+        return <AlertasFinanceiros />;
       case "tabela-consolidada":
         return <TabelaConsolidada data={tabelaConsolidada} />;
       case "objetivos":
