@@ -178,28 +178,6 @@ const Investimentos = () => {
     return totalRF + totalCripto + totalStables + totalObjetivos + valorVeiculos;
   }, [totalRF, totalCripto, totalStables, totalObjetivos]);
 
-  // Rentabilidade YTD (Year to Date) - cálculo real
-  const rentabilidadeYTD = useMemo(() => {
-    // Simulação de rentabilidade baseada nos tipos de investimento
-    const rentabilidadeRF = totalRF > 0 ? (totalRF * 0.12) : 0; // 12% ao ano para RF
-    const rentabilidadeCripto = totalCripto > 0 ? (totalCripto * 0.25) : 0; // 25% para cripto
-    const rentabilidadeObjetivos = totalObjetivos > 0 ? (totalObjetivos * 0.12) : 0; // 12% para objetivos
-    
-    const rendimentoTotal = rentabilidadeRF + rentabilidadeCripto + rentabilidadeObjetivos;
-    const capitalTotal = totalRF + totalCripto + totalObjetivos;
-    
-    const rentabilidadePercentual = capitalTotal > 0 ? (rendimentoTotal / capitalTotal) * 100 : 0;
-    
-    // Ajuste para refletir o desempenho real (simulação)
-    const performanceReal = Math.max(-5, Math.min(25, rentabilidadePercentual + (Math.random() * 10 - 5)));
-    
-    return parseFloat(performanceReal.toFixed(1));
-  }, [totalRF, totalCripto, totalObjetivos]);
-
-  const valorRentabilidade = useMemo(() => {
-    return patrimonioTotal * (rentabilidadeYTD / 100);
-  }, [patrimonioTotal, rentabilidadeYTD]);
-
   // Reserva de Emergência - busca objetivo específico
   const reservaEmergencia = useMemo(() => {
     return filteredObjetivos.find(o => 
@@ -214,60 +192,6 @@ const Investimentos = () => {
     const patrimonioInvestimentos = totalRF + totalCripto + totalStables + totalObjetivos;
     return patrimonioInvestimentos > 0 ? (totalCripto / patrimonioInvestimentos) * 100 : 0;
   }, [totalRF, totalCripto, totalStables, totalObjetivos]);
-
-  // Cálculo de rentabilidade mensal real da carteira
-  const rentabilidadeMensalCarteira = useMemo(() => {
-    // Simulação de rentabilidade mensal baseada nos tipos de investimento
-    const hoje = new Date();
-    const meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-    
-    return meses.map((mes, i) => {
-      // Rentabilidade base por tipo de investimento
-      const rentabilidadeRFMensal = 12 / 12; // 1% ao mês para RF
-      const rentabilidadeCriptoMensal = 25 / 12; // 2.08% ao mês para cripto
-      const rentabilidadeObjetivosMensal = 12 / 12; // 1% ao mês para objetivos
-      
-      // Peso de cada tipo na carteira
-      const pesoRF = totalRF > 0 ? totalRF / (totalRF + totalCripto + totalObjetivos) : 0;
-      const pesoCripto = totalCripto > 0 ? totalCripto / (totalRF + totalCripto + totalObjetivos) : 0;
-      const pesoObjetivos = totalObjetivos > 0 ? totalObjetivos / (totalRF + totalCripto + totalObjetivos) : 0;
-      
-      // Rentabilidade ponderada
-      let rentabilidadeCarteira = (pesoRF * rentabilidadeRFMensal) + 
-                                  (pesoCripto * rentabilidadeCriptoMensal) + 
-                                  (pesoObjetivos * rentabilidadeObjetivosMensal);
-      
-      // Variação aleatória para simular mercado (entre -2% e +3%)
-      const variacao = (Math.random() * 5) - 2;
-      rentabilidadeCarteira += variacao;
-      
-      // CDI fixo (1% ao mês)
-      const cdi = 1.0;
-      
-      // IPCA fixo (0.4% ao mês)
-      const ipca = 0.4;
-      
-      // Dólar fixo (variação entre -2% e +3%)
-      const dolar = (Math.random() * 5) - 2;
-      
-      return {
-        mes,
-        carteira: parseFloat(rentabilidadeCarteira.toFixed(1)),
-        cdi: parseFloat(cdi.toFixed(1)),
-        ipca: parseFloat(ipca.toFixed(1)),
-        dolar: parseFloat(dolar.toFixed(1))
-      };
-    });
-  }, [totalRF, totalCripto, totalObjetivos]);
-
-  // Rentabilidade acumulada YTD
-  const rentabilidadeAcumulada = useMemo(() => {
-    const acumulado = rentabilidadeMensalCarteira.reduce((acc, mes) => {
-      const fator = 1 + (mes.carteira / 100);
-      return acc * fator;
-    }, 1);
-    return (acumulado - 1) * 100;
-  }, [rentabilidadeMensalCarteira]);
 
   const distribuicaoCarteira = [
     { name: "Renda Fixa", value: totalRF },
@@ -521,7 +445,7 @@ const Investimentos = () => {
         </div>
 
         {/* Cards Resumo */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <Card className="glass-card border-l-4 border-l-primary animate-fade-in-up">
             <CardContent className="pt-5">
               <div className="flex items-start justify-between">
@@ -536,34 +460,6 @@ const Investimentos = () => {
                 <div className="p-2.5 rounded-xl bg-primary/10">
                   <Wallet className="w-5 h-5 text-primary" />
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="glass-card border-l-4 border-l-success animate-fade-in-up" style={{ animationDelay: "50ms" }}>
-            <CardContent className="pt-5">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground font-medium">Rentabilidade YTD</p>
-                  <p className="text-2xl font-bold text-success mt-1">+{rentabilidadeYTD}%</p>
-                  <p className="text-xs text-muted-foreground mt-1">{formatCurrency(valorRentabilidade)}</p>
-                </div>
-                <div className="p-2.5 rounded-xl bg-success/10">
-                  <TrendingUp className="w-5 h-5 text-success" />
-                </div>
-              </div>
-              <div className="mt-3 h-10">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={evolucaoPatrimonial.slice(-6)}>
-                    <Area
-                      type="monotone"
-                      dataKey="valor"
-                      stroke="hsl(142, 76%, 36%)"
-                      fill="hsl(142, 76%, 36%)"
-                      fillOpacity={0.2}
-                      strokeWidth={2}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>
@@ -601,132 +497,57 @@ const Investimentos = () => {
           </Card>
         </div>
 
-        {/* Gráficos de Distribuição e Rentabilidade */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Distribuição da Carteira */}
-          <Card className="glass-card animate-fade-in-up" style={{ animationDelay: "200ms" }}>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-foreground">
-                <BarChart3 className="w-5 h-5 text-primary" />
-                Distribuição da Carteira
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-center">
-                <ResponsiveContainer width="100%" height={250}>
-                  <PieChart>
-                    <Pie
-                      data={distribuicaoCarteira}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={100}
-                      paddingAngle={5}
-                      dataKey="value"
-                    >
-                      {distribuicaoCarteira.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={pieColors[index % pieColors.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(value: number) => formatCurrency(value)}
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--card))",
-                        borderColor: "hsl(var(--border))",
-                        borderRadius: "8px",
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="flex flex-wrap justify-center gap-4 mt-4">
-                {distribuicaoCarteira.map((item, index) => (
-                  <div key={item.name} className="flex items-center gap-2">
-                    <div
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: pieColors[index % pieColors.length] }}
-                    />
-                    <span className="text-sm text-muted-foreground">
-                      {item.name}: {formatCurrency(item.value)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Comparativo de Rentabilidade */}
-          <Card className="glass-card animate-fade-in-up" style={{ animationDelay: "250ms" }}>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-foreground">
-                <LineChartIcon className="w-5 h-5 text-primary" />
-                Comparativo de Rentabilidade
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-success">+{rentabilidadeAcumulada.toFixed(1)}%</div>
-                      <div className="text-xs text-muted-foreground">Carteira YTD</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-primary">+{rentabilidadeMensalCarteira.slice(-1)[0]?.carteira.toFixed(1)}%</div>
-                      <div className="text-xs text-muted-foreground">Mês Atual</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm text-muted-foreground">Benchmark</div>
-                    <div className="text-xs">CDI: +12.0% | IPCA: +4.0%</div>
-                  </div>
+        {/* Distribuição da Carteira */}
+        <Card className="glass-card animate-fade-in-up" style={{ animationDelay: "200ms" }}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-foreground">
+              <BarChart3 className="w-5 h-5 text-primary" />
+              Distribuição da Carteira
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-center">
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie
+                    data={distribuicaoCarteira}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {distribuicaoCarteira.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={pieColors[index % pieColors.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: number) => formatCurrency(value)}
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      borderColor: "hsl(var(--border))",
+                      borderRadius: "8px",
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex flex-wrap justify-center gap-4 mt-4">
+              {distribuicaoCarteira.map((item, index) => (
+                <div key={item.name} className="flex items-center gap-2">
+                  <div
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: pieColors[index % pieColors.length] }}
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    {item.name}: {formatCurrency(item.value)}
+                  </span>
                 </div>
-                <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={rentabilidadeMensalCarteira}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="mes" stroke="hsl(var(--muted-foreground))" />
-                    <YAxis stroke="hsl(var(--muted-foreground))" />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--card))",
-                        borderColor: "hsl(var(--border))",
-                        borderRadius: "8px",
-                      }}
-                      formatter={(value: number, name: string) => [
-                        `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`,
-                        name === 'carteira' ? 'Carteira' : 
-                        name === 'cdi' ? 'CDI' : 
-                        name === 'ipca' ? 'IPCA' : 'Dólar'
-                      ]}
-                    />
-                    <Line type="monotone" dataKey="carteira" stroke="hsl(142, 76%, 36%)" strokeWidth={2} name="Carteira" dot={{ fill: "hsl(142, 76%, 36%)" }} />
-                    <Line type="monotone" dataKey="cdi" stroke="hsl(199, 89%, 48%)" strokeWidth={2} name="CDI" dot={{ fill: "hsl(199, 89%, 48%)" }} />
-                    <Line type="monotone" dataKey="ipca" stroke="hsl(38, 92%, 50%)" strokeWidth={2} name="IPCA" dot={{ fill: "hsl(38, 92%, 50%)" }} />
-                    <Line type="monotone" dataKey="dolar" stroke="hsl(270, 100%, 65%)" strokeWidth={2} name="Dólar" dot={{ fill: "hsl(270, 100%, 65%)" }} />
-                  </LineChart>
-                </ResponsiveContainer>
-                <div className="flex flex-wrap justify-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(142, 76%, 36%)" }} />
-                    <span className="text-sm text-muted-foreground">Carteira</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(199, 89%, 48%)" }} />
-                    <span className="text-sm text-muted-foreground">CDI</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(38, 92%, 50%)" }} />
-                    <span className="text-sm text-muted-foreground">IPCA</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(270, 100%, 65%)" }} />
-                    <span className="text-sm text-muted-foreground">Dólar</span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Carteira Consolidada */}
         <Card className="glass-card animate-fade-in-up" style={{ animationDelay: "300ms" }}>
