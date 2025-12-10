@@ -141,7 +141,7 @@ export interface FinanceDataExport {
   veiculos: Veiculo[];
   investimentosRF: InvestimentoRF[];
   criptomoedas: Criptomoeda[];
-  stablecoins: Stablecoin[];
+  stablecoins: Stablecoins[];
   objetivos: ObjetivoFinanceiro[];
   movimentacoesInvestimento: MovimentacaoInvestimento[];
   // New integrated data
@@ -183,6 +183,7 @@ interface FinanceContextType {
   addSeguroVeiculo: (seguro: Omit<SeguroVeiculo, "id">) => void;
   updateSeguroVeiculo: (id: number, seguro: Partial<SeguroVeiculo>) => void;
   deleteSeguroVeiculo: (id: number) => void;
+  markSeguroParcelPaid: (seguroId: number, parcelaNumero: number, transactionId: string) => void;
 
   // Investimentos RF
   investimentosRF: InvestimentoRF[];
@@ -485,6 +486,21 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const deleteSeguroVeiculo = (id: number) => {
     setSegurosVeiculo(segurosVeiculo.filter(s => s.id !== id));
   };
+  
+  const markSeguroParcelPaid = useCallback((seguroId: number, parcelaNumero: number, transactionId: string) => {
+    setSegurosVeiculo(prevSeguros => prevSeguros.map(seguro => {
+      if (seguro.id !== seguroId) return seguro;
+      
+      const updatedParcelas = seguro.parcelas.map(parcela => {
+        if (parcela.numero === parcelaNumero) {
+          return { ...parcela, paga: true, transactionId };
+        }
+        return parcela;
+      });
+      
+      return { ...seguro, parcelas: updatedParcelas };
+    }));
+  }, []);
 
   // ============================================
   // OPERAÇÕES DE INVESTIMENTOS RF
@@ -755,6 +771,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     addSeguroVeiculo,
     updateSeguroVeiculo,
     deleteSeguroVeiculo,
+    markSeguroParcelPaid,
     investimentosRF,
     addInvestimentoRF,
     updateInvestimentoRF,

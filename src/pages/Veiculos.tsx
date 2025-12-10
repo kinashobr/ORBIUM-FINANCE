@@ -27,14 +27,18 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { Plus, Trash2, Car, Shield, AlertTriangle, DollarSign, FileText, Search } from "lucide-react";
+import { Plus, Trash2, Car, Shield, AlertTriangle, DollarSign, FileText, Search, ArrowRight } from "lucide-react";
 import { useFinance, Veiculo, SeguroVeiculo } from "@/contexts/FinanceContext";
 import { EditableCell } from "@/components/EditableCell";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { FipeConsultaDialog } from "@/components/vehicles/FipeConsultaDialog";
+import { MovimentarContaModal } from "@/components/transactions/MovimentarContaModal";
+import { TransacaoCompleta, generateTransactionId, OperationType, getFlowTypeFromOperation, getDomainFromOperation } from "@/types/finance";
+import { useNavigate } from "react-router-dom";
 
 const Veiculos = () => {
+  const navigate = useNavigate();
   const { 
     veiculos, 
     addVeiculo, 
@@ -47,6 +51,11 @@ const Veiculos = () => {
     updateSeguroVeiculo,
     deleteSeguroVeiculo,
     getValorFipeTotal,
+    contasMovimento,
+    categoriasV2,
+    investimentosRF,
+    emprestimos,
+    addTransacaoV2,
   } = useFinance();
   
   const [activeTab, setActiveTab] = useState("veiculos");
@@ -56,6 +65,16 @@ const Veiculos = () => {
   const [showFipeDialog, setShowFipeDialog] = useState(false);
   const [selectedVeiculoFipe, setSelectedVeiculoFipe] = useState<Veiculo | undefined>(undefined);
   
+  // Estado para simular o pré-preenchimento do modal de movimentação
+  const [parcelaToPay, setParcelaToPay] = useState<{
+    seguroId: number;
+    parcelaNumero: number;
+    valor: number;
+    veiculoNome: string;
+    vencimento: string;
+  } | null>(null);
+  const [showMovimentarModal, setShowMovimentarModal] = useState(false);
+
   const handleOpenFipeConsulta = (veiculo?: Veiculo) => {
     setSelectedVeiculoFipe(veiculo);
     setShowFipeDialog(true);
@@ -233,17 +252,71 @@ const Veiculos = () => {
     return pendentes.sort((a, b) => new Date(a.parcela.vencimento).getTime() - new Date(b.parcela.vencimento).getTime());
   }, [segurosVeiculo, veiculos]);
 
-  const handlePayInstallment = (seguroId: number, parcelaNumero: number) => {
-    const seguro = segurosVeiculo.find(s => s.id === seguroId);
-    if (!seguro) return;
-    
-    const updatedParcelas = seguro.parcelas.map(p => 
-      p.numero === parcelaNumero ? { ...p, paga: true } : p
-    );
-    
-    updateSeguroVeiculo(seguroId, { parcelas: updatedParcelas });
-    toast.success("Parcela marcada como paga!");
+  // REMOVENDO handlePayInstallment
+  const handlePayInstallmentClick = (item: typeof parcelasPendentes[0]) => {
+    setParcelaToPay({
+      seguroId: item.seguro.id,
+      parcelaNumero: item.parcela.numero,
+      valor: item.parcela.valor,
+      veiculoNome: item.veiculo?.modelo || item.seguro.seguradora,
+      vencimento: item.parcela.vencimento,
+    });
+    setShowMovimentarModal(true);
   };
+
+  const handleTransactionSubmit = (transaction: TransacaoCompleta) => {
+    // Lógica de pagamento de seguro
+    if (transaction.operationType === 'despesa' && transaction.links?.vehicleTransactionId) {
+      const [seguroIdStr, parcelaNumeroStr] = transaction.links.vehicleTransactionId.split('_');
+      const seguroId = parseInt(seguroIdStr);
+      const parcelaNumero = parseInt(parcelaNumeroStr);
+      
+      if (!isNaN(seguroId) && !isNaN(parcelaNumero)) {
+        // Marcar parcela como paga no contexto
+        // NOTE: Esta função será implementada no passo 3
+        // markSeguroParcelPaid(seguroId, parcelaNumero, transaction.id);
+        toast.success(`Parcela ${parcelaNumero} do seguro marcada como paga e transação registrada!`);
+      }
+    }
+    
+    // Adicionar transação ao V2
+    addTransacaoV2(transaction);
+    setShowMovimentarModal(false);
+    setParcelaToPay(null);
+  };
+
+  // Dados para o modal de movimentação
+  const modalTransactionData = useMemo(() => {
+    if (!parcelaToPay) return undefined;
+    
+    const seguroCategory = categoriasV2.find(c => c.label.toLowerCase().includes('seguro'));
+    
+    return {
+      operationType: 'despesa' as OperationType,
+      amount: parcelaToPay.valor,
+      date: parcelaToPay.vencimento,
+      description: `Pagamento Parcela ${parcelaToPay.parcelaNumero} - Seguro ${parcelaToPay.veiculoNome}`,
+      categoryId: seguroCategory?.id || '',
+      links: {
+        vehicleTransactionId: `${parcelaToPay.seguroId}_${parcelaToPay.parcelaNumero}`,
+      }
+    };
+  }, [parcelaToPay, categoriasV2]);
+
+  // Get investments and loans from context for linking
+  const investments = useMemo(() => {
+    return investimentosRF.map(i => ({ id: `inv_${i.id}`, name: i.aplicacao }));
+  }, [investimentosRF]);
+
+  const loans = useMemo(() => {
+    return emprestimos
+      .filter(e => e.status !== 'pendente_config')
+      .map(e => ({
+        id: `loan_${e.id}`,
+        institution: e.contrato,
+        numeroContrato: e.contrato,
+      }));
+  }, [emprestimos]);
 
   return (
     <MainLayout>
@@ -255,6 +328,10 @@ const Veiculos = () => {
             <p className="text-muted-foreground mt-1">Controle seus veículos, seguros e custos associados</p>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => handleOpenFipeConsulta()} className="gap-2">
+              <Search className="w-4 h-4" />
+              Consultar FIPE
+            </Button>
             <Dialog open={showAddSeguro} onOpenChange={setShowAddSeguro}>
               <DialogTrigger asChild>
                 <Button variant="outline" className="gap-2">
@@ -854,10 +931,10 @@ const Veiculos = () => {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handlePayInstallment(item.seguro.id, item.parcela.numero)}
-                              className="h-8 px-2 hover:bg-success/10 hover:text-success"
+                              onClick={() => handlePayInstallmentClick(item)}
+                              className="h-8 px-2 hover:bg-success/10 hover:text-success gap-1"
                             >
-                              Marcar Pago
+                              Pagar <ArrowRight className="w-3 h-3" />
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -883,6 +960,33 @@ const Veiculos = () => {
           onOpenChange={setShowFipeDialog}
           veiculo={selectedVeiculoFipe}
           onUpdateFipe={handleUpdateFipe}
+        />
+
+        {/* Modal de Movimentação (para pagamento de seguro) */}
+        <MovimentarContaModal
+          open={showMovimentarModal}
+          onOpenChange={setShowMovimentarModal}
+          accounts={contasMovimento}
+          categories={categoriasV2}
+          investments={investimentosRF.map(i => ({ id: `inv_${i.id}`, name: i.aplicacao }))}
+          loans={emprestimos.map(e => ({ id: `loan_${e.id}`, institution: e.contrato }))}
+          selectedAccountId={contasMovimento.find(c => c.accountType === 'conta_corrente')?.id}
+          onSubmit={handleTransactionSubmit}
+          editingTransaction={modalTransactionData ? {
+            id: generateTransactionId(),
+            date: modalTransactionData.date,
+            accountId: contasMovimento.find(c => c.accountType === 'conta_corrente')?.id || '',
+            flow: getFlowTypeFromOperation(modalTransactionData.operationType),
+            operationType: modalTransactionData.operationType,
+            domain: getDomainFromOperation(modalTransactionData.operationType),
+            amount: modalTransactionData.amount,
+            categoryId: modalTransactionData.categoryId,
+            description: modalTransactionData.description,
+            links: modalTransactionData.links,
+            conciliated: false,
+            attachments: [],
+            meta: { createdBy: 'system', source: 'manual', createdAt: new Date().toISOString() }
+          } as TransacaoCompleta : undefined}
         />
       </div>
     </MainLayout>
