@@ -41,7 +41,7 @@ import { cn } from "@/lib/utils";
 interface LoanDetailDialogProps {
   emprestimo: Emprestimo | null;
   open: boolean;
-  onOpenChange: (open: boolean) => void;
+  onOpenChange: (open: (open: boolean) => void) => void;
 }
 
 export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailDialogProps) {
@@ -49,14 +49,11 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
   const [isEditing, setIsEditing] = useState(false);
   const contasCorrentes = getContasCorrentesTipo();
   
-  if (!emprestimo) return null;
-
-  const isPending = emprestimo.status === 'pendente_config';
-
-  // Auto-open edit mode for pending loans
-  const showConfigForm = isPending || isEditing;
-
+  // Hooks must be called unconditionally before any conditional return
+  
   const calculos = useMemo(() => {
+    if (!emprestimo) return null;
+
     const parcelasPagas = emprestimo.parcelasPagas || 0;
     const parcelasRestantes = emprestimo.meses - parcelasPagas;
     const saldoDevedor = Math.max(0, emprestimo.valorTotal - (parcelasPagas * emprestimo.parcela));
@@ -95,7 +92,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
   }, [emprestimo]);
 
   const evolucaoData = useMemo(() => {
-    if (emprestimo.meses === 0) return [];
+    if (!emprestimo || emprestimo.meses === 0) return [];
     
     let saldo = emprestimo.valorTotal;
     const taxa = emprestimo.taxaMensal / 100;
@@ -113,6 +110,14 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
       };
     });
   }, [emprestimo]);
+  
+  // Conditional return must be after all hooks
+  if (!emprestimo || !calculos) return null;
+
+  const isPending = emprestimo.status === 'pendente_config';
+
+  // Auto-open edit mode for pending loans
+  const showConfigForm = isPending || isEditing;
 
   const formatCurrency = (value: number) =>
     `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
