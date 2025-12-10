@@ -362,12 +362,6 @@ const Veiculos = () => {
               </DialogContent>
             </Dialog>
             <Dialog open={showAddVeiculo} onOpenChange={(open) => { setShowAddVeiculo(open); if (!open) setPendingVehicleId(null); }}>
-              <DialogTrigger asChild>
-                <Button className="gap-2 bg-neon-gradient hover:opacity-90">
-                  <Plus className="w-4 h-4" />
-                  Novo Veículo
-                </Button>
-              </DialogTrigger>
               <DialogContent className="bg-card border-border">
                 <DialogHeader>
                   <DialogTitle>

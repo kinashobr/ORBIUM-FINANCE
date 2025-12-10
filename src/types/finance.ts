@@ -195,57 +195,10 @@ export interface AccountSummary {
   transactionCount: number;
 }
 
-// Dados iniciais padrão
-export const DEFAULT_ACCOUNTS: ContaCorrente[] = [
-  {
-    id: 'acc_principal',
-    name: 'Conta Principal',
-    accountType: 'conta_corrente',
-    institution: 'Banco Principal',
-    currency: 'BRL',
-    initialBalance: 10000,
-    color: 'hsl(var(--primary))',
-    icon: 'building-2',
-    createdAt: new Date().toISOString(),
-    meta: {}
-  },
-  {
-    id: 'acc_poupanca',
-    name: 'Poupança',
-    accountType: 'poupanca',
-    institution: 'Banco Principal',
-    currency: 'BRL',
-    initialBalance: 5000,
-    color: 'hsl(var(--success))',
-    icon: 'piggy-bank',
-    createdAt: new Date().toISOString(),
-    meta: {}
-  },
-  {
-    id: 'acc_carteira',
-    name: 'Carteira',
-    accountType: 'reserva_emergencia',
-    currency: 'BRL',
-    initialBalance: 500,
-    color: 'hsl(var(--warning))',
-    icon: 'wallet',
-    createdAt: new Date().toISOString(),
-    meta: {}
-  }
-];
+// Dados iniciais padrão - Sistema limpo, sem dados pré-preenchidos
+export const DEFAULT_ACCOUNTS: ContaCorrente[] = [];
 
-export const DEFAULT_CATEGORIES: Categoria[] = [
-  { id: 'alimentacao', label: 'Alimentação', icon: '🍽️', nature: 'despesa_variavel', type: 'expense' },
-  { id: 'transporte', label: 'Transporte', icon: '🚗', nature: 'despesa_variavel', type: 'expense' },
-  { id: 'lazer', label: 'Lazer', icon: '🎮', nature: 'despesa_variavel', type: 'expense' },
-  { id: 'saude', label: 'Saúde', icon: '💊', nature: 'despesa_variavel', type: 'expense' },
-  { id: 'moradia', label: 'Moradia', icon: '🏠', nature: 'despesa_fixa', type: 'expense' },
-  { id: 'salario', label: 'Salário', icon: '💰', nature: 'receita', type: 'income' },
-  { id: 'freelance', label: 'Freelance', icon: '💻', nature: 'receita', type: 'income' },
-  { id: 'investimentos', label: 'Investimentos', icon: '📈', nature: 'receita', type: 'both' },
-  { id: 'seguro', label: 'Seguro', icon: '🛡️', nature: 'despesa_fixa', type: 'expense' },
-  { id: 'outros', label: 'Outros', icon: '📦', nature: 'despesa_variavel', type: 'both' },
-];
+export const DEFAULT_CATEGORIES: Categoria[] = [];
 
 // Helpers
 export function generateTransactionId(): string {

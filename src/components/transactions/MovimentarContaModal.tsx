@@ -54,8 +54,8 @@ interface MovimentarContaModalProps {
 const getOperationsForAccountType = (accountType: AccountType): OperationType[] => {
   switch (accountType) {
     case 'conta_corrente':
-      // Conta corrente: Receita, Despesa, Aplicação, Resgate, Pagamento/Liberação Empréstimo, Veículos
-      return ['receita', 'despesa', 'aplicacao', 'resgate', 'pagamento_emprestimo', 'liberacao_emprestimo', 'veiculo'];
+      // Conta corrente: Receita, Despesa, Transferência, Aplicação, Resgate, Pagamento/Liberação Empréstimo, Veículos
+      return ['receita', 'despesa', 'transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo', 'liberacao_emprestimo', 'veiculo'];
     case 'aplicacao_renda_fixa':
     case 'poupanca':
     case 'reserva_emergencia':

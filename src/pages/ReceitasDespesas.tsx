@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
-import { Download, RefreshCw, Tags, Plus } from "lucide-react";
+import { RefreshCw, Tags, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 // Types
@@ -41,7 +41,6 @@ const ReceitasDespesas = () => {
     addVeiculo,
     investimentosRF,
     addMovimentacaoInvestimento,
-    exportData: contextExportData,
   } = useFinance();
 
   // Local state for transfer groups
@@ -235,10 +234,6 @@ const ReceitasDespesas = () => {
     return counts;
   }, [transactions]);
 
-  const handleExport = () => {
-    contextExportData();
-    toast.success("Dados exportados!");
-  };
 
   const handleReconcile = (accountId: string) => {
     setTransacoesV2(transacoesV2.map(t => 
@@ -346,9 +341,6 @@ const ReceitasDespesas = () => {
             </Button>
             <Button variant="outline" size="sm" onClick={() => setShowReconciliation(!showReconciliation)}>
               <RefreshCw className="w-4 h-4 mr-2" />Conciliar
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleExport}>
-              <Download className="w-4 h-4 mr-2" />Exportar
             </Button>
           </div>
         </div>

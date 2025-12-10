@@ -276,7 +276,7 @@ const STORAGE_KEYS = {
 // ============================================
 
 const initialTransacoes: Transacao[] = [];
-const initialCategorias = ["Alimentação", "Transporte", "Lazer", "Saúde", "Moradia", "Salário", "Freelance", "Outros"];
+const initialCategorias: string[] = [];
 
 const initialEmprestimos: Emprestimo[] = [];
 const initialVeiculos: Veiculo[] = [];

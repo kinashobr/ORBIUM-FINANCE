@@ -186,10 +186,6 @@ const Emprestimos = () => {
               tabId="emprestimos" 
               onPeriodChange={handlePeriodChange} 
             />
-            <LoanForm 
-              onSubmit={handleAddLoan} 
-              contasCorrentes={contasCorrentes}
-            />
           </div>
         </div>
 
