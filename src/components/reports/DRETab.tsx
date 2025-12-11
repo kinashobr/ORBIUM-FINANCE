@@ -360,10 +360,10 @@ export function DRETab({ dateRange }: DRETabProps) {
   // Dados para gráficos
   const dadosComparativo = dre.evolucaoMensal.filter(m => m.receitas > 0 || m.despesas > 0);
   
-  const despesasPorTipo: { name: string; value: number; tipo: 'fixa' | 'variavel'; color: string }[] = [
+  const despesasPorTipo: { name: string; value: number; tipo: 'fixa' | 'variavel'; color: string }[] = ([
     { name: "Despesas Fixas", value: dre.despesas.fixas.total, tipo: 'fixa', color: COLORS.warning },
     { name: "Despesas Variáveis", value: dre.despesas.variaveis.total, tipo: 'variavel', color: COLORS.danger },
-  ].filter(d => d.value > 0);
+  ] as { name: string; value: number; tipo: 'fixa' | 'variavel'; color: string }[]).filter(d => d.value > 0);
 
   const todasDespesas = [
     ...dre.despesas.fixas.porCategoria.map(d => ({ ...d, tipo: 'fixa' })),
