@@ -306,241 +306,240 @@ const ReceitasDespesas = () => {
         newTransactions.forEach(t => addTransacaoV2(t));
       }
     };
-  };
 
-  const handleEditTransaction = (transaction: TransacaoCompleta) => {
-    setEditingTransaction(transaction);
-    setSelectedAccountForModal(transaction.accountId);
-    setShowMovimentarModal(true);
-  };
+    const handleEditTransaction = (transaction: TransacaoCompleta) => {
+      setEditingTransaction(transaction);
+      setSelectedAccountForModal(transaction.accountId);
+      setShowMovimentarModal(true);
+    };
 
-  const handleDeleteTransaction = (id: string) => {
-    if (!confirm("Excluir esta transação?")) return;
-    
-    // Find if this transaction is part of a linked group (transfer, aplicacao, resgate)
-    const transactionToDelete = transacoesV2.find(t => t.id === id);
-    const linkedGroupId = transactionToDelete?.links?.transferGroupId;
-    
-    if (linkedGroupId) {
-      // Delete both sides of the linked transaction (partida dobrada)
-      setTransacoesV2(transacoesV2.filter(t => t.links?.transferGroupId !== linkedGroupId));
-      toast.success("Transações vinculadas excluídas");
-    } else {
-      setTransacoesV2(transacoesV2.filter(t => t.id !== id));
-      toast.success("Transação excluída");
-    }
-  };
-
-  const handleToggleConciliated = (id: string, value: boolean) => {
-    setTransacoesV2(transacoesV2.map(t => t.id === id ? { ...t, conciliated: value } : t));
-  };
-
-  // Transaction count by category
-  const transactionCountByCategory = useMemo(() => {
-    const counts: Record<string, number> = {};
-    transactions.forEach(t => {
-      if (t.categoryId) {
-        counts[t.categoryId] = (counts[t.categoryId] || 0) + 1;
+    const handleDeleteTransaction = (id: string) => {
+      if (!confirm("Excluir esta transação?")) return;
+      
+      // Find if this transaction is part of a linked group (transfer, aplicacao, resgate)
+      const transactionToDelete = transacoesV2.find(t => t.id === id);
+      const linkedGroupId = transactionToDelete?.links?.transferGroupId;
+      
+      if (linkedGroupId) {
+        // Delete both sides of the linked transaction (partida dobrada)
+        setTransacoesV2(transacoesV2.filter(t => t.links?.transferGroupId !== linkedGroupId));
+        toast.success("Transações vinculadas excluídas");
+      } else {
+        setTransacoesV2(transacoesV2.filter(t => t.id !== id));
+        toast.success("Transação excluída");
       }
-    });
-    return counts;
-  }, [transactions]);
+    };
 
+    const handleToggleConciliated = (id: string, value: boolean) => {
+      setTransacoesV2(transacoesV2.map(t => t.id === id ? { ...t, conciliated: value } : t));
+    };
 
-  const handleReconcile = (accountId: string) => {
-    setTransacoesV2(transacoesV2.map(t => 
-      t.accountId === accountId ? { ...t, conciliated: true } : t
-    ));
-    toast.success("Conta conciliada!");
-  };
-
-  // Account CRUD
-  const handleAccountSubmit = (account: ContaCorrente) => {
-    if (editingAccount) {
-      setContasMovimento(accounts.map(a => a.id === account.id ? account : a));
-    } else {
-      setContasMovimento([...accounts, account]);
-    }
-    setEditingAccount(undefined);
-  };
-
-  const handleAccountDelete = (accountId: string) => {
-    const hasTransactions = transactions.some(t => t.accountId === accountId);
-    if (hasTransactions) {
-      toast.error("Não é possível excluir conta com transações");
-      return;
-    }
-    setContasMovimento(accounts.filter(a => a.id !== accountId));
-  };
-
-  const handleEditAccount = (accountId: string) => {
-    const account = accounts.find(a => a.id === accountId);
-    if (account) {
-      setEditingAccount(account);
-      setShowAccountModal(true);
-    }
-  };
-
-  // Category CRUD
-  const handleCategorySubmit = (category: Categoria) => {
-    if (editingCategory) {
-      setCategoriasV2(categories.map(c => c.id === category.id ? category : c));
-    } else {
-      setCategoriasV2([...categories, category]);
-    }
-    setEditingCategory(undefined);
-  };
-
-  const handleCategoryDelete = (categoryId: string) => {
-    const hasTransactions = transactions.some(t => t.categoryId === categoryId);
-    if (hasTransactions) {
-      toast.error("Não é possível excluir categoria em uso");
-      return;
-    }
-    setCategoriasV2(categories.filter(c => c.id !== categoryId));
-  };
-
-  // Get investments and loans from context for linking
-  const investments = useMemo(() => {
-    return investimentosRF.map(i => ({ id: `inv_${i.id}`, name: i.aplicacao }));
-  }, [investimentosRF]);
-
-  const loans = useMemo(() => {
-    return emprestimos
-      .filter(e => e.status !== 'pendente_config')
-      .map(e => {
-        // Generate parcelas array if loan has meses configured
-        const parcelas = e.meses > 0 ? Array.from({ length: e.meses }, (_, i) => {
-          const vencimento = new Date(e.dataInicio || new Date());
-          vencimento.setMonth(vencimento.getMonth() + i + 1);
-          return {
-            numero: i + 1,
-            vencimento: vencimento.toISOString().split('T')[0],
-            valor: e.parcela,
-            pago: i < (e.parcelasPagas || 0),
-          };
-        }) : [];
-
-        return {
-          id: `loan_${e.id}`,
-          institution: e.contrato,
-          numeroContrato: e.contrato,
-          parcelas,
-          valorParcela: e.parcela,
-          totalParcelas: e.meses,
-        };
+    // Transaction count by category
+    const transactionCountByCategory = useMemo(() => {
+      const counts: Record<string, number> = {};
+      transactions.forEach(t => {
+        if (t.categoryId) {
+          counts[t.categoryId] = (counts[t.categoryId] || 0) + 1;
+        }
       });
-  }, [emprestimos]);
+      return counts;
+    }, [transactions]);
 
-  // Get viewing account data
-  const viewingAccount = viewingAccountId ? accounts.find(a => a.id === viewingAccountId) : null;
-  const viewingSummary = viewingAccountId ? accountSummaries.find(s => s.accountId === viewingAccountId) : null;
-  const viewingTransactions = viewingAccountId ? transactions.filter(t => t.accountId === viewingAccountId) : [];
 
-  return (
-    <MainLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between animate-fade-in">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Receitas e Despesas</h1>
-            <p className="text-muted-foreground mt-1">Contas Movimento e conciliação bancária</p>
+    const handleReconcile = (accountId: string) => {
+      setTransacoesV2(transacoesV2.map(t => 
+        t.accountId === accountId ? { ...t, conciliated: true } : t
+      ));
+      toast.success("Conta conciliada!");
+    };
+
+    // Account CRUD
+    const handleAccountSubmit = (account: ContaCorrente) => {
+      if (editingAccount) {
+        setContasMovimento(accounts.map(a => a.id === account.id ? account : a));
+      } else {
+        setContasMovimento([...accounts, account]);
+      }
+      setEditingAccount(undefined);
+    };
+
+    const handleAccountDelete = (accountId: string) => {
+      const hasTransactions = transactions.some(t => t.accountId === accountId);
+      if (hasTransactions) {
+        toast.error("Não é possível excluir conta com transações");
+        return;
+      }
+      setContasMovimento(accounts.filter(a => a.id !== accountId));
+    };
+
+    const handleEditAccount = (accountId: string) => {
+      const account = accounts.find(a => a.id === accountId);
+      if (account) {
+        setEditingAccount(account);
+        setShowAccountModal(true);
+      }
+    };
+
+    // Category CRUD
+    const handleCategorySubmit = (category: Categoria) => {
+      if (editingCategory) {
+        setCategoriasV2(categories.map(c => c.id === category.id ? category : c));
+      } else {
+        setCategoriasV2([...categories, category]);
+      }
+      setEditingCategory(undefined);
+    };
+
+    const handleCategoryDelete = (categoryId: string) => {
+      const hasTransactions = transactions.some(t => t.categoryId === categoryId);
+      if (hasTransactions) {
+        toast.error("Não é possível excluir categoria em uso");
+        return;
+      }
+      setCategoriasV2(categories.filter(c => c.id !== categoryId));
+    };
+
+    // Get investments and loans from context for linking
+    const investments = useMemo(() => {
+      return investimentosRF.map(i => ({ id: `inv_${i.id}`, name: i.aplicacao }));
+    }, [investimentosRF]);
+
+    const loans = useMemo(() => {
+      return emprestimos
+        .filter(e => e.status !== 'pendente_config')
+        .map(e => {
+          // Generate parcelas array if loan has meses configured
+          const parcelas = e.meses > 0 ? Array.from({ length: e.meses }, (_, i) => {
+            const vencimento = new Date(e.dataInicio || new Date());
+            vencimento.setMonth(vencimento.getMonth() + i + 1);
+            return {
+              numero: i + 1,
+              vencimento: vencimento.toISOString().split('T')[0],
+              valor: e.parcela,
+              pago: i < (e.parcelasPagas || 0),
+            };
+          }) : [];
+
+          return {
+            id: `loan_${e.id}`,
+            institution: e.contrato,
+            numeroContrato: e.contrato,
+            parcelas,
+            valorParcela: e.parcela,
+            totalParcelas: e.meses,
+          };
+        });
+    }, [emprestimos]);
+
+    // Get viewing account data
+    const viewingAccount = viewingAccountId ? accounts.find(a => a.id === viewingAccountId) : null;
+    const viewingSummary = viewingAccountId ? accountSummaries.find(s => s.accountId === viewingAccountId) : null;
+    const viewingTransactions = viewingAccountId ? transactions.filter(t => t.accountId === viewingAccountId) : [];
+
+    return (
+      <MainLayout>
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between animate-fade-in">
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">Receitas e Despesas</h1>
+              <p className="text-muted-foreground mt-1">Contas Movimento e conciliação bancária</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <PeriodSelector tabId="receitas-despesas" onPeriodChange={setPeriodRange} />
+              <Button variant="outline" size="sm" onClick={() => setShowCategoryListModal(true)}>
+                <Tags className="w-4 h-4 mr-2" />Categorias
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowReconciliation(!showReconciliation)}>
+                <RefreshCw className="w-4 h-4 mr-2" />Conciliar
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <PeriodSelector tabId="receitas-despesas" onPeriodChange={setPeriodRange} />
-            <Button variant="outline" size="sm" onClick={() => setShowCategoryListModal(true)}>
-              <Tags className="w-4 h-4 mr-2" />Categorias
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setShowReconciliation(!showReconciliation)}>
-              <RefreshCw className="w-4 h-4 mr-2" />Conciliar
-            </Button>
+
+          {/* Accounts Carousel */}
+          <div className="glass-card p-4">
+            <AccountsCarousel
+              accounts={accountSummaries}
+              onMovimentar={handleMovimentar}
+              onViewHistory={handleViewStatement}
+              onAddAccount={() => { setEditingAccount(undefined); setShowAccountModal(true); }}
+              onEditAccount={handleEditAccount}
+            />
+          </div>
+
+          {/* Reconciliation Panel */}
+          {showReconciliation && (
+            <ReconciliationPanel
+              accounts={accounts}
+              transactions={transactions}
+              onReconcile={handleReconcile}
+            />
+          )}
+
+          {/* KPI Sidebar - full width */}
+          <div className="glass-card p-4">
+            <KPISidebar transactions={filteredTransactions} categories={categories} />
           </div>
         </div>
 
-        {/* Accounts Carousel */}
-        <div className="glass-card p-4">
-          <AccountsCarousel
-            accounts={accountSummaries}
-            onMovimentar={handleMovimentar}
-            onViewHistory={handleViewStatement}
-            onAddAccount={() => { setEditingAccount(undefined); setShowAccountModal(true); }}
-            onEditAccount={handleEditAccount}
-          />
-        </div>
+        {/* Modals */}
+        <MovimentarContaModal
+          open={showMovimentarModal}
+          onOpenChange={setShowMovimentarModal}
+          accounts={accounts}
+          categories={categories}
+          investments={investments}
+          loans={loans}
+          selectedAccountId={selectedAccountForModal}
+          onSubmit={handleTransactionSubmit}
+          editingTransaction={editingTransaction}
+        />
 
-        {/* Reconciliation Panel */}
-        {showReconciliation && (
-          <ReconciliationPanel
-            accounts={accounts}
-            transactions={transactions}
-            onReconcile={handleReconcile}
+        <AccountFormModal
+          open={showAccountModal}
+          onOpenChange={setShowAccountModal}
+          account={editingAccount}
+          onSubmit={handleAccountSubmit}
+          onDelete={handleAccountDelete}
+          hasTransactions={editingAccount ? transactions.some(t => t.accountId === editingAccount.id) : false}
+        />
+
+        <CategoryFormModal
+          open={showCategoryModal}
+          onOpenChange={setShowCategoryModal}
+          category={editingCategory}
+          onSubmit={handleCategorySubmit}
+          onDelete={handleCategoryDelete}
+          hasTransactions={editingCategory ? transactions.some(t => t.categoryId === editingCategory.id) : false}
+        />
+
+        <CategoryListModal
+          open={showCategoryListModal}
+          onOpenChange={setShowCategoryListModal}
+          categories={categories}
+          onAddCategory={() => { setEditingCategory(undefined); setShowCategoryModal(true); }}
+          onEditCategory={(cat) => { setEditingCategory(cat); setShowCategoryModal(true); }}
+          onDeleteCategory={handleCategoryDelete}
+          transactionCountByCategory={transactionCountByCategory}
+        />
+
+        {viewingAccount && viewingSummary && (
+          <AccountStatementDialog
+            open={showStatementDialog}
+            onOpenChange={setShowStatementDialog}
+            account={viewingAccount}
+            accountSummary={viewingSummary}
+            transactions={viewingTransactions}
+            categories={categories}
+            allAccounts={accounts}
+            onEditTransaction={handleEditTransaction}
+            onDeleteTransaction={handleDeleteTransaction}
+            onToggleConciliated={handleToggleConciliated}
+            onReconcileAll={() => handleReconcile(viewingAccountId!)}
           />
         )}
+      </MainLayout>
+    );
+  };
 
-        {/* KPI Sidebar - full width */}
-        <div className="glass-card p-4">
-          <KPISidebar transactions={filteredTransactions} categories={categories} />
-        </div>
-      </div>
-
-      {/* Modals */}
-      <MovimentarContaModal
-        open={showMovimentarModal}
-        onOpenChange={setShowMovimentarModal}
-        accounts={accounts}
-        categories={categories}
-        investments={investments}
-        loans={loans}
-        selectedAccountId={selectedAccountForModal}
-        onSubmit={handleTransactionSubmit}
-        editingTransaction={editingTransaction}
-      />
-
-      <AccountFormModal
-        open={showAccountModal}
-        onOpenChange={setShowAccountModal}
-        account={editingAccount}
-        onSubmit={handleAccountSubmit}
-        onDelete={handleAccountDelete}
-        hasTransactions={editingAccount ? transactions.some(t => t.accountId === editingAccount.id) : false}
-      />
-
-      <CategoryFormModal
-        open={showCategoryModal}
-        onOpenChange={setShowCategoryModal}
-        category={editingCategory}
-        onSubmit={handleCategorySubmit}
-        onDelete={handleCategoryDelete}
-        hasTransactions={editingCategory ? transactions.some(t => t.categoryId === editingCategory.id) : false}
-      />
-
-      <CategoryListModal
-        open={showCategoryListModal}
-        onOpenChange={setShowCategoryListModal}
-        categories={categories}
-        onAddCategory={() => { setEditingCategory(undefined); setShowCategoryModal(true); }}
-        onEditCategory={(cat) => { setEditingCategory(cat); setShowCategoryModal(true); }}
-        onDeleteCategory={handleCategoryDelete}
-        transactionCountByCategory={transactionCountByCategory}
-      />
-
-      {viewingAccount && viewingSummary && (
-        <AccountStatementDialog
-          open={showStatementDialog}
-          onOpenChange={setShowStatementDialog}
-          account={viewingAccount}
-          accountSummary={viewingSummary}
-          transactions={viewingTransactions}
-          categories={categories}
-          allAccounts={accounts}
-          onEditTransaction={handleEditTransaction}
-          onDeleteTransaction={handleDeleteTransaction}
-          onToggleConciliated={handleToggleConciliated}
-          onReconcileAll={() => handleReconcile(viewingAccountId!)}
-        />
-      )}
-    </MainLayout>
-  );
-};
-
-export default ReceitasDespesas;
+  export default ReceitasDespesas;
