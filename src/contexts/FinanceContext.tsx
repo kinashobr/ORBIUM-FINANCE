@@ -141,7 +141,7 @@ export interface FinanceDataExport {
   veiculos: Veiculo[];
   investimentosRF: InvestimentoRF[];
   criptomoedas: Criptomoeda[];
-  stablecoins: Stablecoins[];
+  stablecoins: Stablecoin[];
   objetivos: ObjetivoFinanceiro[];
   movimentacoesInvestimento: MovimentacaoInvestimento[];
   // New integrated data

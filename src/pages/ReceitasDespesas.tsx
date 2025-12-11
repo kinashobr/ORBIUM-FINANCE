@@ -35,6 +35,7 @@ const ReceitasDespesas = () => {
     setTransacoesV2,
     addTransacaoV2,
     emprestimos,
+    addEmprestimo, // <-- Added here
     markLoanParcelPaid,
     veiculos,
     addVeiculo,
