@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useFinance } from "@/contexts/FinanceContext";
 import { CockpitCards } from "@/components/dashboard/CockpitCards";
@@ -6,10 +6,12 @@ import { MovimentacoesRelevantes } from "@/components/dashboard/MovimentacoesRel
 import { AcompanhamentoAtivos } from "@/components/dashboard/AcompanhamentoAtivos";
 import { SaudeFinanceira } from "@/components/dashboard/SaudeFinanceira";
 import { FluxoCaixaHeatmap } from "@/components/dashboard/FluxoCaixaHeatmap";
+import { PeriodSelector, DateRange } from "@/components/dashboard/PeriodSelector";
 import { 
   Activity,
   LayoutDashboard
 } from "lucide-react";
+import { startOfMonth, endOfMonth, isWithinInterval, format } from "date-fns";
 
 const Index = () => {
   const { 
@@ -22,11 +24,29 @@ const Index = () => {
     objetivos,
   } = useFinance();
 
+  // Inicializa o range para o mês atual
   const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
+  const initialRange: DateRange = { from: startOfMonth(now), to: endOfMonth(now) };
+  const [dateRange, setDateRange] = useState<DateRange>(initialRange);
 
-  // Calcular saldo por conta
+  const handlePeriodChange = useCallback((range: DateRange) => {
+    setDateRange(range);
+  }, []);
+
+  // Filtra transações V2 pelo período selecionado
+  const filteredTransacoesV2 = useMemo(() => {
+    if (!dateRange.from || !dateRange.to) return transacoesV2;
+    
+    return transacoesV2.filter(t => {
+      const transactionDate = new Date(t.date);
+      return isWithinInterval(transactionDate, { start: dateRange.from!, end: dateRange.to! });
+    });
+  }, [transacoesV2, dateRange]);
+
+  const currentMonth = dateRange.from ? dateRange.from.getMonth() : now.getMonth();
+  const currentYear = dateRange.from ? dateRange.from.getFullYear() : now.getFullYear();
+
+  // Calcular saldo por conta (usando todas as transações para o saldo atual, mas filtrando para o período)
   const saldosPorConta = useMemo(() => {
     return contasMovimento.map(conta => {
       const contaTx = transacoesV2.filter(t => t.accountId === conta.id);
@@ -70,63 +90,65 @@ const Index = () => {
   // Patrimônio total
   const patrimonioTotal = totalAtivos - totalDividas;
 
-  // Transações do mês atual
-  const transacoesMesAtual = useMemo(() => {
-    return transacoesV2.filter(t => {
-      const d = new Date(t.date);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-    });
-  }, [transacoesV2, currentMonth, currentYear]);
+  // Transações do período selecionado (para Cockpit e Movimentações Relevantes)
+  const transacoesPeriodo = filteredTransacoesV2;
 
-  // Transações do mês anterior
-  const transacoesMesAnterior = useMemo(() => {
-    const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-    const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-    return transacoesV2.filter(t => {
-      const d = new Date(t.date);
-      return d.getMonth() === prevMonth && d.getFullYear() === prevYear;
-    });
-  }, [transacoesV2, currentMonth, currentYear]);
+  // Transações do período anterior (para cálculo de variação)
+  const transacoesPeriodoAnterior = useMemo(() => {
+    if (!dateRange.from || !dateRange.to) return []; // Não calcula variação se for "Todo o período"
 
-  // Receitas e despesas do mês
-  const receitasMes = useMemo(() => {
-    return transacoesMesAtual
+    const diffInMonths = dateRange.to.getMonth() - dateRange.from.getMonth() + 12 * (dateRange.to.getFullYear() - dateRange.from.getFullYear());
+    
+    const prevFrom = subMonths(dateRange.from, diffInMonths);
+    const prevTo = subMonths(dateRange.to, diffInMonths);
+
+    return transacoesV2.filter(t => {
+      const transactionDate = new Date(t.date);
+      return isWithinInterval(transactionDate, { start: prevFrom, end: prevTo });
+    });
+  }, [transacoesV2, dateRange]);
+
+  // Receitas e despesas do período ATUAL
+  const receitasPeriodo = useMemo(() => {
+    return transacoesPeriodo
       .filter(t => t.operationType === 'receita' || t.operationType === 'rendimento')
       .reduce((acc, t) => acc + t.amount, 0);
-  }, [transacoesMesAtual]);
+  }, [transacoesPeriodo]);
 
-  const despesasMes = useMemo(() => {
-    return transacoesMesAtual
+  const despesasPeriodo = useMemo(() => {
+    return transacoesPeriodo
       .filter(t => t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo')
       .reduce((acc, t) => acc + t.amount, 0);
-  }, [transacoesMesAtual]);
+  }, [transacoesPeriodo]);
 
-  // Receitas e despesas do mês anterior
-  const receitasMesAnterior = useMemo(() => {
-    return transacoesMesAnterior
+  // Receitas e despesas do período ANTERIOR
+  const receitasPeriodoAnterior = useMemo(() => {
+    return transacoesPeriodoAnterior
       .filter(t => t.operationType === 'receita' || t.operationType === 'rendimento')
       .reduce((acc, t) => acc + t.amount, 0);
-  }, [transacoesMesAnterior]);
+  }, [transacoesPeriodoAnterior]);
 
-  const despesasMesAnterior = useMemo(() => {
-    return transacoesMesAnterior
+  const despesasPeriodoAnterior = useMemo(() => {
+    return transacoesPeriodoAnterior
       .filter(t => t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo')
       .reduce((acc, t) => acc + t.amount, 0);
-  }, [transacoesMesAnterior]);
+  }, [transacoesPeriodoAnterior]);
 
-  // Variação do patrimônio
-  const saldoMesAtual = receitasMes - despesasMes;
-  const saldoMesAnterior = receitasMesAnterior - despesasMesAnterior;
-  const variacaoPatrimonio = saldoMesAtual - saldoMesAnterior;
-  const variacaoPercentual = saldoMesAnterior !== 0 
-    ? ((saldoMesAtual - saldoMesAnterior) / Math.abs(saldoMesAnterior)) * 100 
+  // Variação do patrimônio (simplificado para o fluxo de caixa do período)
+  const saldoPeriodoAtual = receitasPeriodo - despesasPeriodo;
+  const saldoPeriodoAnterior = receitasPeriodoAnterior - despesasPeriodoAnterior;
+  const variacaoPatrimonio = saldoPeriodoAtual - saldoPeriodoAnterior;
+  const variacaoPercentual = saldoPeriodoAnterior !== 0 
+    ? ((saldoPeriodoAtual - saldoPeriodoAnterior) / Math.abs(saldoPeriodoAnterior)) * 100 
     : 0;
 
-  // Compromissos do mês (despesas + parcelas empréstimo)
-  const compromissosMes = despesasMes;
+  // Compromissos do período (despesas + parcelas empréstimo)
+  const compromissosPeriodo = despesasPeriodo;
 
-  // Projeção 30 dias (baseado na média)
-  const projecao30Dias = saldoMesAtual;
+  // Projeção 30 dias (baseado na média do período atual)
+  const diasNoPeriodo = dateRange.from && dateRange.to ? (dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24) : 30;
+  const saldoMedioDiario = diasNoPeriodo > 0 ? saldoPeriodoAtual / diasNoPeriodo : 0;
+  const projecao30Dias = saldoPeriodoAtual + (saldoMedioDiario * 30);
 
   // Dados do cockpit
   const cockpitData = {
@@ -134,7 +156,7 @@ const Index = () => {
     variacaoPatrimonio,
     variacaoPercentual,
     liquidezImediata,
-    compromissosMes,
+    compromissosMes: compromissosPeriodo,
     projecao30Dias,
   };
 
@@ -181,8 +203,8 @@ const Index = () => {
   const mesesPositivos = useMemo(() => {
     const ultimos6Meses = [];
     for (let i = 0; i < 6; i++) {
-      const m = currentMonth - i < 0 ? 12 + (currentMonth - i) : currentMonth - i;
-      const y = currentMonth - i < 0 ? currentYear - 1 : currentYear;
+      const m = now.getMonth() - i < 0 ? 12 + (now.getMonth() - i) : now.getMonth() - i;
+      const y = now.getMonth() - i < 0 ? now.getFullYear() - 1 : now.getFullYear();
       const txMes = transacoesV2.filter(t => {
         const d = new Date(t.date);
         return d.getMonth() === m && d.getFullYear() === y;
@@ -193,10 +215,10 @@ const Index = () => {
       else ultimos6Meses.push(false);
     }
     return (ultimos6Meses.filter(Boolean).length / 6) * 100;
-  }, [transacoesV2, currentMonth, currentYear]);
+  }, [transacoesV2]);
 
   // Dependência de renda (assumindo 80% se não há dados)
-  const dependenciaRenda = receitasMes > 0 ? 80 : 100;
+  const dependenciaRenda = receitasPeriodo > 0 ? 80 : 100;
 
   return (
     <MainLayout>
@@ -212,6 +234,12 @@ const Index = () => {
               Visão rápida da sua situação financeira
             </p>
           </div>
+          <div className="ml-auto">
+            <PeriodSelector 
+              initialRange={initialRange}
+              onDateRangeChange={handlePeriodChange} 
+            />
+          </div>
         </div>
 
         {/* Bloco 1 - Cockpit */}
@@ -225,15 +253,15 @@ const Index = () => {
           <div className="lg:col-span-2 space-y-6">
             {/* Bloco 3 - Movimentações Relevantes */}
             <section className="animate-fade-in-up" style={{ animationDelay: '100ms' }}>
-              <MovimentacoesRelevantes transacoes={transacoesV2} limit={6} />
+              <MovimentacoesRelevantes transacoes={transacoesPeriodo} limit={6} />
             </section>
 
             {/* Fluxo de Caixa Heatmap */}
             <section className="animate-fade-in-up" style={{ animationDelay: '200ms' }}>
               <FluxoCaixaHeatmap 
-                month={String(currentMonth + 1).padStart(2, '0')} 
-                year={currentYear} 
-                transacoes={transacoesV2} 
+                month={dateRange.from ? format(dateRange.from, 'MM') : format(now, 'MM')} 
+                year={dateRange.from ? dateRange.from.getFullYear() : now.getFullYear()} 
+                transacoes={transacoesPeriodo} 
               />
             </section>
           </div>

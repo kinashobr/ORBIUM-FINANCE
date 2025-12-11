@@ -44,6 +44,7 @@ import { cn } from "@/lib/utils";
 import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { CATEGORY_NATURE_LABELS } from "@/types/finance";
+import { DateRange } from "../dashboard/PeriodSelector";
 
 const COLORS = {
   success: "hsl(142, 76%, 36%)",
@@ -136,7 +137,11 @@ function DREItem({ label, value, type, level = 0, icon, subItems }: DREItemProps
 // Define o tipo de status esperado pelos componentes ReportCard e IndicatorBadge
 type KPIStatus = "success" | "warning" | "danger" | "neutral";
 
-export function DRETab() {
+interface DRETabProps {
+  dateRange: DateRange;
+}
+
+export function DRETab({ dateRange }: DRETabProps) {
   const {
     transacoesV2,
     categoriasV2,
@@ -146,39 +151,24 @@ export function DRETab() {
 
   const [periodo, setPeriodo] = useState<"mensal" | "trimestral" | "anual">("anual");
 
-  // Cálculos da DRE
-  const dre = useMemo(() => {
-    const now = new Date();
-    const mesAtual = format(now, 'yyyy-MM');
-
-    // Definir período de análise
-    let dataInicio: Date;
-    let dataFim: Date = now;
+  // 1. Filtrar transações para o período selecionado
+  const transacoesPeriodo = useMemo(() => {
+    if (!dateRange.from || !dateRange.to) return transacoesV2;
     
-    switch (periodo) {
-      case "mensal":
-        dataInicio = startOfMonth(now);
-        dataFim = endOfMonth(now);
-        break;
-      case "trimestral":
-        dataInicio = subMonths(startOfMonth(now), 2);
-        break;
-      case "anual":
-      default:
-        dataInicio = subMonths(startOfMonth(now), 11);
-        break;
-    }
-
-    // Filtrar transações do período
-    const transacoesPeriodo = transacoesV2.filter(t => {
+    return transacoesV2.filter(t => {
       try {
         const dataT = parseISO(t.date);
-        return isWithinInterval(dataT, { start: dataInicio, end: dataFim });
+        return isWithinInterval(dataT, { start: dateRange.from!, end: dateRange.to! });
       } catch {
         return false;
       }
     });
+  }, [transacoesV2, dateRange]);
 
+  // Cálculos da DRE
+  const dre = useMemo(() => {
+    const now = new Date();
+    
     // Mapear categorias por ID
     const categoriasMap = new Map(categoriasV2.map(c => [c.id, c]));
 
@@ -337,11 +327,11 @@ export function DRETab() {
         },
       },
       periodo: {
-        inicio: format(dataInicio, 'dd/MM/yyyy'),
-        fim: format(dataFim, 'dd/MM/yyyy'),
+        inicio: dateRange.from ? format(dateRange.from, 'dd/MM/yyyy') : 'Início',
+        fim: dateRange.to ? format(dateRange.to, 'dd/MM/yyyy') : 'Fim',
       },
     };
-  }, [transacoesV2, categoriasV2, emprestimos, periodo]);
+  }, [transacoesV2, categoriasV2, emprestimos, periodo, dateRange, transacoesPeriodo]);
 
   const formatCurrency = (value: number) => `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
   const formatPercent = (value: number) => `${value.toFixed(1)}%`;

@@ -56,6 +56,7 @@ import {
 import { cn } from "@/lib/utils";
 import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval } from "date-fns";
 import { toast } from "sonner";
+import { DateRange } from "../dashboard/PeriodSelector";
 
 interface IndicatorGroupProps {
   title: string;
@@ -99,7 +100,11 @@ type IndicatorStatus = "success" | "warning" | "danger" | "neutral";
 // Storage key for custom indicators
 const CUSTOM_INDICATORS_KEY = "fin_custom_indicators_v1";
 
-export function IndicadoresTab() {
+interface IndicadoresTabProps {
+  dateRange: DateRange;
+}
+
+export function IndicadoresTab({ dateRange }: IndicadoresTabProps) {
   const {
     transacoesV2,
     contasMovimento,
@@ -180,15 +185,45 @@ export function IndicadoresTab() {
   // Cálculos principais
   const indicadores = useMemo(() => {
     const now = new Date();
-    const mesAtual = format(now, 'yyyy-MM');
-    const mesAnterior = format(subMonths(now, 1), 'yyyy-MM');
+    
+    // 1. Filtrar transações para o período selecionado
+    const transacoesPeriodo = transacoesV2.filter(t => {
+      if (!dateRange.from || !dateRange.to) return true;
+      try {
+        const dataT = parseISO(t.date);
+        return isWithinInterval(dataT, { start: dateRange.from!, end: dateRange.to! });
+      } catch {
+        return false;
+      }
+    });
+    
+    // 2. Calcular transações do período anterior para variação
+    const diffInMonths = dateRange.from && dateRange.to ? dateRange.to.getMonth() - dateRange.from.getMonth() + 12 * (dateRange.to.getFullYear() - dateRange.from.getFullYear()) : 1;
+    const prevFrom = dateRange.from ? subMonths(dateRange.from, diffInMonths) : undefined;
+    const prevTo = dateRange.to ? subMonths(dateRange.to, diffInMonths) : undefined;
 
-    // Calcular saldos das contas
+    const transacoesPeriodoAnterior = transacoesV2.filter(t => {
+      if (!prevFrom || !prevTo) return false;
+      try {
+        const dataT = parseISO(t.date);
+        return isWithinInterval(dataT, { start: prevFrom, end: prevTo });
+      } catch {
+        return false;
+      }
+    });
+
+    // Calcular saldos das contas (saldo final do período)
     const saldosPorConta: Record<string, number> = {};
     contasMovimento.forEach(conta => {
-      saldosPorConta[conta.id] = conta.initialBalance;
+      // Saldo inicial do período
+      const saldoInicialPeriodo = dateRange.from 
+        ? calculateBalanceUpToDate(conta.id, dateRange.from, transacoesV2, contasMovimento)
+        : conta.initialBalance;
+        
+      saldosPorConta[conta.id] = saldoInicialPeriodo;
     });
-    transacoesV2.forEach(t => {
+
+    transacoesPeriodo.forEach(t => {
       if (!saldosPorConta[t.accountId]) saldosPorConta[t.accountId] = 0;
       if (t.flow === 'in' || t.flow === 'transfer_in') {
         saldosPorConta[t.accountId] += t.amount;
@@ -196,6 +231,39 @@ export function IndicadoresTab() {
         saldosPorConta[t.accountId] -= t.amount;
       }
     });
+    
+    // Helper para calcular saldo até uma data (usado para saldo inicial do período)
+    function calculateBalanceUpToDate(accountId: string, date: Date, allTransactions: typeof transacoesV2, accounts: typeof contasMovimento): number {
+      const account = accounts.find(a => a.id === accountId);
+      if (!account) return 0;
+
+      let balance = account.initialBalance;
+      
+      const transactionsBeforeDate = allTransactions
+          .filter(t => t.accountId === accountId && parseISO(t.date) < date)
+          .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
+
+      transactionsBeforeDate.forEach(t => {
+          const isCreditCard = account.accountType === 'cartao_credito';
+          
+          if (isCreditCard) {
+            if (t.operationType === 'despesa') {
+              balance -= t.amount;
+            } else if (t.operationType === 'transferencia') {
+              balance += t.amount;
+            }
+          } else {
+            if (t.flow === 'in' || t.flow === 'transfer_in') {
+              balance += t.amount;
+            } else {
+              balance -= t.amount;
+            }
+          }
+      });
+
+      return balance;
+    };
+
 
     // Ativos
     const contasLiquidas = contasMovimento.filter(c => 
@@ -237,9 +305,6 @@ export function IndicadoresTab() {
     const patrimonioLiquido = totalAtivos - totalPassivos;
 
     // Receitas e Despesas do período
-    const transacoesMesAtual = transacoesV2.filter(t => t.date.startsWith(mesAtual));
-    const transacoesMesAnterior = transacoesV2.filter(t => t.date.startsWith(mesAnterior));
-
     const calcReceitas = (trans: typeof transacoesV2) => trans
       .filter(t => t.flow === 'in' && t.operationType !== 'transferencia' && t.operationType !== 'liberacao_emprestimo')
       .reduce((acc, t) => acc + t.amount, 0);
@@ -247,17 +312,17 @@ export function IndicadoresTab() {
       .filter(t => t.flow === 'out' && t.operationType !== 'transferencia' && t.operationType !== 'aplicacao')
       .reduce((acc, t) => acc + t.amount, 0);
 
-    const receitasMesAtual = calcReceitas(transacoesMesAtual);
-    const despesasMesAtual = calcDespesas(transacoesMesAtual);
-    const receitasMesAnterior = calcReceitas(transacoesMesAnterior);
-    const despesasMesAnterior = calcDespesas(transacoesMesAnterior);
+    const receitasMesAtual = calcReceitas(transacoesPeriodo);
+    const despesasMesAtual = calcDespesas(transacoesPeriodo);
+    const receitasMesAnterior = calcReceitas(transacoesPeriodoAnterior);
+    const despesasMesAnterior = calcDespesas(transacoesPeriodoAnterior);
 
     // Despesas fixas e variáveis
     const categoriasMap = new Map(categoriasV2.map(c => [c.id, c]));
     let despesasFixasMes = 0;
     let despesasVariaveisMes = 0;
     
-    transacoesMesAtual.filter(t => t.flow === 'out' && t.operationType !== 'transferencia').forEach(t => {
+    transacoesPeriodo.filter(t => t.flow === 'out' && t.operationType !== 'transferencia').forEach(t => {
       const cat = categoriasMap.get(t.categoryId || '');
       if (cat?.nature === 'despesa_fixa') {
         despesasFixasMes += t.amount;
@@ -366,7 +431,7 @@ export function IndicadoresTab() {
         passivoCurtoPrazo,
       },
     };
-  }, [transacoesV2, contasMovimento, emprestimos, veiculos, investimentosRF, criptomoedas, stablecoins, objetivos, categoriasV2]);
+  }, [transacoesV2, contasMovimento, emprestimos, veiculos, investimentosRF, criptomoedas, stablecoins, objetivos, categoriasV2, dateRange]);
 
   const formatPercent = (value: number) => `${value.toFixed(1)}%`;
   const formatRatio = (value: number) => value >= 999 ? "∞" : `${value.toFixed(2)}x`;
@@ -777,7 +842,7 @@ export function IndicadoresTab() {
         <DetailedIndicatorBadge
           title="Diversificação Patrimonial"
           value={formatPercent(indicadores.outros.diversificacao.valor)}
-          status={indicadores.outros.diversificacao.status}
+          status={indicadores.outros.outros.diversificacao.status}
           trend={indicadores.outros.diversificacao.valor >= 40 ? "up" : "down"}
           descricao="Nível de distribuição dos ativos entre diferentes classes. Maior valor indica menor concentração. Ideal: acima de 40%"
           formula="100 - Max(% Caixa, % Investimentos, % Imobilizado)"

@@ -53,6 +53,7 @@ import { cn } from "@/lib/utils";
 import { ACCOUNT_TYPE_LABELS } from "@/types/finance";
 import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { DateRange } from "../dashboard/PeriodSelector";
 
 const COLORS = {
   success: "hsl(142, 76%, 36%)",
@@ -78,7 +79,11 @@ const PIE_COLORS = [
 // Define o tipo de status esperado pelo IndicatorBadge
 type IndicatorStatus = "success" | "warning" | "danger" | "neutral";
 
-export function BalancoTab() {
+interface BalancoTabProps {
+  dateRange: DateRange;
+}
+
+export function BalancoTab({ dateRange }: BalancoTabProps) {
   const {
     transacoesV2,
     contasMovimento,
@@ -91,15 +96,34 @@ export function BalancoTab() {
     categoriasV2,
   } = useFinance();
 
-  // Calcula saldo de cada conta baseado em transações
+  // 1. Filtrar transações para o período selecionado
+  const transacoesPeriodo = useMemo(() => {
+    if (!dateRange.from || !dateRange.to) return transacoesV2;
+    
+    return transacoesV2.filter(t => {
+      try {
+        const dataT = parseISO(t.date);
+        return isWithinInterval(dataT, { start: dateRange.from!, end: dateRange.to! });
+      } catch {
+        return false;
+      }
+    });
+  }, [transacoesV2, dateRange]);
+
+  // 2. Calcular saldo de cada conta baseado nas transações do período
   const saldosPorConta = useMemo(() => {
     const saldos: Record<string, number> = {};
     
     contasMovimento.forEach(conta => {
-      saldos[conta.id] = conta.initialBalance;
+      // O saldo inicial é o saldo acumulado ANTES do período
+      const saldoInicialPeriodo = dateRange.from 
+        ? calculateBalanceUpToDate(conta.id, dateRange.from, transacoesV2, contasMovimento)
+        : conta.initialBalance; // Se não há data de início, usa o saldo inicial global
+        
+      saldos[conta.id] = saldoInicialPeriodo;
     });
 
-    transacoesV2.forEach(t => {
+    transacoesPeriodo.forEach(t => {
       if (!saldos[t.accountId]) saldos[t.accountId] = 0;
       
       if (t.flow === 'in' || t.flow === 'transfer_in') {
@@ -110,7 +134,39 @@ export function BalancoTab() {
     });
 
     return saldos;
-  }, [transacoesV2, contasMovimento]);
+  }, [transacoesPeriodo, contasMovimento, transacoesV2, dateRange]);
+  
+  // Helper para calcular saldo até uma data (usado para saldo inicial do período)
+  const calculateBalanceUpToDate = (accountId: string, date: Date, allTransactions: typeof transacoesV2, accounts: typeof contasMovimento): number => {
+    const account = accounts.find(a => a.id === accountId);
+    if (!account) return 0;
+
+    let balance = account.initialBalance;
+    
+    const transactionsBeforeDate = allTransactions
+        .filter(t => t.accountId === accountId && parseISO(t.date) < date)
+        .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
+
+    transactionsBeforeDate.forEach(t => {
+        const isCreditCard = account.accountType === 'cartao_credito';
+        
+        if (isCreditCard) {
+          if (t.operationType === 'despesa') {
+            balance -= t.amount;
+          } else if (t.operationType === 'transferencia') {
+            balance += t.amount;
+          }
+        } else {
+          if (t.flow === 'in' || t.flow === 'transfer_in') {
+            balance += t.amount;
+          } else {
+            balance -= t.amount;
+          }
+        }
+    });
+
+    return balance;
+  };
 
   // Cálculos do Balanço Patrimonial
   const balanco = useMemo(() => {
@@ -123,6 +179,7 @@ export function BalancoTab() {
     const contasPoupanca = contasMovimento.filter(c => c.accountType === 'poupanca');
     const contasReserva = contasMovimento.filter(c => c.accountType === 'reserva_emergencia');
     
+    // Usamos o saldo calculado no período (que é o saldo final do período)
     const saldoContasCorrente = contasCorrente.reduce((acc, c) => acc + (saldosPorConta[c.id] || 0), 0);
     const saldoPoupanca = contasPoupanca.reduce((acc, c) => acc + (saldosPorConta[c.id] || 0), 0);
     const saldoReserva = contasReserva.reduce((acc, c) => acc + (saldosPorConta[c.id] || 0), 0);
@@ -139,7 +196,7 @@ export function BalancoTab() {
     const saldoCripto = contasCripto.reduce((acc, c) => acc + (saldosPorConta[c.id] || 0), 0);
     const saldoObjetivos = contasObjetivos.reduce((acc, c) => acc + (saldosPorConta[c.id] || 0), 0);
     
-    // Investimentos também da base legada
+    // Investimentos também da base legada (assumindo que o saldo da conta já reflete o valor atual)
     const totalInvRF = investimentosRF.reduce((acc, i) => acc + i.valor, 0);
     const totalCripto = criptomoedas.reduce((acc, c) => acc + c.valorBRL, 0);
     const totalStable = stablecoins.reduce((acc, s) => acc + s.valorBRL, 0);
@@ -178,10 +235,7 @@ export function BalancoTab() {
     // === PATRIMÔNIO LÍQUIDO ===
     const patrimonioLiquido = totalAtivos - totalPassivos;
 
-    // === VARIAÇÃO MENSAL ===
-    const transacoesMesAtual = transacoesV2.filter(t => t.date.startsWith(mesAtual));
-    const transacoesMesAnterior = transacoesV2.filter(t => t.date.startsWith(mesAnterior));
-    
+    // === VARIAÇÃO MENSAL (usando transações do período) ===
     const calcularResultado = (transacoes: typeof transacoesV2) => {
       const entradas = transacoes
         .filter(t => t.flow === 'in' && t.operationType !== 'transferencia' && t.operationType !== 'liberacao_emprestimo')
@@ -192,11 +246,28 @@ export function BalancoTab() {
       return entradas - saidas;
     };
 
-    const resultadoMesAtual = calcularResultado(transacoesMesAtual);
-    const resultadoMesAnterior = calcularResultado(transacoesMesAnterior);
-    const variacaoMensal = resultadoMesAnterior !== 0
-      ? ((resultadoMesAtual - resultadoMesAnterior) / Math.abs(resultadoMesAnterior)) * 100
-      : resultadoMesAtual > 0 ? 100 : 0;
+    const resultadoPeriodoAtual = calcularResultado(transacoesPeriodo);
+    
+    // Para calcular a variação, precisamos do período anterior
+    const diffInMonths = dateRange.from && dateRange.to ? dateRange.to.getMonth() - dateRange.from.getMonth() + 12 * (dateRange.to.getFullYear() - dateRange.from.getFullYear()) : 1;
+    const prevFrom = dateRange.from ? subMonths(dateRange.from, diffInMonths) : undefined;
+    const prevTo = dateRange.to ? subMonths(dateRange.to, diffInMonths) : undefined;
+
+    const transacoesPeriodoAnterior = transacoesV2.filter(t => {
+      if (!prevFrom || !prevTo) return false;
+      try {
+        const dataT = parseISO(t.date);
+        return isWithinInterval(dataT, { start: prevFrom, end: prevTo });
+      } catch {
+        return false;
+      }
+    });
+    
+    const resultadoPeriodoAnterior = calcularResultado(transacoesPeriodoAnterior);
+    
+    const variacaoMensal = resultadoPeriodoAnterior !== 0
+      ? ((resultadoPeriodoAtual - resultadoPeriodoAnterior) / Math.abs(resultadoPeriodoAnterior)) * 100
+      : resultadoPeriodoAtual > 0 ? 100 : 0;
 
     return {
       ativos: {
@@ -224,18 +295,17 @@ export function BalancoTab() {
       },
       patrimonioLiquido,
       variacaoMensal,
-      resultadoMesAtual,
+      resultadoMesAtual: resultadoPeriodoAtual,
     };
-  }, [transacoesV2, contasMovimento, emprestimos, veiculos, investimentosRF, criptomoedas, stablecoins, objetivos, saldosPorConta]);
+  }, [transacoesV2, contasMovimento, emprestimos, veiculos, investimentosRF, criptomoedas, stablecoins, objetivos, saldosPorConta, dateRange, transacoesPeriodo]);
 
-  // Evolução do PL nos últimos 12 meses
+  // Evolução do PL nos últimos 12 meses (mantido com base em todas as transações para histórico)
   const evolucaoPL = useMemo(() => {
     const resultado: { mes: string; ativos: number; passivos: number; pl: number }[] = [];
     const now = new Date();
 
     for (let i = 11; i >= 0; i--) {
       const data = subMonths(now, i);
-      const mesStr = format(data, 'yyyy-MM');
       const mesLabel = format(data, 'MMM', { locale: ptBR });
       
       const inicio = startOfMonth(data);
@@ -399,13 +469,13 @@ export function BalancoTab() {
           delay={200}
         />
         <ReportCard
-          title="Variação Mensal"
+          title="Variação do Período"
           value={formatPercent(balanco.variacaoMensal)}
           trend={balanco.variacaoMensal}
-          trendLabel="mês anterior"
+          trendLabel="período anterior"
           status={balanco.variacaoMensal >= 0 ? "success" : "danger"}
           icon={<LineChart className="w-5 h-5" />}
-          tooltip="Variação do resultado comparado ao mês anterior"
+          tooltip="Variação do resultado comparado ao período anterior"
           delay={250}
         />
       </div>

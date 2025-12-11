@@ -66,13 +66,13 @@ const Relatorios = () => {
             </TabsTrigger>
           </TabsList>
           <TabsContent value="balanco" className="mt-6">
-            <BalancoTab />
+            <BalancoTab dateRange={dateRange} />
           </TabsContent>
           <TabsContent value="dre" className="mt-6">
-            <DRETab />
+            <DRETab dateRange={dateRange} />
           </TabsContent>
           <TabsContent value="indicadores" className="mt-6">
-            <IndicadoresTab />
+            <IndicadoresTab dateRange={dateRange} />
           </TabsContent>
         </Tabs>
       </div>

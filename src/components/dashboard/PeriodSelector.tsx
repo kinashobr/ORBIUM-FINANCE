@@ -3,8 +3,8 @@ import { ChevronDown, Calendar as CalendarIcon, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subDays, isSameDay, isSameMonth, isSameYear } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -64,15 +64,72 @@ export function PeriodSelector({
     setRange(initialRange);
     setCustomFrom(initialRange.from);
     setCustomTo(initialRange.to);
-    // Reset preset selection when external range changes
-    setSelectedPreset(null);
+    // Determina o preset inicial se for um dos padrões
+    const isInitialPreset = presets.find(p => {
+      if (p.id === 'all' && !initialRange.from && !initialRange.to) return true;
+      
+      const today = new Date();
+      let presetRange: DateRange = { from: undefined, to: undefined };
+      
+      switch (p.id) {
+        case "today":
+          presetRange = { from: today, to: today };
+          break;
+        case "last7":
+          presetRange = { from: subDays(today, 6), to: today };
+          break;
+        case "last30":
+          presetRange = { from: subDays(today, 29), to: today };
+          break;
+        case "thisMonth":
+          presetRange = { from: startOfMonth(today), to: endOfMonth(today) };
+          break;
+        case "lastMonth":
+          const lastMonth = subMonths(today, 1);
+          presetRange = { from: startOfMonth(lastMonth), to: endOfMonth(lastMonth) };
+          break;
+        case "last3Months":
+          const last3Months = subMonths(today, 2);
+          presetRange = { from: startOfMonth(last3Months), to: endOfMonth(today) };
+          break;
+        case "thisYear":
+          presetRange = { from: startOfYear(today), to: endOfYear(today) };
+          break;
+      }
+
+      if (presetRange.from && presetRange.to && initialRange.from && initialRange.to) {
+        // Compara apenas a data, ignorando a hora
+        return isSameDay(presetRange.from, initialRange.from) && isSameDay(presetRange.to, initialRange.to);
+      }
+      return false;
+    });
+
+    setSelectedPreset(isInitialPreset ? isInitialPreset.id : 'custom');
   }, [initialRange]);
 
   const handleApply = useCallback((newRange: DateRange) => {
-    setRange(newRange);
-    onDateRangeChange(newRange);
+    // Garante que o 'to' seja o final do dia, se definido
+    const finalRange: DateRange = {
+      from: newRange.from ? startOfDay(newRange.from) : undefined,
+      to: newRange.to ? endOfDay(newRange.to) : undefined,
+    };
+    
+    setRange(finalRange);
+    onDateRangeChange(finalRange);
     setIsOpen(false);
   }, [onDateRangeChange]);
+  
+  const startOfDay = (date: Date) => {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+
+  const endOfDay = (date: Date) => {
+    const d = new Date(date);
+    d.setHours(23, 59, 59, 999);
+    return d;
+  };
 
   const handlePresetClick = (presetId: string) => {
     const today = new Date();
@@ -255,7 +312,7 @@ export function PeriodSelector({
                   setCustomFrom(range?.from);
                   setCustomTo(range?.to);
                 }}
-                numberOfMonths={2}
+                numberOfMonths={1} // Reduzido para 1 para caber melhor
                 locale={ptBR}
                 initialFocus
               />
