@@ -5,7 +5,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { Transacao } from "@/types/finance"; // Importando Transacao do types/finance
+import { Transacao } from "@/contexts/FinanceContext";
 import { useNavigate } from "react-router-dom";
 
 interface TransacoesRecentesProps {

@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { Transacao } from "@/types/finance"; // Importando Transacao do types/finance
+import { Transacao } from "@/contexts/FinanceContext";
 
 interface EnhancedStatCardsProps {
   transacoes: Transacao[];
@@ -18,7 +18,7 @@ export const EnhancedStatCards = ({ transacoes, totalReceitas, totalDespesas }: 
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
   
-  // Transações do mês atual (CORRIGIDO)
+  // Transações do mês atual
   const transacoesMes = transacoes.filter(t => {
     const date = new Date(t.data);
     return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
