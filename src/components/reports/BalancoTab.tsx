@@ -117,9 +117,8 @@ export function BalancoTab({ dateRange }: BalancoTabProps) {
     
     contasMovimento.forEach(conta => {
       // O saldo inicial é o saldo acumulado ANTES do período
-      const saldoInicialPeriodo = dateRange.from 
-        ? calculateBalanceUpToDate(conta.id, dateRange.from)
-        : calculateBalanceUpToDate(conta.id, undefined); // Se não há data de início, usa o saldo final global
+      const periodStart = dateRange.from;
+      const saldoInicialPeriodo = calculateBalanceUpToDate(conta.id, periodStart);
         
       saldos[conta.id] = saldoInicialPeriodo;
     });
@@ -819,7 +818,7 @@ export function BalancoTab({ dateRange }: BalancoTabProps) {
             trend={metricas.liquidezCorrente.valor >= 1.5 ? "up" : "down"}
             descricao="Capacidade de pagar dívidas de curto prazo. Ideal: acima de 1.5x"
             formula="Ativo Circulante / Passivo Circulante"
-            sparklineData={generateSparkline(metricas.liquidezCorrente.valor, indicadores.liquidez.corrente.valor >= 1.5 ? "up" : "down")}
+            sparklineData={generateSparkline(metricas.liquidezCorrente.valor, metricas.liquidezCorrente.valor >= 1.5 ? "up" : "down")}
             icon={<Banknote className="w-4 h-4" />}
           />
           <DetailedIndicatorBadge

@@ -4,7 +4,7 @@ import {
   AccountType, CategoryNature, DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES,
   generateTransactionId, ContaCorrente,
   // Importando tipos legados para manter a compatibilidade temporária nos componentes
-  Emprestimo, Veiculo, SeguroVeiculo, InvestimentoRF, Criptomoeda, Stablecoin, ObjetivoFinanceiro, MovimentacaoInvestimento, FinanceDataExport
+  Emprestimo, Veiculo, SeguroVeiculo, InvestimentoRF, Criptomoeda, Stablecoin, ObjetivoFinanceiro, MovimentacaoInvestimento, FinanceExportV1 // FIX: Renamed FinanceDataExport to FinanceExportV1
 } from "@/types/finance";
 import { parseISO } from "date-fns";
 
@@ -572,9 +572,17 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   // ============================================
 
   const exportData = () => {
-    const data: FinanceDataExport = {
-      version: "2.0",
-      exportDate: new Date().toISOString(),
+    const data: FinanceExportV1 = { // FIX: Use FinanceExportV1
+      schemaVersion: "1.1",
+      exportedAt: new Date().toISOString(),
+      data: {
+        accounts: contasMovimento,
+        categories: categoriasV2,
+        investments: [], // Simplified for V2 export
+        loans: [], // Simplified for V2 export
+        transferGroups: [], // Simplified for V2 export
+        transactions: transacoesV2,
+      },
       // Dados legados (mantidos para exportação de compatibilidade)
       transacoes: [], // Vazio, pois não usamos mais
       categorias: [], // Vazio, pois não usamos mais
@@ -585,10 +593,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       stablecoins,
       objetivos,
       movimentacoesInvestimento,
-      // New integrated data
-      contasMovimento,
-      categoriasV2,
-      transacoesV2,
       segurosVeiculo,
     };
 
@@ -604,7 +608,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const importData = async (file: File): Promise<{ success: boolean; message: string }> => {
     try {
       const text = await file.text();
-      const data = JSON.parse(text) as FinanceDataExport;
+      const data = JSON.parse(text) as FinanceExportV1; // FIX: Use FinanceExportV1
 
       // Importar apenas dados V2 e legados de entidades (emprestimos, veiculos, etc.)
       if (data.emprestimos) setEmprestimos(data.emprestimos);
@@ -706,3 +710,6 @@ export function useFinance() {
   }
   return context;
 }
+
+// Exportar tipos legados para que componentes possam importá-los do contexto
+export { Emprestimo, Veiculo, SeguroVeiculo, InvestimentoRF, Criptomoeda, Stablecoin, ObjetivoFinanceiro, MovimentacaoInvestimento };

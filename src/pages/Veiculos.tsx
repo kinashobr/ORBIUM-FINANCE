@@ -537,7 +537,7 @@ const Veiculos = () => {
                 <CardContent className="space-y-4">
                   <div className="flex justify-between items-center p-3 rounded-lg bg-muted/50">
                     <span className="text-sm">Total de Veículos</span>
-                    <Badge>{veiculos.filter(v => v.status === 'ativo').length}</Badge>
+                    <Badge>{veiculos.filter(v => v.status !== 'ativo').length}</Badge>
                   </div>
                   <div className="flex justify-between items-center p-3 rounded-lg bg-muted/50">
                     <span className="text-sm">Pendentes Cadastro</span>
