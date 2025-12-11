@@ -133,7 +133,7 @@ function DREItem({ label, value, type, level = 0, icon, subItems }: DREItemProps
 }
 
 // Define o tipo de status esperado pelos componentes ReportCard e IndicatorBadge
-type KPIStatus = "success" | "warning" | "danger" | "neutral" | "info";
+type KPIStatus = "success" | "warning" | "danger" | "neutral";
 
 export function DRETab() {
   const {
