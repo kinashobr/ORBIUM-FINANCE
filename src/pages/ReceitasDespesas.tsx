@@ -3,7 +3,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Tags, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { isWithinInterval, startOfMonth, endOfMonth } from "date-fns";
+import { isWithinInterval, startOfMonth, endOfMonth, parseISO } from "date-fns";
 
 // Types
 import { 
@@ -101,8 +101,8 @@ const ReceitasDespesas = () => {
     const targetDate = date || new Date(9999, 11, 31);
 
     const transactionsBeforeDate = allTransactions
-        .filter(t => t.accountId === accountId && new Date(t.date) < targetDate)
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        .filter(t => t.accountId === accountId && parseISO(t.date) < targetDate)
+        .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
 
     transactionsBeforeDate.forEach(t => {
         const isCreditCard = account.accountType === 'cartao_credito';
@@ -135,7 +135,7 @@ const ReceitasDespesas = () => {
       const matchCategory = selectedCategoryId === 'all' || t.categoryId === selectedCategoryId;
       const matchType = selectedTypes.includes(t.operationType);
       
-      const transactionDate = new Date(t.date);
+      const transactionDate = parseISO(t.date);
       
       // Filtro de período usando dateRange
       const matchPeriod = (!dateRange.from || isWithinInterval(transactionDate, { start: dateRange.from, end: dateRange.to || new Date() }));
@@ -158,7 +158,7 @@ const ReceitasDespesas = () => {
       // 2. Calculate Period Transactions (transactions within the selected period)
       const accountTxInPeriod = transactions.filter(t => {
         if (t.accountId !== account.id) return false;
-        const transactionDate = new Date(t.date);
+        const transactionDate = parseISO(t.date);
         return (!periodStart || isWithinInterval(transactionDate, { start: periodStart, end: periodEnd || new Date() }));
       });
 

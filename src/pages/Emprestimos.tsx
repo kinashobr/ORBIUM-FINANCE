@@ -14,7 +14,7 @@ import { LoanCharts } from "@/components/loans/LoanCharts";
 import { LoanDetailDialog } from "@/components/loans/LoanDetailDialog";
 import { PeriodSelector, DateRange } from "@/components/dashboard/PeriodSelector";
 import { cn } from "@/lib/utils";
-import { startOfMonth, endOfMonth } from "date-fns";
+import { startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
 
 const Emprestimos = () => {
   const { 
@@ -49,14 +49,19 @@ const Emprestimos = () => {
     return emprestimos.filter(e => e.status !== 'pendente_config');
   }, [emprestimos]);
 
-  // Get payment transactions for each loan
+  // Get payment transactions for each loan, filtered by dateRange
   const loanPayments = useMemo(() => {
     const payments: Record<number, { count: number; total: number }> = {};
     
-    transacoesV2.forEach(t => {
+    // Filter transactions by date range
+    const txInPeriod = transacoesV2.filter(t => {
+      if (!dateRange.from || !dateRange.to) return true;
+      const transactionDate = new Date(t.date);
+      return isWithinInterval(transactionDate, { start: dateRange.from, end: dateRange.to });
+    });
+
+    txInPeriod.forEach(t => {
       if (t.operationType === 'pagamento_emprestimo' && t.links?.loanId) {
-        // Note: This filtering logic should ideally use the dateRange to calculate payments *within* the period
-        // For simplicity in this refactoring, we keep the calculation based on all payments, as loan metrics are usually cumulative.
         const loanId = parseInt(t.links.loanId.replace('loan_', ''));
         if (!payments[loanId]) {
           payments[loanId] = { count: 0, total: 0 };
@@ -67,7 +72,7 @@ const Emprestimos = () => {
     });
     
     return payments;
-  }, [transacoesV2]);
+  }, [transacoesV2, dateRange]);
 
   // Cálculos avançados
   const calculos = useMemo(() => {
@@ -82,16 +87,17 @@ const Emprestimos = () => {
     let economiaQuitacao = 0;
     
     filteredEmprestimos.forEach(e => {
-      const payment = loanPayments[e.id];
-      const parcelasPagas = payment?.count || e.parcelasPagas || 0;
-      const parcelasRestantes = e.meses - parcelasPagas;
-      const saldoDevedor = Math.max(0, e.valorTotal - (parcelasPagas * e.parcela));
+      // Use the actual paid count from the loan object for cumulative metrics
+      const cumulativeParcelasPagas = e.parcelasPagas || 0; 
+      
+      const parcelasRestantes = e.meses - cumulativeParcelasPagas;
+      const saldoDevedor = Math.max(0, e.valorTotal - (cumulativeParcelasPagas * e.parcela));
       const custoTotal = e.parcela * e.meses;
       const juros = custoTotal - e.valorTotal;
-      const jurosJaPagos = juros * (parcelasPagas / e.meses);
+      const jurosJaPagos = juros * (cumulativeParcelasPagas / e.meses);
       const jurosRestantes = juros - jurosJaPagos;
       
-      totalParcelasPagas += parcelasPagas;
+      totalParcelasPagas += cumulativeParcelasPagas;
       totalParcelasRestantes += parcelasRestantes;
       saldoDevedorTotal += saldoDevedor;
       custoTotalEmprestimos += custoTotal;
@@ -141,7 +147,7 @@ const Emprestimos = () => {
       jurosPagos,
       ranking,
     };
-  }, [filteredEmprestimos, getTotalDividas, loanPayments]);
+  }, [filteredEmprestimos, getTotalDividas]);
 
   const formatCurrency = (value: number) => `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 
@@ -386,7 +392,7 @@ const Emprestimos = () => {
               <TableBody>
                 {filteredEmprestimos.map((item) => {
                   const payment = loanPayments[item.id];
-                  const parcelasPagas = payment?.count || item.parcelasPagas || 0;
+                  const parcelasPagas = item.parcelasPagas || 0;
                   const saldoDevedor = Math.max(0, item.valorTotal - (parcelasPagas * item.parcela));
                   const progresso = (parcelasPagas / item.meses) * 100;
                   

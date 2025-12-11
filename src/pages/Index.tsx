@@ -24,6 +24,7 @@ const Index = () => {
     criptomoedas, 
     stablecoins, 
     objetivos,
+    categoriasV2,
   } = useFinance();
 
   // Inicializa o range para o mês atual
@@ -35,8 +36,8 @@ const Index = () => {
     setDateRange(range);
   }, []);
 
-  // Filtra transações V2 pelo período selecionado
-  const filteredTransacoesV2 = useMemo(() => {
+  // 1. Filtra transações V2 pelo período selecionado
+  const transacoesPeriodo = useMemo(() => {
     if (!dateRange.from || !dateRange.to) return transacoesV2;
     
     return transacoesV2.filter(t => {
@@ -45,10 +46,38 @@ const Index = () => {
     });
   }, [transacoesV2, dateRange]);
 
+  // 2. Mapeia transações V2 para o formato legado (para MovimentacoesRelevantes)
+  const legacyTransacoesPeriodo = useMemo(() => {
+    return transacoesPeriodo.map(t => {
+      const category = categoriasV2.find(c => c.id === t.categoryId);
+      
+      let tipo: "receita" | "despesa";
+      if (t.operationType === 'receita' || t.operationType === 'rendimento' || t.operationType === 'liberacao_emprestimo') {
+        tipo = 'receita';
+      } else if (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo' || t.operationType === 'aplicacao' || t.operationType === 'veiculo') {
+        tipo = 'despesa';
+      } else {
+        // Transfers are usually ignored in simple dashboard summaries
+        return null;
+      }
+
+      return {
+        id: parseInt(t.id.replace('tx_', '')) || 0,
+        data: t.date,
+        descricao: t.description,
+        valor: t.amount,
+        categoria: category?.label || 'Outros',
+        tipo: tipo,
+      };
+    }).filter((t): t is { id: number; data: string; descricao: string; valor: number; categoria: string; tipo: "receita" | "despesa"; } => t !== null);
+  }, [transacoesPeriodo, categoriasV2]);
+
+
   const currentMonth = dateRange.from ? dateRange.from.getMonth() : now.getMonth();
   const currentYear = dateRange.from ? dateRange.from.getFullYear() : now.getFullYear();
 
   // Calcular saldo por conta (usando todas as transações para o saldo atual, mas filtrando para o período)
+  // NOTE: saldosPorConta should reflect the current balance regardless of the date range selected in the PeriodSelector, as it represents the current state of accounts.
   const saldosPorConta = useMemo(() => {
     return contasMovimento.map(conta => {
       const contaTx = transacoesV2.filter(t => t.accountId === conta.id);
@@ -92,8 +121,18 @@ const Index = () => {
   // Patrimônio total
   const patrimonioTotal = totalAtivos - totalDividas;
 
-  // Transações do período selecionado (para Cockpit e Movimentações Relevantes)
-  const transacoesPeriodo = filteredTransacoesV2;
+  // Receitas e despesas do período ATUAL
+  const receitasPeriodo = useMemo(() => {
+    return transacoesPeriodo
+      .filter(t => t.operationType === 'receita' || t.operationType === 'rendimento')
+      .reduce((acc, t) => acc + t.amount, 0);
+  }, [transacoesPeriodo]);
+
+  const despesasPeriodo = useMemo(() => {
+    return transacoesPeriodo
+      .filter(t => t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo')
+      .reduce((acc, t) => acc + t.amount, 0);
+  }, [transacoesPeriodo]);
 
   // Transações do período anterior (para cálculo de variação)
   const transacoesPeriodoAnterior = useMemo(() => {
@@ -109,19 +148,6 @@ const Index = () => {
       return isWithinInterval(transactionDate, { start: prevFrom, end: prevTo });
     });
   }, [transacoesV2, dateRange]);
-
-  // Receitas e despesas do período ATUAL
-  const receitasPeriodo = useMemo(() => {
-    return transacoesPeriodo
-      .filter(t => t.operationType === 'receita' || t.operationType === 'rendimento')
-      .reduce((acc, t) => acc + t.amount, 0);
-  }, [transacoesPeriodo]);
-
-  const despesasPeriodo = useMemo(() => {
-    return transacoesPeriodo
-      .filter(t => t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo')
-      .reduce((acc, t) => acc + t.amount, 0);
-  }, [transacoesPeriodo]);
 
   // Receitas e despesas do período ANTERIOR
   const receitasPeriodoAnterior = useMemo(() => {
