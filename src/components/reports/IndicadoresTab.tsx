@@ -56,7 +56,6 @@ import {
 import { cn } from "@/lib/utils";
 import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval } from "date-fns";
 import { toast } from "sonner";
-import { TransacaoCompleta } from "@/types/finance";
 
 interface IndicatorGroupProps {
   title: string;
@@ -100,11 +99,7 @@ type IndicatorStatus = "success" | "warning" | "danger" | "neutral";
 // Storage key for custom indicators
 const CUSTOM_INDICATORS_KEY = "fin_custom_indicators_v1";
 
-interface IndicadoresTabProps {
-  dateRange: { from: Date | undefined; to: Date | undefined };
-}
-
-export function IndicadoresTab({ dateRange }: IndicadoresTabProps) {
+export function IndicadoresTab() {
   const {
     transacoesV2,
     contasMovimento,
@@ -182,66 +177,24 @@ export function IndicadoresTab({ dateRange }: IndicadoresTabProps) {
     toast.success("Indicador removido");
   };
 
-  // Função auxiliar para calcular o saldo de uma conta até uma data específica
-  const calculateBalanceUpToDate = (accountId: string, date: Date | undefined, allTransactions: TransacaoCompleta[]): number => {
-    const account = contasMovimento.find(a => a.id === accountId);
-    if (!account) return 0;
-
-    let balance = account.initialBalance;
-    
-    const targetDate = date || new Date(9999, 11, 31);
-
-    const transactionsBeforeDate = allTransactions
-        .filter(t => t.accountId === accountId && new Date(t.date + "T00:00:00") < targetDate)
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-    transactionsBeforeDate.forEach(t => {
-        const isCreditCard = account.accountType === 'cartao_credito';
-        
-        if (isCreditCard) {
-          if (t.operationType === 'despesa') {
-            balance -= t.amount;
-          } else if (t.operationType === 'transferencia') {
-            balance += t.amount;
-          }
-        } else {
-          if (t.flow === 'in' || t.flow === 'transfer_in') {
-            balance += t.amount;
-          } else {
-            balance -= t.amount;
-          }
-        }
-    });
-
-    return balance;
-  };
-
   // Cálculos principais
   const indicadores = useMemo(() => {
     const now = new Date();
-    
-    // Definir período de análise
-    const dataInicio = dateRange.from || subMonths(startOfMonth(now), 11);
-    const dataFim = dateRange.to || endOfMonth(now);
-    
-    const mesAtualStr = format(dataFim, 'yyyy-MM');
-    const mesAnteriorDate = subMonths(dataFim, 1);
-    const mesAnteriorStr = format(mesAnteriorDate, 'yyyy-MM');
+    const mesAtual = format(now, 'yyyy-MM');
+    const mesAnterior = format(subMonths(now, 1), 'yyyy-MM');
 
-    // Filtrar transações no período de análise
-    const transacoesNoPeriodo = transacoesV2.filter(t => {
-      const transactionDate = new Date(t.date + "T00:00:00");
-      return isWithinInterval(transactionDate, { start: dataInicio, end: dataFim });
-    });
-
-    // Filtrar transações do mês atual e anterior (para crescimento)
-    const transacoesMesAtual = transacoesV2.filter(t => t.date.startsWith(mesAtualStr));
-    const transacoesMesAnterior = transacoesV2.filter(t => t.date.startsWith(mesAnteriorStr));
-
-    // Calcular saldos das contas (usando o saldo final do período)
+    // Calcular saldos das contas
     const saldosPorConta: Record<string, number> = {};
     contasMovimento.forEach(conta => {
-      saldosPorConta[conta.id] = calculateBalanceUpToDate(conta.id, dataFim ? new Date(dataFim.getTime() + 86400000) : undefined, transacoesV2);
+      saldosPorConta[conta.id] = conta.initialBalance;
+    });
+    transacoesV2.forEach(t => {
+      if (!saldosPorConta[t.accountId]) saldosPorConta[t.accountId] = 0;
+      if (t.flow === 'in' || t.flow === 'transfer_in') {
+        saldosPorConta[t.accountId] += t.amount;
+      } else {
+        saldosPorConta[t.accountId] -= t.amount;
+      }
     });
 
     // Ativos
@@ -284,6 +237,9 @@ export function IndicadoresTab({ dateRange }: IndicadoresTabProps) {
     const patrimonioLiquido = totalAtivos - totalPassivos;
 
     // Receitas e Despesas do período
+    const transacoesMesAtual = transacoesV2.filter(t => t.date.startsWith(mesAtual));
+    const transacoesMesAnterior = transacoesV2.filter(t => t.date.startsWith(mesAnterior));
+
     const calcReceitas = (trans: typeof transacoesV2) => trans
       .filter(t => t.flow === 'in' && t.operationType !== 'transferencia' && t.operationType !== 'liberacao_emprestimo')
       .reduce((acc, t) => acc + t.amount, 0);
@@ -410,7 +366,7 @@ export function IndicadoresTab({ dateRange }: IndicadoresTabProps) {
         passivoCurtoPrazo,
       },
     };
-  }, [transacoesV2, contasMovimento, emprestimos, veiculos, investimentosRF, criptomoedas, stablecoins, objetivos, categoriasV2, dateRange]);
+  }, [transacoesV2, contasMovimento, emprestimos, veiculos, investimentosRF, criptomoedas, stablecoins, objetivos, categoriasV2]);
 
   const formatPercent = (value: number) => `${value.toFixed(1)}%`;
   const formatRatio = (value: number) => value >= 999 ? "∞" : `${value.toFixed(2)}x`;

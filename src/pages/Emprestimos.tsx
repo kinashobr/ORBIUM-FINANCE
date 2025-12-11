@@ -12,7 +12,7 @@ import { LoanForm } from "@/components/loans/LoanForm";
 import { LoanAlerts } from "@/components/loans/LoanAlerts";
 import { LoanCharts } from "@/components/loans/LoanCharts";
 import { LoanDetailDialog } from "@/components/loans/LoanDetailDialog";
-import { DateRangeSelector } from "@/components/dashboard/DateRangeSelector"; // Importando o novo seletor
+import { PeriodSelector, PeriodRange, periodToDateRange } from "@/components/dashboard/PeriodSelector";
 import { cn } from "@/lib/utils";
 
 const Emprestimos = () => {
@@ -29,34 +29,35 @@ const Emprestimos = () => {
   
   const [selectedLoan, setSelectedLoan] = useState<Emprestimo | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
-  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
+  const [periodRange, setPeriodRange] = useState<PeriodRange>({
+    startMonth: null,
+    startYear: null,
+    endMonth: null,
+    endYear: null,
+  });
 
-  const handleDateRangeChange = useCallback((range: { from: Date | undefined; to: Date | undefined }) => {
-    setDateRange(range);
+  const handlePeriodChange = useCallback((period: PeriodRange) => {
+    setPeriodRange(period);
   }, []);
+
+  const dateRange = useMemo(() => periodToDateRange(periodRange), [periodRange]);
 
   // Get pending loans from liberações
   const pendingLoans = getPendingLoans();
   const contasCorrentes = getContasCorrentesTipo();
 
-  // Filter emprestimos by date range (Note: Emprestimos are usually long-term, filtering by date range might only affect the display of payments/metrics, not the list of loans itself unless they were initiated/closed in the period)
+  // Filter emprestimos by date range
   const filteredEmprestimos = useMemo(() => {
     return emprestimos.filter(e => e.status !== 'pendente_config');
   }, [emprestimos]);
 
-  // Get payment transactions for each loan, filtered by date range
+  // Get payment transactions for each loan
   const loanPayments = useMemo(() => {
     const payments: Record<number, { count: number; total: number }> = {};
     
-    const txInPeriod = transacoesV2.filter(t => {
-      if (!dateRange.from || !dateRange.to) return true;
-      const transactionDate = new Date(t.date + "T00:00:00");
-      return transactionDate >= dateRange.from && transactionDate <= dateRange.to;
-    });
-
-    txInPeriod.forEach(t => {
+    transacoesV2.forEach(t => {
       if (t.operationType === 'pagamento_emprestimo' && t.links?.loanId) {
-        const loanId = parseInt(t.links.loanId.replace('loan_', ''));
+        const loanId = parseInt(t.links.loanId);
         if (!payments[loanId]) {
           payments[loanId] = { count: 0, total: 0 };
         }
@@ -66,7 +67,7 @@ const Emprestimos = () => {
     });
     
     return payments;
-  }, [transacoesV2, dateRange]);
+  }, [transacoesV2]);
 
   // Cálculos avançados
   const calculos = useMemo(() => {
@@ -82,17 +83,15 @@ const Emprestimos = () => {
     
     filteredEmprestimos.forEach(e => {
       const payment = loanPayments[e.id];
-      // Usamos o total de parcelas pagas no sistema legado (e.parcelasPagas) para o cálculo do saldo devedor
-      // E o payment count (do período filtrado) para métricas do período, se necessário.
-      const parcelasPagasTotal = e.parcelasPagas || 0; 
-      const parcelasRestantes = e.meses - parcelasPagasTotal;
-      const saldoDevedor = Math.max(0, e.valorTotal - (parcelasPagasTotal * e.parcela));
+      const parcelasPagas = payment?.count || e.parcelasPagas || 0;
+      const parcelasRestantes = e.meses - parcelasPagas;
+      const saldoDevedor = Math.max(0, e.valorTotal - (parcelasPagas * e.parcela));
       const custoTotal = e.parcela * e.meses;
       const juros = custoTotal - e.valorTotal;
-      const jurosJaPagos = juros * (parcelasPagasTotal / e.meses);
+      const jurosJaPagos = juros * (parcelasPagas / e.meses);
       const jurosRestantes = juros - jurosJaPagos;
       
-      totalParcelasPagas += parcelasPagasTotal;
+      totalParcelasPagas += parcelasPagas;
       totalParcelasRestantes += parcelasRestantes;
       saldoDevedorTotal += saldoDevedor;
       custoTotalEmprestimos += custoTotal;
@@ -106,12 +105,11 @@ const Emprestimos = () => {
     
     const parcelaMes = filteredEmprestimos.reduce((acc, e) => acc + e.parcela, 0);
     
-    const totalContratadoAtivo = filteredEmprestimos.reduce((acc, e) => acc + e.valorTotal, 0);
-    const taxaMediaPonderada = totalContratadoAtivo > 0 ? 
-      filteredEmprestimos.reduce((acc, e) => acc + (e.taxaMensal * e.valorTotal), 0) / totalContratadoAtivo : 0;
+    const taxaMediaPonderada = totalContratado > 0 ? 
+      filteredEmprestimos.reduce((acc, e) => acc + (e.taxaMensal * e.valorTotal), 0) / totalContratado : 0;
     
-    const cetMedio = totalContratadoAtivo > 0 ? 
-      ((custoTotalEmprestimos / totalContratadoAtivo - 1) / (totalParcelas / filteredEmprestimos.length || 1)) * 12 * 100 : 0;
+    const cetMedio = totalContratado > 0 ? 
+      ((custoTotalEmprestimos / totalContratado - 1) / (totalParcelas / filteredEmprestimos.length || 1)) * 12 * 100 : 0;
     
     const hoje = new Date();
     const proximaParcela = new Date(hoje.getFullYear(), hoje.getMonth(), 10);
@@ -184,7 +182,10 @@ const Emprestimos = () => {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <DateRangeSelector onDateRangeChange={handleDateRangeChange} />
+            <PeriodSelector 
+              tabId="emprestimos" 
+              onPeriodChange={handlePeriodChange} 
+            />
           </div>
         </div>
 
@@ -385,7 +386,7 @@ const Emprestimos = () => {
               <TableBody>
                 {filteredEmprestimos.map((item) => {
                   const payment = loanPayments[item.id];
-                  const parcelasPagas = item.parcelasPagas || 0;
+                  const parcelasPagas = payment?.count || item.parcelasPagas || 0;
                   const saldoDevedor = Math.max(0, item.valorTotal - (parcelasPagas * item.parcela));
                   const progresso = (parcelasPagas / item.meses) * 100;
                   
