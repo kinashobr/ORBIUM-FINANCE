@@ -45,9 +45,6 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit }: Ac
     error: 'bg-destructive/20 text-destructive'
   };
 
-  const balanceChange = currentBalance - initialBalance;
-  const isPositive = balanceChange >= 0;
-
   return (
     <Card className={cn(
       "min-w-[280px] max-w-[320px] p-4 border-l-4 transition-all hover:shadow-md",
@@ -140,12 +137,8 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit }: Ac
       </div>
 
       <div className="flex items-center justify-between">
-        <div className={cn(
-          "flex items-center gap-1 text-xs",
-          isPositive ? "text-success" : "text-destructive"
-        )}>
-          {isPositive ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-          <span>{isPositive ? '+' : ''}{formatCurrency(balanceChange)}</span>
+        <div className="text-xs text-muted-foreground">
+          Saldo de implantação: {formatCurrency(summary.accountInitialBalance)}
         </div>
 
         <Button 
