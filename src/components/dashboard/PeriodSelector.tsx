@@ -14,8 +14,16 @@ export interface DateRange {
   to: Date | undefined;
 }
 
-interface DateRangePickerProps {
-  onDateRangeChange: (range: DateRange) => void;
+// Interface para o estado do seletor (Mês/Ano)
+export interface PeriodRange {
+  startMonth: string | null;
+  startYear: string | null;
+  endMonth: string | null;
+  endYear: string | null;
+}
+
+interface PeriodSelectorProps {
+  onPeriodChange: (period: PeriodRange) => void;
   tabId: string;
   className?: string;
 }
@@ -56,6 +64,47 @@ const presets = [
   { id: "thisYear", label: "Este ano" },
   { id: "all", label: "Todo o período" },
 ];
+
+// Função para converter PeriodRange (string/null) para DateRange (Date/undefined)
+export const periodToDateRange = (period: PeriodRange): DateRange => {
+  const { startMonth, startYear, endMonth, endYear } = period;
+  
+  let from: Date | undefined;
+  let to: Date | undefined;
+
+  if (startMonth !== null && startYear !== null) {
+    from = startOfMonth(new Date(parseInt(startYear), parseInt(startMonth)));
+  }
+  
+  if (endMonth !== null && endYear !== null) {
+    to = endOfMonth(new Date(parseInt(endYear), parseInt(endMonth)));
+  }
+  
+  // Se apenas um lado for definido, ajusta para o mês inteiro
+  if (from && !to) {
+    to = endOfMonth(from);
+  } else if (to && !from) {
+    from = startOfMonth(to);
+  }
+
+  return { from, to };
+};
+
+// Função para aplicar o preset e retornar o PeriodRange
+const getPeriodRangeFromPreset = (presetId: string): PeriodRange => {
+  const range = getRangeFromPreset(presetId);
+  
+  if (!range.from || !range.to) {
+    return { startMonth: null, startYear: null, endMonth: null, endYear: null };
+  }
+  
+  return {
+    startMonth: range.from.getMonth().toString(),
+    startYear: range.from.getFullYear().toString(),
+    endMonth: range.to.getMonth().toString(),
+    endYear: range.to.getFullYear().toString(),
+  };
+};
 
 // Função para aplicar o preset e retornar o DateRange
 const getRangeFromPreset = (presetId: string): DateRange => {
@@ -110,6 +159,11 @@ const formatDateRange = (range: DateRange) => {
   const start = range.from;
   const end = range.to;
 
+  // Se for o mesmo dia, exibe a data
+  if (format(start, 'yyyy-MM-dd') === format(end, 'yyyy-MM-dd')) {
+    return format(start, "dd 'de' MMM yyyy", { locale: ptBR });
+  }
+
   // Se for o mesmo mês/ano, exibe apenas o mês/ano
   if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
     return format(start, "MMM yyyy", { locale: ptBR });
@@ -121,65 +175,76 @@ const formatDateRange = (range: DateRange) => {
   }
 
   // Caso contrário, exibe data completa
-  return `${format(start, "MMM yyyy", { locale: ptBR })} - ${format(end, "MMM yyyy", { locale: ptBR })}`;
+  return `${format(start, "dd/MM/yyyy")} - ${format(end, "dd/MM/yyyy")}`;
 };
 
-export function DateRangePicker({
-  onDateRangeChange,
+export function PeriodSelector({
+  onPeriodChange,
   tabId,
   className,
-}: DateRangePickerProps) {
+}: PeriodSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedPreset, setSelectedPreset] = useState<string>('thisMonth');
   
   // Estado interno para Mês/Ano
-  const [startMonth, setStartMonth] = useState<string | undefined>(undefined);
-  const [startYear, setStartYear] = useState<string | undefined>(undefined);
-  const [endMonth, setEndMonth] = useState<string | undefined>(undefined);
-  const [endYear, setEndYear] = useState<string | undefined>(undefined);
+  const [startMonth, setStartMonth] = useState<string | null>(null);
+  const [startYear, setStartYear] = useState<string | null>(null);
+  const [endMonth, setEndMonth] = useState<string | null>(null);
+  const [endYear, setEndYear] = useState<string | null>(null);
   
   // Estado para o range de datas atual (o que está aplicado)
   const [currentRange, setCurrentRange] = useState<DateRange>(getRangeFromPreset('thisMonth'));
 
   // 1. Inicialização e Persistência
   useEffect(() => {
-    const savedRange = localStorage.getItem(`dateRange-${tabId}`);
-    if (savedRange) {
+    const savedPeriod = localStorage.getItem(`periodRange-${tabId}`);
+    if (savedPeriod) {
       try {
-        const parsed = JSON.parse(savedRange);
-        const range: DateRange = {
-          from: parsed.from ? new Date(parsed.from) : undefined,
-          to: parsed.to ? new Date(parsed.to) : undefined,
-        };
-        setCurrentRange(range);
-        onDateRangeChange(range);
+        const parsed = JSON.parse(savedPeriod) as PeriodRange;
         
-        // Tenta preencher os seletores Mês/Ano com o range salvo
-        if (range.from && range.to) {
-          setStartMonth(range.from.getMonth().toString());
-          setStartYear(range.from.getFullYear().toString());
-          setEndMonth(range.to.getMonth().toString());
-          setEndYear(range.to.getFullYear().toString());
-        }
+        setStartMonth(parsed.startMonth);
+        setStartYear(parsed.startYear);
+        setEndMonth(parsed.endMonth);
+        setEndYear(parsed.endYear);
+        
+        const range = periodToDateRange(parsed);
+        setCurrentRange(range);
+        onPeriodChange(parsed);
         
       } catch (e) {
         console.error("Erro ao carregar período salvo:", e);
         // Se falhar, aplica o preset 'Este mês'
-        const defaultRange = getRangeFromPreset('thisMonth');
+        const defaultPeriod = getPeriodRangeFromPreset('thisMonth');
+        const defaultRange = periodToDateRange(defaultPeriod);
+        
+        setStartMonth(defaultPeriod.startMonth);
+        setStartYear(defaultPeriod.startYear);
+        setEndMonth(defaultPeriod.endMonth);
+        setEndYear(defaultPeriod.endYear);
+        
         setCurrentRange(defaultRange);
-        onDateRangeChange(defaultRange);
+        onPeriodChange(defaultPeriod);
       }
     } else {
       // Aplica o preset 'Este mês' se não houver nada salvo
-      const defaultRange = getRangeFromPreset('thisMonth');
+      const defaultPeriod = getPeriodRangeFromPreset('thisMonth');
+      const defaultRange = periodToDateRange(defaultPeriod);
+      
+      setStartMonth(defaultPeriod.startMonth);
+      setStartYear(defaultPeriod.startYear);
+      setEndMonth(defaultPeriod.endMonth);
+      setEndYear(defaultPeriod.endYear);
+      
       setCurrentRange(defaultRange);
-      onDateRangeChange(defaultRange);
+      onPeriodChange(defaultPeriod);
     }
-  }, [tabId, onDateRangeChange]);
+  }, [tabId, onPeriodChange]);
 
   // 2. Função para salvar e aplicar o range
-  const applyRange = useCallback((range: DateRange) => {
+  const applyPeriod = useCallback((period: PeriodRange) => {
+    const range = periodToDateRange(period);
+    
     if (range.from && range.to && range.from > range.to) {
       setError("Período inicial não pode ser posterior ao período final.");
       return;
@@ -187,56 +252,45 @@ export function DateRangePicker({
     
     setError(null);
     setCurrentRange(range);
-    onDateRangeChange(range);
-    localStorage.setItem(`dateRange-${tabId}`, JSON.stringify({
-      from: range.from?.toISOString(),
-      to: range.to?.toISOString(),
-    }));
+    onPeriodChange(period);
+    localStorage.setItem(`periodRange-${tabId}`, JSON.stringify(period));
     setIsOpen(false);
-  }, [onDateRangeChange, tabId]);
+  }, [onPeriodChange, tabId]);
 
   // 3. Lógica de aplicação de presets
   const handleApplyPreset = (presetId: string) => {
     setSelectedPreset(presetId);
-    const range = getRangeFromPreset(presetId);
+    const period = getPeriodRangeFromPreset(presetId);
     
-    // Atualiza os seletores Mês/Ano para refletir o preset
-    if (range.from && range.to) {
-      setStartMonth(range.from.getMonth().toString());
-      setStartYear(range.from.getFullYear().toString());
-      setEndMonth(range.to.getMonth().toString());
-      setEndYear(range.to.getFullYear().toString());
-    } else {
-      setStartMonth(undefined);
-      setStartYear(undefined);
-      setEndMonth(undefined);
-      setEndYear(undefined);
-    }
+    setStartMonth(period.startMonth);
+    setStartYear(period.startYear);
+    setEndMonth(period.endMonth);
+    setEndYear(period.endYear);
     
-    applyRange(range);
+    applyPeriod(period);
   };
   
   // 4. Lógica de aplicação de Mês/Ano customizado
   const handleApplyCustom = () => {
-    if (!startMonth || !startYear || !endMonth || !endYear) {
-      setError("Selecione o mês e ano inicial e final.");
-      return;
-    }
+    const period: PeriodRange = {
+      startMonth,
+      startYear,
+      endMonth,
+      endYear,
+    };
     
-    const from = startOfMonth(new Date(parseInt(startYear), parseInt(startMonth)));
-    const to = endOfMonth(new Date(parseInt(endYear), parseInt(endMonth)));
-    
-    applyRange({ from, to });
+    applyPeriod(period);
   };
   
   // 5. Limpar filtros
   const handleClear = () => {
-    setStartMonth(undefined);
-    setStartYear(undefined);
-    setEndMonth(undefined);
-    setEndYear(undefined);
+    const period: PeriodRange = { startMonth: null, startYear: null, endMonth: null, endYear: null };
+    setStartMonth(null);
+    setStartYear(null);
+    setEndMonth(null);
+    setEndYear(null);
     setSelectedPreset('all');
-    applyRange({ from: undefined, to: undefined });
+    applyPeriod(period);
   };
 
   return (
@@ -266,7 +320,7 @@ export function DateRangePicker({
                 Período Inicial
               </label>
               <div className="flex gap-2">
-                <Select value={startMonth} onValueChange={setStartMonth}>
+                <Select value={startMonth || ''} onValueChange={setStartMonth}>
                   <SelectTrigger className="flex-1 bg-muted border-border h-9">
                     <SelectValue placeholder="Mês" />
                   </SelectTrigger>
@@ -278,7 +332,7 @@ export function DateRangePicker({
                     ))}
                   </SelectContent>
                 </Select>
-                <Select value={startYear} onValueChange={setStartYear}>
+                <Select value={startYear || ''} onValueChange={setStartYear}>
                   <SelectTrigger className="flex-1 bg-muted border-border h-9">
                     <SelectValue placeholder="Ano" />
                   </SelectTrigger>
@@ -298,7 +352,7 @@ export function DateRangePicker({
                 Período Final
               </label>
               <div className="flex gap-2">
-                <Select value={endMonth} onValueChange={setEndMonth}>
+                <Select value={endMonth || ''} onValueChange={setEndMonth}>
                   <SelectTrigger className="flex-1 bg-muted border-border h-9">
                     <SelectValue placeholder="Mês" />
                   </SelectTrigger>
@@ -310,7 +364,7 @@ export function DateRangePicker({
                     ))}
                   </SelectContent>
                 </Select>
-                <Select value={endYear} onValueChange={setEndYear}>
+                <Select value={endYear || ''} onValueChange={setEndYear}>
                   <SelectTrigger className="flex-1 bg-muted border-border h-9">
                     <SelectValue placeholder="Ano" />
                   </SelectTrigger>
@@ -348,19 +402,24 @@ export function DateRangePicker({
               Períodos Pré-definidos
             </label>
             <div className="grid grid-cols-4 gap-2">
-              {presets.map((preset) => (
-                <Button
-                  key={preset.id}
-                  variant={currentRange.from && currentRange.to && 
-                           formatDateRange(currentRange) === formatDateRange(getRangeFromPreset(preset.id)) 
-                           ? "default" : "outline"}
-                  size="sm"
-                  className="text-xs h-8"
-                  onClick={() => handleApplyPreset(preset.id)}
-                >
-                  {preset.label}
-                </Button>
-              ))}
+              {presets.map((preset) => {
+                const range = getRangeFromPreset(preset.id);
+                const isSelected = currentRange.from && currentRange.to && 
+                                   range.from && range.to &&
+                                   formatDateRange(currentRange) === formatDateRange(range);
+                                   
+                return (
+                  <Button
+                    key={preset.id}
+                    variant={isSelected ? "default" : "outline"}
+                    size="sm"
+                    className="text-xs h-8"
+                    onClick={() => handleApplyPreset(preset.id)}
+                  >
+                    {preset.label}
+                  </Button>
+                );
+              })}
             </div>
           </div>
 

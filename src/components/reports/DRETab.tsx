@@ -43,8 +43,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CATEGORY_NATURE_LABELS } from "@/types/finance";
-import { DateRange } from "../dashboard/DateRangePicker";
+import { CATEGORY_NATURE_LABELS, TransacaoCompleta } from "@/types/finance";
+import { DateRange } from "../dashboard/PeriodSelector";
 
 const COLORS = {
   success: "hsl(142, 76%, 36%)",
@@ -140,6 +140,17 @@ type KPIStatus = "success" | "warning" | "danger" | "neutral";
 interface DRETabProps {
   dateRange: DateRange;
 }
+
+// Função auxiliar para calcular o resultado (Receitas - Despesas)
+const calcularResultado = (transacoes: TransacaoCompleta[]) => {
+  const entradas = transacoes
+    .filter(t => t.flow === 'in' && t.operationType !== 'transferencia' && t.operationType !== 'liberacao_emprestimo')
+    .reduce((acc, t) => acc + t.amount, 0);
+  const saidas = transacoes
+    .filter(t => t.flow === 'out' && t.operationType !== 'transferencia' && t.operationType !== 'aplicacao')
+    .reduce((acc, t) => acc + t.amount, 0);
+  return entradas - saidas;
+};
 
 export function DRETab({ dateRange }: DRETabProps) {
   const {
@@ -349,9 +360,9 @@ export function DRETab({ dateRange }: DRETabProps) {
   // Dados para gráficos
   const dadosComparativo = dre.evolucaoMensal.filter(m => m.receitas > 0 || m.despesas > 0);
   
-  const despesasPorTipo = [
-    { name: "Despesas Fixas", value: dre.despesas.fixas.total, color: COLORS.warning },
-    { name: "Despesas Variáveis", value: dre.despesas.variaveis.total, color: COLORS.danger },
+  const despesasPorTipo: { name: string; value: number; tipo: 'fixa' | 'variavel'; color: string }[] = [
+    { name: "Despesas Fixas", value: dre.despesas.fixas.total, tipo: 'fixa', color: COLORS.warning },
+    { name: "Despesas Variáveis", value: dre.despesas.variaveis.total, tipo: 'variavel', color: COLORS.danger },
   ].filter(d => d.value > 0);
 
   const todasDespesas = [
@@ -670,7 +681,7 @@ export function DRETab({ dateRange }: DRETabProps) {
             </div>
           </div>
         </ExpandablePanel>
-      </ExpandablePanel>
+      </div>
 
       {/* Despesas por Categoria */}
       <ExpandablePanel

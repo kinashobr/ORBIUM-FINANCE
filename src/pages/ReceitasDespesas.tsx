@@ -346,15 +346,13 @@ const ReceitasDespesas = () => {
         
         // 2. Transação de ENTRADA (Conta de Investimento)
         const incomingTx: TransacaoCompleta = {
+          ...transaction,
           id: generateTransactionId(),
-          date: transaction.date,
           accountId: transaction.links.investmentId, // Conta de investimento
           flow: 'in',
           operationType: 'aplicacao',
           domain: 'investment',
-          amount: transaction.amount,
           categoryId: null,
-          description: transaction.description || `Aplicação recebida de conta corrente`,
           links: {
             investmentId: transaction.accountId, // Referência à conta origem
             loanId: null,
@@ -362,6 +360,7 @@ const ReceitasDespesas = () => {
             parcelaId: null,
             vehicleTransactionId: null,
           },
+          description: transaction.description || `Aplicação recebida de conta corrente`,
           conciliated: false,
           attachments: [],
           meta: {
@@ -383,15 +382,13 @@ const ReceitasDespesas = () => {
         
         // 2. Transação de SAÍDA (Conta de Investimento)
         const outgoingTx: TransacaoCompleta = {
+          ...transaction,
           id: generateTransactionId(),
-          date: transaction.date,
           accountId: transaction.links.investmentId, // Conta de investimento
           flow: 'out',
           operationType: 'resgate',
           domain: 'investment',
-          amount: transaction.amount,
           categoryId: null,
-          description: transaction.description || `Resgate enviado para conta corrente`,
           links: {
             investmentId: transaction.accountId, // Referência à conta destino
             loanId: null,
@@ -399,6 +396,7 @@ const ReceitasDespesas = () => {
             parcelaId: null,
             vehicleTransactionId: null,
           },
+          description: transaction.description || `Resgate enviado para conta corrente`,
           conciliated: false,
           attachments: [],
             meta: {

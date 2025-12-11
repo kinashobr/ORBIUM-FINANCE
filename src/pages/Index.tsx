@@ -20,6 +20,7 @@ import { IndicadoresFinanceiros } from "@/components/dashboard/IndicadoresFinanc
 import { TabelaConsolidada } from "@/components/dashboard/TabelaConsolidada";
 import { ObjetivosCards } from "@/components/dashboard/ObjetivosCards";
 import { DistribuicaoCharts } from "@/components/dashboard/DistribuicaoCharts";
+import { PeriodSelector, PeriodRange, periodToDateRange } from "@/components/dashboard/PeriodSelector";
 
 const defaultSections: DashboardSection[] = [
   { id: "patrimonio-cards", nome: "Cards de Patrimônio", visivel: true, ordem: 0 },
@@ -38,9 +39,20 @@ const Index = () => {
   const [sections, setSections] = useState<DashboardSection[]>(defaultSections);
   const [layout, setLayout] = useState<"2col" | "3col" | "fluid">("fluid");
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
+  const [periodRange, setPeriodRange] = useState<PeriodRange>({
+    startMonth: null,
+    startYear: null,
+    endMonth: null,
+    endYear: null,
+  });
 
   const handleDateRangeChange = useCallback((range: DateRange) => {
     setDateRange(range);
+  }, []);
+  
+  const handlePeriodChange = useCallback((period: PeriodRange) => {
+    setPeriodRange(period);
+    setDateRange(periodToDateRange(period));
   }, []);
 
   const filteredTransacoesV2 = useMemo(() => {
@@ -404,9 +416,9 @@ const Index = () => {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <DateRangePicker 
+            <PeriodSelector 
               tabId="dashboard" 
-              onDateRangeChange={handleDateRangeChange} 
+              onPeriodChange={handlePeriodChange} 
             />
             <DashboardCustomizer
               sections={sections}
