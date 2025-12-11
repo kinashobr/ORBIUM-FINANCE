@@ -73,18 +73,7 @@ const Veiculos = () => {
     vencimento: string;
   } | null>(null);
   
-  // REMOVIDO: [showMovimentarModal, setShowMovimentarModal]
-
-  const handleOpenFipeConsulta = (veiculo?: Veiculo) => {
-    setSelectedVeiculoFipe(veiculo);
-    setShowFipeDialog(true);
-  };
-  
-  const handleUpdateFipe = (veiculoId: number, valorFipe: number) => {
-    updateVeiculo(veiculoId, { valorFipe });
-    toast.success("Valor FIPE atualizado!");
-  };
-  
+  // Forms
   const [formData, setFormData] = useState({
     modelo: "",
     marca: "",
@@ -106,8 +95,16 @@ const Veiculos = () => {
     meiaParcela: false,
   });
 
-  const pendingVehicles = getPendingVehicles();
-
+  const handleOpenFipeConsulta = (veiculo?: Veiculo) => {
+    setSelectedVeiculoFipe(veiculo);
+    setShowFipeDialog(true);
+  };
+  
+  const handleUpdateFipe = (veiculoId: number, valorFipe: number) => {
+    updateVeiculo(veiculoId, { valorFipe });
+    toast.success("Valor FIPE atualizado!");
+  };
+  
   const handleSubmitVeiculo = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.modelo || !formData.ano || !formData.dataCompra || !formData.valorVeiculo) return;
@@ -208,6 +205,7 @@ const Veiculos = () => {
   };
 
   // Cálculos
+  const pendingVehicles = getPendingVehicles();
   const totalVeiculos = veiculos.filter(v => v.status !== 'vendido').reduce((acc, v) => acc + v.valorVeiculo, 0);
   const totalSeguros = veiculos.filter(v => v.status !== 'vendido').reduce((acc, v) => acc + v.valorSeguro, 0);
   const totalFipe = getValorFipeTotal();
@@ -251,12 +249,6 @@ const Veiculos = () => {
     
     return pendentes.sort((a, b) => new Date(a.parcela.vencimento).getTime() - new Date(b.parcela.vencimento).getTime());
   }, [segurosVeiculo, veiculos]);
-
-  // REMOVIDO: handlePayInstallmentClick
-  // REMOVIDO: handleTransactionSubmit
-  // REMOVIDO: modalTransactionData
-  // REMOVIDO: investments
-  // REMOVIDO: loans
 
   return (
     <MainLayout>
@@ -378,6 +370,20 @@ const Veiculos = () => {
                 </form>
               </DialogContent>
             </Dialog>
+            
+            {/* Botão Novo Veículo */}
+            <Button 
+              variant="default" 
+              className="gap-2 bg-neon-gradient hover:opacity-90"
+              onClick={() => {
+                setPendingVehicleId(null);
+                setFormData({ modelo: "", marca: "", tipo: "carro", ano: "", dataCompra: "", valorVeiculo: "", valorFipe: "" });
+                setShowAddVeiculo(true);
+              }}
+            >
+              <Car className="w-4 h-4" />
+              Novo Veículo
+            </Button>
           </div>
         </div>
 
@@ -798,6 +804,99 @@ const Veiculos = () => {
             </Card>
           </TabsContent>
         </Tabs>
+        
+        {/* Dialog Adicionar/Configurar Veículo */}
+        <Dialog open={showAddVeiculo} onOpenChange={setShowAddVeiculo}>
+          <DialogContent className="bg-card border-border max-w-lg">
+            <DialogHeader>
+              <DialogTitle>
+                {pendingVehicleId ? "Configurar Veículo Pendente" : "Cadastrar Novo Veículo"}
+              </DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleSubmitVeiculo} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Marca *</Label>
+                  <Input
+                    value={formData.marca}
+                    onChange={(e) => setFormData(prev => ({ ...prev, marca: e.target.value }))}
+                    className="mt-1 bg-muted border-border"
+                  />
+                </div>
+                <div>
+                  <Label>Modelo *</Label>
+                  <Input
+                    value={formData.modelo}
+                    onChange={(e) => setFormData(prev => ({ ...prev, modelo: e.target.value }))}
+                    className="mt-1 bg-muted border-border"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label>Tipo *</Label>
+                  <Select 
+                    value={formData.tipo} 
+                    onValueChange={(v) => setFormData(prev => ({ ...prev, tipo: v as 'carro' | 'moto' | 'caminhao' }))}
+                  >
+                    <SelectTrigger className="mt-1 bg-muted border-border">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="carro">Carro</SelectItem>
+                      <SelectItem value="moto">Moto</SelectItem>
+                      <SelectItem value="caminhao">Caminhão</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Ano *</Label>
+                  <Input
+                    type="number"
+                    value={formData.ano}
+                    onChange={(e) => setFormData(prev => ({ ...prev, ano: e.target.value }))}
+                    className="mt-1 bg-muted border-border"
+                  />
+                </div>
+                <div>
+                  <Label>Data Compra *</Label>
+                  <Input
+                    type="date"
+                    value={formData.dataCompra}
+                    onChange={(e) => setFormData(prev => ({ ...prev, dataCompra: e.target.value }))}
+                    className="mt-1 bg-muted border-border"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Valor Compra (R$) *</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.valorVeiculo}
+                    onChange={(e) => setFormData(prev => ({ ...prev, valorVeiculo: e.target.value }))}
+                    className="mt-1 bg-muted border-border"
+                  />
+                </div>
+                <div>
+                  <Label>Valor FIPE (R$)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.valorFipe}
+                    onChange={(e) => setFormData(prev => ({ ...prev, valorFipe: e.target.value }))}
+                    placeholder="Opcional"
+                    className="mt-1 bg-muted border-border"
+                  />
+                </div>
+              </div>
+              <Button type="submit" className="w-full">
+                {pendingVehicleId ? "Salvar Configuração" : "Adicionar Veículo"}
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
         
         {/* FIPE Consulta Dialog */}
         <FipeConsultaDialog 
