@@ -14,7 +14,7 @@ import { LoanCharts } from "@/components/loans/LoanCharts";
 import { LoanDetailDialog } from "@/components/loans/LoanDetailDialog";
 import { PeriodSelector, DateRange } from "@/components/dashboard/PeriodSelector";
 import { cn } from "@/lib/utils";
-import { startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
+import { startOfMonth, endOfMonth, isWithinInterval, format } from "date-fns";
 
 const Emprestimos = () => {
   const { 
@@ -38,6 +38,32 @@ const Emprestimos = () => {
 
   const handlePeriodChange = useCallback((range: DateRange) => {
     setDateRange(range);
+  }, []);
+
+  // Helper function to calculate the next due date for a loan
+  const getNextDueDate = useCallback((loan: Emprestimo): Date | null => {
+    if (!loan.dataInicio || loan.meses === 0) return null;
+    
+    const hoje = new Date();
+    // Set time to start of day for accurate comparison
+    hoje.setHours(0, 0, 0, 0); 
+    
+    const parcelasPagas = loan.parcelasPagas || 0;
+    
+    // Start checking from the next expected installment number (i=1 is the first installment)
+    for (let i = parcelasPagas + 1; i <= loan.meses; i++) {
+      // Calculate due date for installment 'i'
+      const startDate = new Date(loan.dataInicio + "T00:00:00");
+      const dueDate = new Date(startDate);
+      dueDate.setMonth(dueDate.getMonth() + i);
+      dueDate.setHours(0, 0, 0, 0); // Ensure comparison is date-only
+      
+      // Check if the due date is today or in the future
+      if (dueDate >= hoje) {
+        return dueDate;
+      }
+    }
+    return null; // All installments paid or dates passed
   }, []);
 
   // Get pending loans from liberações
@@ -86,6 +112,8 @@ const Emprestimos = () => {
     let jurosPagos = 0;
     let economiaQuitacao = 0;
     
+    let earliestNextDueDate: Date | null = null; // Initialize variable to track the earliest next due date
+
     filteredEmprestimos.forEach(e => {
       // Use the actual paid count from the loan object for cumulative metrics
       const cumulativeParcelasPagas = e.parcelasPagas || 0; 
@@ -104,8 +132,16 @@ const Emprestimos = () => {
       jurosTotal += juros;
       jurosPagos += jurosJaPagos;
       economiaQuitacao += jurosRestantes * 0.3;
+      
+      // Find the earliest next due date
+      const nextDueDate = getNextDueDate(e);
+      if (nextDueDate) {
+        if (!earliestNextDueDate || nextDueDate < earliestNextDueDate) {
+          earliestNextDueDate = nextDueDate;
+        }
+      }
     });
-    
+
     const totalParcelas = filteredEmprestimos.reduce((acc, e) => acc + e.meses, 0);
     const percentualQuitado = totalParcelas > 0 ? (totalParcelasPagas / totalParcelas) * 100 : 0;
     
@@ -117,11 +153,8 @@ const Emprestimos = () => {
     const cetMedio = totalContratado > 0 ? 
       ((custoTotalEmprestimos / totalContratado - 1) / (totalParcelas / filteredEmprestimos.length || 1)) * 12 * 100 : 0;
     
-    const hoje = new Date();
-    const proximaParcela = new Date(hoje.getFullYear(), hoje.getMonth(), 10);
-    if (proximaParcela <= hoje) {
-      proximaParcela.setMonth(proximaParcela.getMonth() + 1);
-    }
+    // Use the calculated earliest next due date
+    const proximaParcela = earliestNextDueDate || new Date(new Date().getFullYear() + 1, 0, 1); 
     
     const ranking = [...filteredEmprestimos]
       .map(e => ({
@@ -147,7 +180,7 @@ const Emprestimos = () => {
       jurosPagos,
       ranking,
     };
-  }, [filteredEmprestimos, getTotalDividas]);
+  }, [filteredEmprestimos, getNextDueDate, getTotalDividas]);
 
   const formatCurrency = (value: number) => `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 
@@ -287,7 +320,7 @@ const Emprestimos = () => {
           />
           <LoanCard
             title="Próxima Parcela"
-            value={calculos.proximaParcela.toLocaleDateString("pt-BR")}
+            value={format(calculos.proximaParcela, "dd/MM/yyyy")}
             icon={<Calendar className="w-5 h-5" />}
             status="info"
             tooltip="Data de vencimento da próxima parcela"
