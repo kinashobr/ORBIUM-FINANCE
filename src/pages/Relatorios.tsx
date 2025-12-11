@@ -5,18 +5,17 @@ import { BalancoTab } from "@/components/reports/BalancoTab";
 import { DRETab } from "@/components/reports/DRETab";
 import { IndicadoresTab } from "@/components/reports/IndicadoresTab";
 import { Scale, Receipt, Activity } from "lucide-react";
-import { PeriodSelector, PeriodRange } from "@/components/dashboard/PeriodSelector";
+import { PeriodSelector, DateRange } from "@/components/dashboard/PeriodSelector";
+import { startOfMonth, endOfMonth } from "date-fns";
 
 const Relatorios = () => {
-  const [periodRange, setPeriodRange] = useState<PeriodRange>({
-    startMonth: null,
-    startYear: null,
-    endMonth: null,
-    endYear: null,
-  });
+  // Inicializa o range para o mês atual
+  const now = new Date();
+  const initialRange: DateRange = { from: startOfMonth(now), to: endOfMonth(now) };
+  const [dateRange, setDateRange] = useState<DateRange>(initialRange);
 
-  const handlePeriodChange = useCallback((period: PeriodRange) => {
-    setPeriodRange(period);
+  const handlePeriodChange = useCallback((range: DateRange) => {
+    setDateRange(range);
   }, []);
 
   return (
@@ -33,8 +32,8 @@ const Relatorios = () => {
             </p>
           </div>
           <PeriodSelector 
-            onPeriodChange={handlePeriodChange} 
-            tabId="relatorios" 
+            initialRange={initialRange}
+            onDateRangeChange={handlePeriodChange} 
           />
         </div>
 

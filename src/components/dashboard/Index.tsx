@@ -12,8 +12,9 @@ import { ObjetivosCards } from "@/components/dashboard/ObjetivosCards";
 import { DistribuicaoCharts } from "@/components/dashboard/DistribuicaoCharts";
 import { TransacoesRecentes } from "@/components/dashboard/TransacoesRecentes";
 import { DashboardCustomizer, DashboardSection } from "@/components/dashboard/DashboardCustomizer";
-import { PeriodSelector, PeriodRange, periodToDateRange } from "@/components/dashboard/PeriodSelector";
+import { PeriodSelector, DateRange } from "@/components/dashboard/PeriodSelector";
 import { cn } from "@/lib/utils";
+import { startOfMonth, endOfMonth, isWithinInterval, format } from "date-fns";
 
 const defaultSections: DashboardSection[] = [
   { id: "patrimonio-cards", nome: "Cards de Patrimônio", visivel: true, ordem: 0 },
@@ -31,27 +32,34 @@ const Index = () => {
   const { transacoes, transacoesV2, emprestimos, veiculos, investimentosRF, criptomoedas, stablecoins, objetivos, getTotalReceitas, getTotalDespesas, getAtivosTotal, getPassivosTotal, getPatrimonioLiquido } = useFinance();
   const [sections, setSections] = useState<DashboardSection[]>(defaultSections);
   const [layout, setLayout] = useState<"2col" | "3col" | "fluid">("fluid");
-  const [periodRange, setPeriodRange] = useState<PeriodRange>({
-    startMonth: null,
-    startYear: null,
-    endMonth: null,
-    endYear: null,
-  });
+  
+  // Inicializa o range para o mês atual
+  const now = new Date();
+  const initialRange: DateRange = { from: startOfMonth(now), to: endOfMonth(now) };
+  const [dateRange, setDateRange] = useState<DateRange>(initialRange);
 
-  const handlePeriodChange = useCallback((period: PeriodRange) => {
-    setPeriodRange(period);
+  const handlePeriodChange = useCallback((range: DateRange) => {
+    setDateRange(range);
   }, []);
-
-  const dateRange = useMemo(() => periodToDateRange(periodRange), [periodRange]);
 
   const filteredTransacoes = useMemo(() => {
     if (!dateRange.from || !dateRange.to) return transacoes;
     
     return transacoes.filter(t => {
       const transactionDate = new Date(t.data);
-      return transactionDate >= dateRange.from! && transactionDate <= dateRange.to!;
+      return isWithinInterval(transactionDate, { start: dateRange.from!, end: dateRange.to! });
     });
   }, [transacoes, dateRange]);
+
+  // Filtra transacoesV2 para o heatmap (que precisa de transacoesV2)
+  const filteredTransacoesV2 = useMemo(() => {
+    if (!dateRange.from || !dateRange.to) return transacoesV2;
+    
+    return transacoesV2.filter(t => {
+      const transactionDate = new Date(t.date);
+      return isWithinInterval(transactionDate, { start: dateRange.from!, end: dateRange.to! });
+    });
+  }, [transacoesV2, dateRange]);
 
   const totalReceitas = useMemo(() => {
     return filteredTransacoes.filter(t => t.tipo === "receita").reduce((acc, t) => acc + t.valor, 0);
@@ -123,24 +131,6 @@ const Index = () => {
       };
     });
   }, [filteredTransacoes, totalInvestimentos, veiculos, totalDividas]);
-
-  const heatmapData = useMemo(() => {
-    return Array.from({ length: 31 }, (_, i) => {
-      const day = i + 1;
-      const dayTransacoes = filteredTransacoes.filter(t => {
-        const d = new Date(t.data).getDate();
-        return d === day;
-      });
-      
-      return {
-        day,
-        receitas: dayTransacoes.filter(t => t.tipo === "receita").reduce((acc, t) => acc + t.valor, 0),
-        despesas: dayTransacoes.filter(t => t.tipo === "despesa").reduce((acc, t) => acc + t.valor, 0),
-        transferencias: Math.random() > 0.7 ? Math.floor(Math.random() * 2000) : 0,
-        aportes: Math.random() > 0.8 ? Math.floor(Math.random() * 3000) : 0,
-      };
-    });
-  }, [filteredTransacoes]);
 
   const indicadores = useMemo(() => [
     {
@@ -226,39 +216,6 @@ const Index = () => {
       limites: { bom: 15, atencao: 30 },
       inverso: true,
       formula: "(Cripto + Ações) / Patrimônio Total × 100"
-    },
-  ], []);
-
-  const alertas = useMemo(() => [
-    {
-      id: "1",
-      tipo: "warning" as const,
-      mensagem: "Gasto acima da média em Alimentação",
-      detalhe: "R$ 850 vs média de R$ 650"
-    },
-    {
-      id: "2",
-      tipo: "danger" as const,
-      mensagem: "Dívida representa 28% dos ativos",
-      detalhe: "Atenção ao limite de 30%"
-    },
-    {
-      id: "3",
-      tipo: "info" as const,
-      mensagem: "Renda Fixa vencendo em 15 dias",
-      detalhe: "LCI Nubank - R$ 15.000"
-    },
-    {
-      id: "4",
-      tipo: "warning" as const,
-      mensagem: "Aporte mensal não realizado",
-      detalhe: "Meta: R$ 2.000/mês"
-    },
-    {
-      id: "5",
-      tipo: "success" as const,
-      mensagem: "Meta de poupança atingida!",
-      detalhe: "22% vs meta de 20%"
     },
   ], []);
 
@@ -392,7 +349,9 @@ const Index = () => {
         return <EvolucaoPatrimonialChart data={evolucaoData} />;
       case "heatmap":
         const now = new Date();
-        return <FluxoCaixaHeatmap month={String(now.getMonth() + 1).padStart(2, '0')} year={now.getFullYear()} transacoes={transacoesV2} />;
+        const month = dateRange.from ? format(dateRange.from, 'MM') : format(now, 'MM');
+        const year = dateRange.from ? dateRange.from.getFullYear() : now.getFullYear();
+        return <FluxoCaixaHeatmap month={month} year={year} transacoes={filteredTransacoesV2} />;
       case "indicadores":
         return <IndicadoresFinanceiros indicadores={indicadores} />;
       case "tabela-consolidada":
@@ -424,8 +383,8 @@ const Index = () => {
           </div>
           <div className="flex items-center gap-3">
             <PeriodSelector 
-              tabId="dashboard" 
-              onPeriodChange={handlePeriodChange} 
+              initialRange={initialRange}
+              onDateRangeChange={handlePeriodChange} 
             />
             <DashboardCustomizer
               sections={sections}

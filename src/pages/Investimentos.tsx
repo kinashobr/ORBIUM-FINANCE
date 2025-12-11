@@ -17,7 +17,8 @@ import { cn } from "@/lib/utils";
 import { useFinance } from "@/contexts/FinanceContext";
 import { EditableCell } from "@/components/EditableCell";
 import { useToast } from "@/hooks/use-toast";
-import { PeriodSelector, PeriodRange, periodToDateRange } from "@/components/dashboard/PeriodSelector";
+import { PeriodSelector, DateRange } from "@/components/dashboard/PeriodSelector";
+import { startOfMonth, endOfMonth } from "date-fns";
 
 const pieColors = [
   "hsl(142, 76%, 36%)",
@@ -66,12 +67,11 @@ const Investimentos = () => {
   } = useFinance();
   
   const [activeTab, setActiveTab] = useState("carteira");
-  const [periodRange, setPeriodRange] = useState<PeriodRange>({
-    startMonth: null,
-    startYear: null,
-    endMonth: null,
-    endYear: null,
-  });
+  
+  // Inicializa o range para o mês atual
+  const now = new Date();
+  const initialRange: DateRange = { from: startOfMonth(now), to: endOfMonth(now) };
+  const [dateRange, setDateRange] = useState<DateRange>(initialRange);
 
   // Dialogs
   const [showAddRendimento, setShowAddRendimento] = useState<number | null>(null);
@@ -83,11 +83,9 @@ const Investimentos = () => {
     descricao: ""
   });
 
-  const handlePeriodChange = useCallback((period: PeriodRange) => {
-    setPeriodRange(period);
+  const handlePeriodChange = useCallback((range: DateRange) => {
+    setDateRange(range);
   }, []);
-
-  const dateRange = useMemo(() => periodToDateRange(periodRange), [periodRange]);
 
   // Calcular total de investimentos das contas movimento tipo investimento
   const totalInvestimentosContas = useMemo(() => {
@@ -274,8 +272,8 @@ const Investimentos = () => {
           </div>
           <div className="flex items-center gap-3">
             <PeriodSelector 
-              onPeriodChange={handlePeriodChange} 
-              tabId="investimentos" 
+              initialRange={initialRange}
+              onDateRangeChange={handlePeriodChange} 
             />
           </div>
         </div>

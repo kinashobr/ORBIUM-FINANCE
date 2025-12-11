@@ -3,6 +3,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Tags, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { isWithinInterval, startOfMonth, endOfMonth } from "date-fns";
 
 // Types
 import { 
@@ -20,7 +21,7 @@ import { AccountFormModal } from "@/components/transactions/AccountFormModal";
 import { CategoryFormModal } from "@/components/transactions/CategoryFormModal";
 import { CategoryListModal } from "@/components/transactions/CategoryListModal";
 import { AccountStatementDialog } from "@/components/transactions/AccountStatementDialog";
-import { PeriodSelector, PeriodRange, periodToDateRange } from "@/components/dashboard/PeriodSelector";
+import { PeriodSelector, DateRange } from "@/components/dashboard/PeriodSelector";
 
 // Context
 import { useFinance } from "@/contexts/FinanceContext";
@@ -37,7 +38,7 @@ const ReceitasDespesas = () => {
     emprestimos,
     addEmprestimo,
     markLoanParcelPaid,
-    unmarkLoanParcelPaid, // Importado
+    unmarkLoanParcelPaid,
     veiculos,
     addVeiculo,
     investimentosRF,
@@ -52,7 +53,11 @@ const ReceitasDespesas = () => {
   const [showMovimentarModal, setShowMovimentarModal] = useState(false);
   const [selectedAccountForModal, setSelectedAccountForModal] = useState<string>();
   const [showReconciliation, setShowReconciliation] = useState(false);
-  const [periodRange, setPeriodRange] = useState<PeriodRange>({ startMonth: null, startYear: null, endMonth: null, endYear: null });
+  
+  // Inicializa o range para o mês atual
+  const now = new Date();
+  const initialRange: DateRange = { from: startOfMonth(now), to: endOfMonth(now) };
+  const [dateRange, setDateRange] = useState<DateRange>(initialRange);
   
   // New modals
   const [showAccountModal, setShowAccountModal] = useState(false);
@@ -66,24 +71,24 @@ const ReceitasDespesas = () => {
   const [viewingAccountId, setViewingAccountId] = useState<string | null>(null);
   const [showStatementDialog, setShowStatementDialog] = useState(false);
 
-  // Filter state
+  // Filter state (mantido para filtros internos da tabela, mas datas são controladas pelo PeriodSelector)
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedAccountId, setSelectedAccountId] = useState("all");
   const [selectedCategoryId, setSelectedCategoryId] = useState("all");
   const [selectedTypes, setSelectedTypes] = useState<OperationType[]>(['receita', 'despesa', 'transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo', 'liberacao_emprestimo', 'veiculo', 'rendimento']);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  
+  // Removendo dateFrom/dateTo do estado local, pois PeriodSelector controla isso
+  const dateFrom = dateRange.from ? dateRange.from.toISOString().split('T')[0] : "";
+  const dateTo = dateRange.to ? dateRange.to.toISOString().split('T')[0] : "";
 
   // Alias for context data
   const accounts = contasMovimento;
   const transactions = transacoesV2;
   const categories = categoriasV2;
 
-  const handlePeriodChange = useCallback((period: PeriodRange) => {
-    setPeriodRange(period);
+  const handlePeriodChange = useCallback((range: DateRange) => {
+    setDateRange(range);
   }, []);
-
-  const dateRange = useMemo(() => periodToDateRange(periodRange), [periodRange]);
 
   // Helper function to calculate balance up to a specific date (exclusive)
   const calculateBalanceUpToDate = useCallback((accountId: string, date: Date | undefined, allTransactions: TransacaoCompleta[], accounts: ContaCorrente[]): number => {
@@ -132,14 +137,12 @@ const ReceitasDespesas = () => {
       
       const transactionDate = new Date(t.date);
       
-      // Prioritize dateRange if set, otherwise use dateFrom/dateTo state
-      const matchPeriod = (dateRange.from || dateRange.to)
-        ? ((!dateRange.from || transactionDate >= dateRange.from) && (!dateRange.to || transactionDate <= dateRange.to))
-        : ((!dateFrom || t.date >= dateFrom) && (!dateTo || t.date <= dateTo));
+      // Filtro de período usando dateRange
+      const matchPeriod = (!dateRange.from || isWithinInterval(transactionDate, { start: dateRange.from, end: dateRange.to || new Date() }));
       
       return matchSearch && matchAccount && matchCategory && matchType && matchPeriod;
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [transactions, searchTerm, selectedAccountId, selectedCategoryId, selectedTypes, dateFrom, dateTo, dateRange]);
+  }, [transactions, searchTerm, selectedAccountId, selectedCategoryId, selectedTypes, dateRange]);
 
   // Calculate account summaries
   const accountSummaries: AccountSummary[] = useMemo(() => {
@@ -156,8 +159,7 @@ const ReceitasDespesas = () => {
       const accountTxInPeriod = transactions.filter(t => {
         if (t.accountId !== account.id) return false;
         const transactionDate = new Date(t.date);
-        return (!periodStart || transactionDate >= periodStart) && 
-               (!periodEnd || transactionDate <= periodEnd);
+        return (!periodStart || isWithinInterval(transactionDate, { start: periodStart, end: periodEnd || new Date() }));
       });
 
       // 3. Calculate Period Totals
@@ -265,7 +267,6 @@ const ReceitasDespesas = () => {
         const fromAccount = accounts.find(a => a.id === transferGroup.fromAccountId);
         const toAccount = accounts.find(a => a.id === transferGroup.toAccountId);
         
-        const isFromCreditCard = fromAccount?.accountType === 'cartao_credito';
         const isToCreditCard = toAccount?.accountType === 'cartao_credito';
         
         let incomingTx: TransacaoCompleta;
@@ -290,27 +291,6 @@ const ReceitasDespesas = () => {
           // Atualiza a transação original (entrada no CC)
           transaction.links.transferGroupId = transferGroup.id;
           transaction.flow = 'in';
-          
-        } else if (isFromCreditCard) {
-          // Não deve acontecer, Cartão de Crédito não envia transferência (exceto resgate, que é outra operação)
-          // Se acontecer, tratamos como transferência normal (saída do CC, entrada na CC)
-          
-          // Transação de ENTRADA na Conta Destino (toAccount)
-          incomingTx = {
-            ...transaction,
-            id: generateTransactionId(),
-            accountId: transferGroup.toAccountId,
-            flow: 'transfer_in',
-            operationType: 'transferencia',
-            domain: 'operational',
-            categoryId: null,
-            links: { ...transaction.links, transferGroupId: transferGroup.id },
-            description: transferGroup.description || `Transferência recebida de ${fromAccount?.name}`,
-          };
-          
-          // Atualiza a transação original (saída do CC)
-          transaction.links.transferGroupId = transferGroup.id;
-          transaction.flow = 'transfer_out';
           
         } else {
           // Transferência normal (CC para CC)
@@ -346,8 +326,8 @@ const ReceitasDespesas = () => {
         
         // 2. Transação de ENTRADA (Conta de Investimento)
         const incomingTx: TransacaoCompleta = {
+          ...transaction,
           id: generateTransactionId(),
-          date: transaction.date,
           accountId: transaction.links.investmentId, // Conta de investimento
           flow: 'in',
           operationType: 'aplicacao',
@@ -383,6 +363,7 @@ const ReceitasDespesas = () => {
         
         // 2. Transação de SAÍDA (Conta de Investimento)
         const outgoingTx: TransacaoCompleta = {
+          ...transaction,
           id: generateTransactionId(),
           date: transaction.date,
           accountId: transaction.links.investmentId, // Conta de investimento
@@ -629,7 +610,10 @@ const ReceitasDespesas = () => {
               <p className="text-muted-foreground mt-1">Contas Movimento e conciliação bancária</p>
             </div>
             <div className="flex items-center gap-2">
-              <PeriodSelector tabId="receitas-despesas" onPeriodChange={handlePeriodChange} />
+              <PeriodSelector 
+                initialRange={initialRange}
+                onDateRangeChange={handlePeriodChange} 
+              />
               <Button variant="outline" size="sm" onClick={() => setShowCategoryListModal(true)}>
                 <Tags className="w-4 h-4 mr-2" />Categorias
               </Button>
