@@ -12,7 +12,7 @@ import { ObjetivosCards } from "@/components/dashboard/ObjetivosCards";
 import { DistribuicaoCharts } from "@/components/dashboard/DistribuicaoCharts";
 import { TransacoesRecentes } from "@/components/dashboard/TransacoesRecentes";
 import { DashboardCustomizer, DashboardSection } from "@/components/dashboard/DashboardCustomizer";
-import { PeriodSelector, PeriodRange, periodToDateRange } from "@/components/dashboard/PeriodSelector";
+import { DateRangeSelector } from "@/components/dashboard/DateRangeSelector"; // Importando o novo seletor
 import { cn } from "@/lib/utils";
 
 const defaultSections: DashboardSection[] = [
@@ -31,24 +31,17 @@ const Index = () => {
   const { transacoes, transacoesV2, emprestimos, veiculos, investimentosRF, criptomoedas, stablecoins, objetivos, getTotalReceitas, getTotalDespesas, getAtivosTotal, getPassivosTotal, getPatrimonioLiquido } = useFinance();
   const [sections, setSections] = useState<DashboardSection[]>(defaultSections);
   const [layout, setLayout] = useState<"2col" | "3col" | "fluid">("fluid");
-  const [periodRange, setPeriodRange] = useState<PeriodRange>({
-    startMonth: null,
-    startYear: null,
-    endMonth: null,
-    endYear: null,
-  });
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
 
-  const handlePeriodChange = useCallback((period: PeriodRange) => {
-    setPeriodRange(period);
+  const handleDateRangeChange = useCallback((range: { from: Date | undefined; to: Date | undefined }) => {
+    setDateRange(range);
   }, []);
-
-  const dateRange = useMemo(() => periodToDateRange(periodRange), [periodRange]);
 
   const filteredTransacoes = useMemo(() => {
     if (!dateRange.from || !dateRange.to) return transacoes;
     
     return transacoes.filter(t => {
-      const transactionDate = new Date(t.data);
+      const transactionDate = new Date(t.data + "T00:00:00");
       return transactionDate >= dateRange.from! && transactionDate <= dateRange.to!;
     });
   }, [transacoes, dateRange]);
@@ -63,17 +56,36 @@ const Index = () => {
 
   const receitasMes = useMemo(() => {
     const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    // Se o filtro de data estiver ativo, usamos o filtro. Caso contrário, usamos o mês atual.
+    const isCurrentMonth = !dateRange.from || (dateRange.from.getMonth() === currentMonth && dateRange.from.getFullYear() === currentYear);
+
     return filteredTransacoes
-      .filter(t => t.tipo === "receita" && new Date(t.data).getMonth() === now.getMonth() && new Date(t.data).getFullYear() === now.getFullYear())
+      .filter(t => {
+        const d = new Date(t.data + "T00:00:00");
+        return isCurrentMonth ? (d.getMonth() === currentMonth && d.getFullYear() === currentYear) : true;
+      })
+      .filter(t => t.tipo === "receita")
       .reduce((acc, t) => acc + t.valor, 0);
-  }, [filteredTransacoes]);
+  }, [filteredTransacoes, dateRange]);
 
   const despesasMes = useMemo(() => {
     const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    const isCurrentMonth = !dateRange.from || (dateRange.from.getMonth() === currentMonth && dateRange.from.getFullYear() === currentYear);
+
     return filteredTransacoes
-      .filter(t => t.tipo === "despesa" && new Date(t.data).getMonth() === now.getMonth() && new Date(t.data).getFullYear() === now.getFullYear())
+      .filter(t => {
+        const d = new Date(t.data + "T00:00:00");
+        return isCurrentMonth ? (d.getMonth() === currentMonth && d.getFullYear() === currentYear) : true;
+      })
+      .filter(t => t.tipo === "despesa")
       .reduce((acc, t) => acc + t.valor, 0);
-  }, [filteredTransacoes]);
+  }, [filteredTransacoes, dateRange]);
 
   const totalInvestimentos = useMemo(() => {
     const rf = investimentosRF.reduce((acc, inv) => acc + inv.valor, 0);
@@ -391,8 +403,12 @@ const Index = () => {
       case "evolucao-chart":
         return <EvolucaoPatrimonialChart data={evolucaoData} />;
       case "heatmap":
-        const now = new Date();
-        return <FluxoCaixaHeatmap month={String(now.getMonth() + 1).padStart(2, '0')} year={now.getFullYear()} transacoes={transacoesV2} />;
+        const now = dateRange.from || new Date();
+        const txV2Filtered = transacoesV2.filter(t => {
+          const d = new Date(t.date + "T00:00:00");
+          return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        });
+        return <FluxoCaixaHeatmap month={String(now.getMonth() + 1).padStart(2, '0')} year={now.getFullYear()} transacoes={txV2Filtered} />;
       case "indicadores":
         return <IndicadoresFinanceiros indicadores={indicadores} />;
       case "tabela-consolidada":
@@ -423,10 +439,7 @@ const Index = () => {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <PeriodSelector 
-              tabId="dashboard" 
-              onPeriodChange={handlePeriodChange} 
-            />
+            <DateRangeSelector onDateRangeChange={handleDateRangeChange} />
             <DashboardCustomizer
               sections={sections}
               layout={layout}

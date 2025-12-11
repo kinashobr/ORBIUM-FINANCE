@@ -21,7 +21,6 @@ import { CategoryFormModal } from "@/components/transactions/CategoryFormModal";
 import { CategoryListModal } from "@/components/transactions/CategoryListModal";
 import { AccountStatementDialog } from "@/components/transactions/AccountStatementDialog";
 import { DateRangeSelector } from "@/components/dashboard/DateRangeSelector"; // Importando o novo seletor
-import { PeriodSelector, PeriodRange, periodToDateRange } from "@/components/dashboard/PeriodSelector";
 
 // Context
 import { useFinance } from "@/contexts/FinanceContext";
@@ -97,7 +96,7 @@ const ReceitasDespesas = () => {
     const targetDate = date || new Date(9999, 11, 31);
 
     const transactionsBeforeDate = allTransactions
-        .filter(t => t.accountId === accountId && new Date(t.date) < targetDate)
+        .filter(t => t.accountId === accountId && new Date(t.date + "T00:00:00") < targetDate)
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     transactionsBeforeDate.forEach(t => {
@@ -666,7 +665,7 @@ const ReceitasDespesas = () => {
               <h1 className="text-3xl font-bold text-foreground">Receitas e Despesas</h1>
               <p className="text-muted-foreground mt-1">Contas Movimento e conciliação bancária</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <DateRangeSelector onDateRangeChange={handleDateRangeChange} />
               <Button variant="outline" size="sm" onClick={() => setShowCategoryListModal(true)}>
                 <Tags className="w-4 h-4 mr-2" />Categorias
