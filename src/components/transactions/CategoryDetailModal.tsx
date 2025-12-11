@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { ExternalLink, TrendingUp, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Transacao } from "@/contexts/FinanceContext";
+import { Transacao } from "@/types/finance"; // Importando Transacao do types/finance
 
 interface CategoryDetailModalProps {
   categoria: string;

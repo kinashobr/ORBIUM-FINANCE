@@ -15,6 +15,7 @@ import { DashboardCustomizer, DashboardSection } from "@/components/dashboard/Da
 import { PeriodSelector, DateRange } from "@/components/dashboard/PeriodSelector";
 import { cn } from "@/lib/utils";
 import { startOfMonth, endOfMonth, isWithinInterval, format } from "date-fns";
+import { Transacao } from "@/types/finance"; // Importando Transacao do types/finance
 
 const defaultSections: DashboardSection[] = [
   { id: "patrimonio-cards", nome: "Cards de Patrimônio", visivel: true, ordem: 0 },
@@ -29,7 +30,7 @@ const defaultSections: DashboardSection[] = [
 ];
 
 const Index = () => {
-  const { transacoes, transacoesV2, emprestimos, veiculos, investimentosRF, criptomoedas, stablecoins, objetivos, getTotalReceitas, getTotalDespesas, getAtivosTotal, getPassivosTotal, getPatrimonioLiquido } = useFinance();
+  const { transacoesV2, emprestimos, veiculos, investimentosRF, criptomoedas, stablecoins, objetivos, getTotalReceitas, getTotalDespesas, getAtivosTotal, getPassivosTotal, getPatrimonioLiquido } = useFinance();
   const [sections, setSections] = useState<DashboardSection[]>(defaultSections);
   const [layout, setLayout] = useState<"2col" | "3col" | "fluid">("fluid");
   
@@ -42,14 +43,30 @@ const Index = () => {
     setDateRange(range);
   }, []);
 
+  // NOTE: Transacoes legadas (V1) não existem mais no contexto. 
+  // Usamos transacoesV2 e mapeamos para o formato legado se necessário.
+  // Para TransacoesRecentes, precisamos de um array de Transacao (V1).
+  
+  // Mapeamento simplificado de transacoesV2 para Transacao (V1) para compatibilidade
+  const transacoesV1Simuladas: Transacao[] = useMemo(() => {
+    return transacoesV2.map(t => ({
+      id: parseInt(t.id.replace('tx_', '')) || 0,
+      data: t.date,
+      descricao: t.description,
+      valor: t.amount,
+      categoria: t.categoryId || 'Outros', // Usando ID da categoria V2
+      tipo: (t.flow === 'in' || t.flow === 'transfer_in') ? 'receita' : 'despesa',
+    }));
+  }, [transacoesV2]);
+
   const filteredTransacoes = useMemo(() => {
-    if (!dateRange.from || !dateRange.to) return transacoes;
+    if (!dateRange.from || !dateRange.to) return transacoesV1Simuladas;
     
-    return transacoes.filter(t => {
+    return transacoesV1Simuladas.filter(t => {
       const transactionDate = new Date(t.data);
       return isWithinInterval(transactionDate, { start: dateRange.from!, end: dateRange.to! });
     });
-  }, [transacoes, dateRange]);
+  }, [transacoesV1Simuladas, dateRange]);
 
   // Filtra transacoesV2 para o heatmap (que precisa de transacoesV2)
   const filteredTransacoesV2 = useMemo(() => {
@@ -376,7 +393,7 @@ const Index = () => {
       <div className="space-y-6">
         <div className="flex items-center justify-between animate-fade-in">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Dashboard Financeiro</h1>
+            <h1 className="text-2xl font-bold text-foreground">Dashboard Financeiro</h1>
             <p className="text-muted-foreground mt-1">
               Painel unificado das suas finanças pessoais
             </p>
