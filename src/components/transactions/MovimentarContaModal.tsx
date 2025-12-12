@@ -17,7 +17,7 @@ import {
   OperationType, ContaCorrente, Categoria, AccountType,
   TransacaoCompleta, formatCurrency, generateTransactionId,
   generateTransferGroupId, getDomainFromOperation,
-  TransferGroup
+  TransferGroup, FlowType
 } from "@/types/finance";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -113,7 +113,7 @@ export function MovimentarContaModal({
 
   // Estado para Seguro
   const [showSeguroSelector, setShowSeguroSelector] = useState(false);
-  const [seguroLink, setSeguroLink] = useState<{ seguroId: number; parcelaNumero: number; valorDevido: number; dataPagamento: string; valorPago: number } | null>(null);
+  const [seguroLink, setSeguroLink] = useState<{ seguroId: number; parcelaNumero: number; valorDevido: number; valorPago: number; dataPagamento: string } | null>(null);
 
   // Estado para busca de categoria
   const [categorySearchTerm, setCategorySearchTerm] = useState('');
@@ -357,15 +357,15 @@ export function MovimentarContaModal({
     const transactionId = editingTransaction?.id || generateTransactionId();
     const now = new Date().toISOString();
 
-    const isCreditCard = selectedAccount?.accountType === 'cartao_credito';
+    const isSelectedAccountCreditCard = selectedAccount?.accountType === 'cartao_credito';
 
     const isIncoming = operationType === 'receita' || operationType === 'resgate' ||
                        operationType === 'liberacao_emprestimo' || operationType === 'rendimento' ||
                        (operationType === 'veiculo' && vehicleOperation === 'venda');
 
-    let flow: 'in' | 'out' = isIncoming ? 'in' : 'out';
+    let flow: FlowType = isIncoming ? 'in' : 'out';
 
-    if (isCreditCard) {
+    if (isSelectedAccountCreditCard) {
       if (operationType === 'despesa') {
         flow = 'out'; 
       } else if (operationType === 'transferencia') {
@@ -377,7 +377,7 @@ export function MovimentarContaModal({
       id: transactionId,
       date,
       accountId,
-      flow: flow,
+      flow: flow as FlowType,
       operationType,
       domain: getDomainFromOperation(operationType),
       amount: parsedAmount,
@@ -411,27 +411,26 @@ export function MovimentarContaModal({
       const groupId = generateTransferGroupId();
       transaction.links.transferGroupId = groupId;
 
-      if (isCreditCard) {
-        transaction.flow = 'in'; 
-
+      if (isSelectedAccountCreditCard) {
+        // FIX: If CC is the selected account, 'transferencia' means payment received.
+        // Funds flow FROM accountDestinoId (source of payment) TO accountId (CC).
         transferGroup = {
           id: groupId,
-          fromAccountId: accountDestinoId, 
-          toAccountId: accountId, 
+          fromAccountId: accountDestinoId, // Source of payment (e.g., Conta Corrente)
+          toAccountId: accountId, // Destination (Credit Card)
           amount: parsedAmount,
           date,
           description: description || `Pagamento de fatura CC ${selectedAccount?.name}`
         };
       } else {
-        transaction.flow = 'transfer_out';
-
+        // Normal transfer: Funds flow FROM accountId TO accountDestinoId.
         transferGroup = {
-          id: groupId,
-          fromAccountId: accountId,
-          toAccountId: accountDestinoId,
-          amount: parsedAmount,
-          date,
-          description
+            id: groupId,
+            fromAccountId: accountId, // Source (Conta Corrente)
+            toAccountId: accountDestinoId, // Destination (e.g., another Conta Corrente or CC)
+            amount: parsedAmount,
+            date,
+            description
         };
       }
     }
