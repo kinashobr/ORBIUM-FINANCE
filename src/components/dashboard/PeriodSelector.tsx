@@ -177,6 +177,23 @@ export function PeriodSelector({
     
     return `${fromStr} - ${toStr}`;
   };
+  
+  // Nova função para lidar com a seleção do calendário
+  const handleCalendarSelect = (newSelection: DateRange | undefined) => {
+    if (!newSelection) {
+      setTempRange({ from: undefined, to: undefined });
+      return;
+    }
+
+    const { from, to } = newSelection;
+    
+    // Lógica para permitir desmarcar a data de início se for clicada novamente
+    if (from && tempRange.from && isSameDay(from, tempRange.from) && !to) {
+      setTempRange({ from: undefined, to: undefined });
+    } else {
+      setTempRange(newSelection);
+    }
+  };
 
   const displayRange = useMemo(() => formatDateRange(range), [range]);
   
@@ -238,7 +255,7 @@ export function PeriodSelector({
             <Calendar
               mode="range"
               selected={{ from: tempRange.from, to: tempRange.to }}
-              onSelect={(r) => setTempRange(r as DateRange)}
+              onSelect={handleCalendarSelect}
               numberOfMonths={2}
               locale={ptBR}
               initialFocus
