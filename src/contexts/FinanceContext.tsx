@@ -12,7 +12,7 @@ import {
   DateRange, // Import new types
   ComparisonDateRanges, // Import new types
 } from "@/types/finance";
-import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, startOfDay, endOfDay } from "date-fns"; // Import date-fns helpers
+import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, endOfDay } from "date-fns"; // Import date-fns helpers
 
 // ============================================
 // FUNÇÕES AUXILIARES PARA DATAS
@@ -20,7 +20,7 @@ import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, startOfD
 
 const calculateDefaultRange = (): DateRange => {
     const now = new Date();
-    return { from: startOfDay(startOfMonth(now)), to: endOfDay(endOfMonth(now)) };
+    return { from: startOfMonth(now), to: endOfMonth(now) };
 };
 
 const calculateComparisonRange = (range1: DateRange): DateRange => {
@@ -30,7 +30,7 @@ const calculateComparisonRange = (range1: DateRange): DateRange => {
     const diffInDays = differenceInDays(range1.to, range1.from) + 1;
     const prevTo = subDays(range1.from, 1);
     const prevFrom = subDays(prevTo, diffInDays - 1);
-    return { from: startOfDay(prevFrom), to: endOfDay(prevTo) };
+    return { from: prevFrom, to: prevTo };
 };
 
 const DEFAULT_RANGES: ComparisonDateRanges = {
@@ -42,7 +42,7 @@ function parseDateRanges(storedRanges: any): ComparisonDateRanges {
     const parseDate = (dateStr: string | undefined): Date | undefined => {
         if (!dateStr) return undefined;
         try {
-            const date = parseISO(dateStr);
+            const date = new Date(dateStr);
             return isNaN(date.getTime()) ? undefined : date;
         } catch {
             return undefined;
@@ -88,8 +88,7 @@ interface FinanceContextType {
   updateSeguroVeiculo: (id: number, seguro: Partial<SeguroVeiculo>) => void;
   deleteSeguroVeiculo: (id: number) => void;
   markSeguroParcelPaid: (seguroId: number, parcelaNumero: number, transactionId: string) => void;
-  unmarkSeguroParcelPaid: (seguroId: number, parcelaNumero: number) => void; // <-- ADDED
-  
+
   // Objetivos Financeiros
   objetivos: ObjetivoFinanceiro[];
   addObjetivo: (obj: Omit<ObjetivoFinanceiro, "id">) => void;
@@ -108,7 +107,6 @@ interface FinanceContextType {
   // Transações V2 (integrated)
   transacoesV2: TransacaoCompleta[];
   setTransacoesV2: Dispatch<SetStateAction<TransacaoCompleta[]>>;
-  addTransacaoV2: (transaction: TransacaoCompleta) => void;
   
   // Data Filtering (NEW)
   dateRanges: ComparisonDateRanges;
@@ -294,14 +292,27 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const account = accounts.find(a => a.id === accountId);
     if (!account) return 0;
 
+    // FIX 1: Always start balance at 0. We rely entirely on transactions, including the synthetic 'initial_balance'.
     let balance = 0; 
     
-    // Se não houver data, calcula o saldo global (fim de todo o histórico)
+    // If no date is provided, calculate global balance (end of all history)
     const targetDate = date || new Date(9999, 11, 31);
 
-    // Filtra transações até a data limite (inclusive)
+    // Filter transactions up to the target date
+    // CRITICAL FIX: Use <= targetDate if targetDate is endOfDay, or ensure targetDate is exclusive.
+    // Since we use endOfDay(subDays(periodStart, 1)) in ReceitasDespesas, the comparison should be inclusive (<=)
+    // to capture transactions on that final day.
     const transactionsBeforeDate = allTransactions
-        .filter(t => t.accountId === accountId && parseISO(t.date) <= targetDate) // MUDANÇA AQUI: <= targetDate
+        .filter(t => {
+            if (t.accountId !== accountId) return false;
+            try {
+                const transactionDate = parseISO(t.date);
+                // Comparação inclusiva: transações até o final do dia alvo
+                return transactionDate <= targetDate;
+            } catch {
+                return false;
+            }
+        })
         .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
 
     transactionsBeforeDate.forEach(t => {
@@ -349,11 +360,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   };
 
   const updateEmprestimo = (id: number, updates: Partial<Emprestimo>) => {
-    setEmprestimos(emprestimos.map(e => e.id === id ? { ...e, ...updates } : e));
+    setEmprestimos(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
   };
 
   const deleteEmprestimo = (id: number) => {
-    setEmprestimos(emprestimos.filter(e => e.id !== id));
+    setEmprestimos(prev => prev.filter(e => e.id !== id));
   };
 
   const getPendingLoans = useCallback(() => {
@@ -394,11 +405,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   };
 
   const updateVeiculo = (id: number, updates: Partial<Veiculo>) => {
-    setVeiculos(veiculos.map(v => v.id === id ? { ...v, ...updates } : v));
+    setVeiculos(prev => prev.map(v => v.id === id ? { ...v, ...updates } : v));
   };
 
   const deleteVeiculo = (id: number) => {
-    setVeiculos(veiculos.filter(v => v.id !== id));
+    setVeiculos(prev => prev.filter(v => v.id !== id));
   };
 
   const getPendingVehicles = useCallback(() => {
@@ -411,11 +422,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   };
 
   const updateSeguroVeiculo = (id: number, updates: Partial<SeguroVeiculo>) => {
-    setSegurosVeiculo(segurosVeiculo.map(s => s.id === id ? { ...s, ...updates } : s));
+    setSegurosVeiculo(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
   };
 
   const deleteSeguroVeiculo = (id: number) => {
-    setSegurosVeiculo(segurosVeiculo.filter(s => s.id !== id));
+    setSegurosVeiculo(prev => prev.filter(s => s.id !== id));
   };
   
   const markSeguroParcelPaid = useCallback((seguroId: number, parcelaNumero: number, transactionId: string) => {
@@ -432,22 +443,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       return { ...seguro, parcelas: updatedParcelas };
     }));
   }, []);
-  
-  const unmarkSeguroParcelPaid = useCallback((seguroId: number, parcelaNumero: number) => {
-    setSegurosVeiculo(prevSeguros => prevSeguros.map(seguro => {
-      if (seguro.id !== seguroId) return seguro;
-      
-      const updatedParcelas = seguro.parcelas.map(parcela => {
-        if (parcela.numero === parcelaNumero) {
-          // Remove transactionId and mark as not paid
-          return { ...parcela, paga: false, transactionId: undefined };
-        }
-        return parcela;
-      });
-      
-      return { ...seguro, parcelas: updatedParcelas };
-    }));
-  }, []);
 
   const addObjetivo = (obj: Omit<ObjetivoFinanceiro, "id">) => {
     const newId = Math.max(0, ...objetivos.map(o => o.id)) + 1;
@@ -455,11 +450,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   };
 
   const updateObjetivo = (id: number, updates: Partial<ObjetivoFinanceiro>) => {
-    setObjetivos(objetivos.map(o => o.id === id ? { ...o, ...updates } : o));
+    setObjetivos(prev => prev.map(o => o.id === id ? { ...o, ...updates } : o));
   };
 
   const deleteObjetivo = (id: number) => {
-    setObjetivos(objetivos.filter(o => o.id !== id));
+    setObjetivos(prev => prev.filter(o => o.id !== id));
   };
 
   // ============================================
@@ -660,7 +655,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     updateSeguroVeiculo,
     deleteSeguroVeiculo,
     markSeguroParcelPaid,
-    unmarkSeguroParcelPaid, // <-- ADDED
     objetivos,
     addObjetivo,
     updateObjetivo,
@@ -672,7 +666,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setCategoriasV2,
     transacoesV2,
     setTransacoesV2,
-    addTransacaoV2,
     
     // Data Filtering (NEW)
     dateRanges,
