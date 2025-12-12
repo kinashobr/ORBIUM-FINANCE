@@ -133,7 +133,13 @@ const ReceitasDespesas = () => {
         
         const transactionDate = parseISO(t.date);
         
-        if (!periodStart) return true; // Todo o período: inclui todas as transações
+        // Se o período está definido, excluímos transações de saldo inicial do fluxo do período,
+        // pois elas já foram contabilizadas no periodInitialBalance.
+        if (periodStart && t.operationType === 'initial_balance') return false;
+        
+        // Se o período NÃO está definido (Todo o período), incluímos todas as transações,
+        // inclusive as de initial_balance, pois periodInitialBalance é 0.
+        if (!periodStart) return true; 
         
         // Period defined: include transactions ON or AFTER periodStart, up to periodEnd
         return transactionDate >= periodStart && transactionDate <= (periodEnd || new Date());

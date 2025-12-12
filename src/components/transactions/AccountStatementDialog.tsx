@@ -16,6 +16,7 @@ import {
 } from "@/types/finance";
 import { TransactionTable } from "./TransactionTable";
 import { cn } from "@/lib/utils";
+import { parseISO, isWithinInterval, subDays } from "date-fns";
 
 interface AccountStatementDialogProps {
   open: boolean;
@@ -47,40 +48,45 @@ export function AccountStatementDialog({
 
   // Filtrar transações por período
   const filteredTransactions = useMemo(() => {
-    // Log de depuração para ver as transações recebidas
-    console.log(`[Statement] Transações recebidas para ${account.name}:`, transactions.length);
-    
+    const fromDate = dateFrom ? parseISO(dateFrom) : undefined;
+    const toDate = dateTo ? parseISO(dateTo) : undefined;
+
     return transactions
       .filter(t => {
-        const matchFrom = !dateFrom || t.date >= dateFrom;
-        const matchTo = !dateTo || t.date <= dateTo;
+        const transactionDate = parseISO(t.date);
+        
+        const matchFrom = !fromDate || transactionDate >= fromDate;
+        const matchTo = !toDate || transactionDate <= toDate;
+        
+        // Se o período não está definido (fromDate e toDate são undefined),
+        // incluímos todas as transações, inclusive initial_balance.
+        if (!fromDate && !toDate) return true;
+        
+        // Se o período está definido, incluímos todas as transações,
+        // mas se for initial_balance, ela só deve aparecer se a data
+        // estiver dentro do range (embora o saldo inicial do período
+        // já a tenha contabilizado se ela for anterior ao 'from').
+        // Para simplificar o extrato, mostramos todas as transações que caem no filtro de data.
         return matchFrom && matchTo;
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [transactions, dateFrom, dateTo, account.name]);
+  }, [transactions, dateFrom, dateTo]);
 
-  // Calcular saldos do período
+  // O resumo do período é fornecido pelo accountSummary (calculado em ReceitasDespesas.tsx)
   const periodSummary = useMemo(() => {
-    // Usamos o saldo inicial e final calculados no AccountSummary (ReceitasDespesas.tsx)
-    // para garantir consistência com o card.
-    const initialBalance = accountSummary.initialBalance;
-    const finalBalance = accountSummary.currentBalance;
+    const { initialBalance, currentBalance, totalIn, totalOut } = accountSummary;
     
-    const totalIn = accountSummary.totalIn;
-    const totalOut = accountSummary.totalOut;
-
     const conciliatedCount = transactions.filter(t => t.conciliated).length;
     const pendingCount = transactions.length - conciliatedCount;
 
     return {
       initialBalance,
-      finalBalance,
+      finalBalance: currentBalance,
       totalIn,
       totalOut,
       netChange: totalIn - totalOut,
       conciliatedCount,
       pendingCount,
-      isBalanced: Math.abs(finalBalance - accountSummary.currentBalance) < 0.01
     };
   }, [accountSummary, transactions]);
 
@@ -123,7 +129,7 @@ export function AccountStatementDialog({
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <Card className="glass-card">
                 <CardContent className="pt-4">
-                  <div className="text-sm text-muted-foreground mb-1">Saldo Inicial</div>
+                  <div className="text-sm text-muted-foreground mb-1">Saldo Inicial (Período)</div>
                   {/* Exibe o saldo inicial do período, formatado */}
                   <div className="text-lg font-bold">{formatCurrency(periodSummary.initialBalance)}</div>
                 </CardContent>
@@ -133,7 +139,7 @@ export function AccountStatementDialog({
                 <CardContent className="pt-4">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                     <TrendingUp className="w-4 h-4 text-success" />
-                    Entradas
+                    Entradas (Período)
                   </div>
                   <div className="text-lg font-bold text-success">
                     +{formatCurrency(periodSummary.totalIn)}
@@ -145,7 +151,7 @@ export function AccountStatementDialog({
                 <CardContent className="pt-4">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                     <TrendingDown className="w-4 h-4 text-destructive" />
-                    Saídas
+                    Saídas (Período)
                   </div>
                   <div className="text-lg font-bold text-destructive">
                     -{formatCurrency(periodSummary.totalOut)}
@@ -155,7 +161,7 @@ export function AccountStatementDialog({
 
               <Card className="glass-card border-2 border-primary/20">
                 <CardContent className="pt-4">
-                  <div className="text-sm text-muted-foreground mb-1">Saldo Final</div>
+                  <div className="text-sm text-muted-foreground mb-1">Saldo Final (Período)</div>
                   <div className={cn(
                     "text-lg font-bold",
                     periodSummary.finalBalance >= 0 ? "text-foreground" : "text-destructive"
