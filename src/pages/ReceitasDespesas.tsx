@@ -198,8 +198,21 @@ const ReceitasDespesas = () => {
       // Quando editar, atualiza transação e possíveis transações vinculadas pelo grupo
       const linkedGroupId = editingTransaction.links?.transferGroupId;
       if (linkedGroupId) {
-        setTransacoesV2(prev => prev.map(t => {
-          if (t.id === tx.id) return tx;
+        setTransacoesV2(prev => prev.map(t => { // <-- TS Error 1 Fix: Ensure return type is TransacaoCompleta
+          if (t.id === tx.id) {
+            // Fix 1a: Ensure tx has full TransactionLinks structure
+            const fullTx: TransacaoCompleta = {
+              ...tx,
+              links: {
+                investmentId: tx.links.investmentId || null,
+                loanId: tx.links.loanId || null,
+                transferGroupId: tx.links.transferGroupId || null,
+                parcelaId: tx.links.parcelaId || null,
+                vehicleTransactionId: tx.links.vehicleTransactionId || null,
+              }
+            };
+            return fullTx;
+          }
           if (t.links?.transferGroupId === linkedGroupId && t.id !== tx.id) {
             const otherAccount = accounts.find(a => a.id === t.accountId);
             const isCreditCard = otherAccount?.accountType === 'cartao_credito';
@@ -216,11 +229,11 @@ const ReceitasDespesas = () => {
 
             // CRITICAL FIX 1 & 2: Ensure all links properties are explicitly set to string | null
             const updatedLinks: TransactionLinks = {
-              investmentId: t.links.investmentId,
-              loanId: t.links.loanId,
-              transferGroupId: t.links.transferGroupId,
-              parcelaId: t.links.parcelaId,
-              vehicleTransactionId: t.links.vehicleTransactionId,
+              investmentId: t.links.investmentId || null,
+              loanId: t.links.loanId || null,
+              transferGroupId: t.links.transferGroupId || null,
+              parcelaId: t.links.parcelaId || null,
+              vehicleTransactionId: t.links.vehicleTransactionId || null,
             };
 
             return {
@@ -236,7 +249,23 @@ const ReceitasDespesas = () => {
         }));
       } else {
         // Sem linkedGroup, atualiza apenas a transação específica
-        setTransacoesV2(prev => prev.map(t => t.id === tx.id ? tx : t));
+        setTransacoesV2(prev => prev.map(t => { // <-- TS Error 2 Fix: Ensure return type is TransacaoCompleta
+          if (t.id === tx.id) {
+            // Fix 2a: Ensure tx has full TransactionLinks structure
+            const fullTx: TransacaoCompleta = {
+              ...tx,
+              links: {
+                investmentId: tx.links.investmentId || null,
+                loanId: tx.links.loanId || null,
+                transferGroupId: tx.links.transferGroupId || null,
+                parcelaId: tx.links.parcelaId || null,
+                vehicleTransactionId: tx.links.vehicleTransactionId || null,
+              }
+            };
+            return fullTx;
+          }
+          return t;
+        }));
       }
       return;
     }
@@ -384,10 +413,10 @@ const ReceitasDespesas = () => {
         description: isAplicacao ? (baseTx.description || `Aplicação recebida de conta corrente`) : (baseTx.description || `Resgate enviado para conta corrente`),
         links: {
           investmentId: primaryTx.accountId, // Referência à conta oposta
-          loanId: primaryTx.links.loanId,
+          loanId: primaryTx.links.loanId || null,
           transferGroupId: groupId,
-          parcelaId: primaryTx.links.parcelaId,
-          vehicleTransactionId: primaryTx.links.vehicleTransactionId,
+          parcelaId: primaryTx.links.parcelaId || null,
+          vehicleTransactionId: primaryTx.links.vehicleTransactionId || null,
         },
         meta: {
           ...primaryTx.meta,
