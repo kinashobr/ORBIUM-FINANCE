@@ -112,13 +112,20 @@ const ReceitasDespesas = () => {
     
     return accounts.map(account => {
       // 1. Calculate Period Initial Balance (balance right before periodStart)
-      const periodInitialBalance = calculateBalanceUpToDate(account.id, periodStart, transactions, accounts);
+      // Se houver data de início, calculamos o saldo até o dia anterior.
+      const dateBeforeStart = periodStart ? subDays(periodStart, 1) : undefined;
+      const periodInitialBalance = calculateBalanceUpToDate(account.id, dateBeforeStart, transactions, accounts);
 
       // 2. Calculate Period Transactions (transactions within the selected period)
       const accountTxInPeriod = transactions.filter(t => {
         if (t.accountId !== account.id) return false;
         const transactionDate = parseISO(t.date);
-        return (!periodStart || isWithinInterval(transactionDate, { start: periodStart, end: periodEnd || new Date() }));
+        
+        // Se não houver data de início, consideramos todas as transações
+        if (!periodStart) return true;
+        
+        // Se houver data de início, filtramos as transações DENTRO do período
+        return isWithinInterval(transactionDate, { start: periodStart, end: periodEnd || new Date() });
       });
 
       // 3. Calculate Period Totals
