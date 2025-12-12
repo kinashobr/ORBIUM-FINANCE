@@ -293,13 +293,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const account = accounts.find(a => a.id === accountId);
     if (!account) return 0;
 
-    // Se a conta tem startDate, o saldo inicial é 0 e dependemos da transação sintética.
-    // Caso contrário, usamos o initialBalance legado.
-    let balance = account.startDate ? 0 : account.initialBalance; 
+    // FIX 1: Always start balance at 0. We rely entirely on transactions, including the synthetic 'initial_balance'.
+    let balance = 0; 
     
     // If no date is provided, calculate global balance (end of all history)
     const targetDate = date || new Date(9999, 11, 31);
 
+    // Filter transactions up to the target date
     const transactionsBeforeDate = allTransactions
         .filter(t => t.accountId === accountId && parseISO(t.date) < targetDate)
         .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());

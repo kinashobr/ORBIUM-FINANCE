@@ -472,12 +472,14 @@ const ReceitasDespesas = () => {
     const handleAccountSubmit = (account: ContaCorrente) => {
       const isNewAccount = !editingAccount;
       
-      // Se for uma nova conta, criamos a transação sintética de saldo inicial.
+      // Saldo inicial é extraído do objeto temporário do modal, mas não é salvo no ContaCorrente.
+      // O valor inicial é sempre representado pela transação sintética.
+      const initialBalanceAmount = account.initialBalance;
+      
+      // A conta é salva com initialBalance = 0, pois o valor inicial será representado pela transação.
+      const newAccount: ContaCorrente = { ...account, initialBalance: 0 }; 
+      
       if (isNewAccount) {
-        const initialBalanceAmount = account.initialBalance;
-        // A conta é salva com initialBalance = 0, pois o valor inicial será representado pela transação.
-        const newAccount: ContaCorrente = { ...account, initialBalance: 0 }; 
-        
         setContasMovimento([...accounts, newAccount]);
         
         // 2. Cria a transação sintética de saldo inicial se o valor for diferente de zero
@@ -511,8 +513,44 @@ const ReceitasDespesas = () => {
           addTransacaoV2(initialTx);
         }
       } else {
-        // Editando conta existente: apenas atualiza os detalhes
-        setContasMovimento(accounts.map(a => a.id === account.id ? a : a));
+        // --- EDITING LOGIC ---
+        setContasMovimento(accounts.map(a => a.id === newAccount.id ? newAccount : a));
+        
+        // Handle synthetic initial balance transaction update
+        const existingInitialTx = transactions.find(t => 
+            t.accountId === newAccount.id && t.operationType === 'initial_balance'
+        );
+        
+        if (initialBalanceAmount !== 0) {
+            const newInitialTx: TransacaoCompleta = {
+                ...(existingInitialTx || {
+                    id: generateTransactionId(),
+                    accountId: newAccount.id,
+                    operationType: 'initial_balance',
+                    domain: 'operational',
+                    categoryId: null,
+                    description: `Saldo Inicial de Implantação`,
+                    links: { investmentId: null, loanId: null, transferGroupId: null, parcelaId: null, vehicleTransactionId: null },
+                    conciliated: true,
+                    attachments: [],
+                    meta: { createdBy: 'system', source: 'manual', createdAt: new Date().toISOString() }
+                }),
+                date: newAccount.startDate!,
+                amount: Math.abs(initialBalanceAmount),
+                flow: initialBalanceAmount >= 0 ? 'in' : 'out',
+            };
+            
+            if (existingInitialTx) {
+                // Update existing transaction
+                setTransacoesV2(prev => prev.map(t => t.id === existingInitialTx.id ? newInitialTx : t));
+            } else {
+                // Add new transaction
+                addTransacaoV2(newInitialTx);
+            }
+        } else if (existingInitialTx) {
+            // Delete existing transaction if new balance is 0
+            setTransacoesV2(prev => prev.filter(t => t.id !== existingInitialTx.id));
+        }
       }
       setEditingAccount(undefined);
     };
@@ -529,7 +567,26 @@ const ReceitasDespesas = () => {
     const handleEditAccount = (accountId: string) => {
       const account = accounts.find(a => a.id === accountId);
       if (account) {
-        setEditingAccount(account);
+        // Find the synthetic initial balance transaction
+        const initialTx = transactions.find(t => 
+            t.accountId === accountId && t.operationType === 'initial_balance'
+        );
+        
+        let initialBalanceValue = 0;
+        if (initialTx) {
+            initialBalanceValue = initialTx.flow === 'in' ? initialTx.amount : -initialTx.amount;
+        } else {
+            // Fallback for legacy accounts without synthetic transaction
+            initialBalanceValue = account.initialBalance;
+        }
+        
+        // Create a temporary account object to pass the correct initial balance value to the form
+        const accountForEdit: ContaCorrente = {
+            ...account,
+            initialBalance: initialBalanceValue, // Inject the actual starting balance for the form
+        };
+        
+        setEditingAccount(accountForEdit);
         setShowAccountModal(true);
       }
     };
