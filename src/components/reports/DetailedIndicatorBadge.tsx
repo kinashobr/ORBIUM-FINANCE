@@ -17,6 +17,7 @@ interface DetailedIndicatorBadgeProps {
   value: string;
   status: IndicatorStatus;
   trend?: "up" | "down" | "stable";
+  trendLabel?: string; // Adicionado trendLabel
   descricao: string;
   formula: string;
   sparklineData?: number[];
@@ -28,6 +29,7 @@ export function DetailedIndicatorBadge({
   value,
   status,
   trend,
+  trendLabel, // Recebido aqui
   descricao,
   formula,
   sparklineData,
@@ -43,6 +45,7 @@ export function DetailedIndicatorBadge({
               value={value}
               status={status}
               trend={trend}
+              trendLabel={trendLabel} // Passado para IndicatorBadge
               sparklineData={sparklineData}
               icon={icon}
             />

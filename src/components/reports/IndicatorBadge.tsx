@@ -12,6 +12,7 @@ interface IndicatorBadgeProps {
   sparklineData?: number[];
   icon?: ReactNode;
   className?: string;
+  trendLabel?: string; // Adicionado trendLabel
 }
 
 export function IndicatorBadge({
@@ -22,6 +23,7 @@ export function IndicatorBadge({
   sparklineData,
   icon,
   className,
+  trendLabel, // Recebido aqui
 }: IndicatorBadgeProps) {
   const statusStyles = {
     success: {
@@ -65,12 +67,13 @@ export function IndicatorBadge({
         </div>
         <div className="flex items-center gap-1">
           {trend && (
-            <TrendIcon
-              className={cn(
-                "w-3.5 h-3.5",
-                trend === "up" ? "text-success" : trend === "down" ? "text-destructive" : "text-muted-foreground"
-              )}
-            />
+            <div className={cn(
+              "flex items-center gap-1 text-xs font-medium",
+              trend === "up" ? "text-success" : trend === "down" ? "text-destructive" : "text-muted-foreground"
+            )}>
+              <TrendIcon className="w-3.5 h-3.5" />
+              {trendLabel && <span className="text-muted-foreground">{trendLabel}</span>}
+            </div>
           )}
           <Info className="w-3 h-3 text-muted-foreground/50" />
         </div>
