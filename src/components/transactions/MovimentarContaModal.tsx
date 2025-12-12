@@ -188,9 +188,9 @@ export function MovimentarContaModal({
           const seguroId = parseInt(seguroIdStr);
           const parcelaNumero = parseInt(parcelaNumeroStr);
           
-          // Tentativa de recuperar valor devido e pago (simplificado para edição)
+          // CORREÇÃO 1: Acessar valorDevido com segurança
           const valorPago = editingTransaction.amount;
-          const valorDevido = editingTransaction.meta.valorDevido || valorPago; // Usar meta se existir
+          const valorDevido = (editingTransaction.meta as any).valorDevido || valorPago; 
           const dataPagamento = editingTransaction.date;
 
           if (!isNaN(seguroId) && !isNaN(parcelaNumero)) {
@@ -401,7 +401,7 @@ export function MovimentarContaModal({
         vehicleOperation: operationType === 'veiculo' ? vehicleOperation : undefined,
         numeroContrato: operationType === 'liberacao_emprestimo' ? numeroContrato : undefined,
         pendingLoanConfig: operationType === 'liberacao_emprestimo' ? true : undefined,
-        // Adicionar valor devido para cálculo de juros/desconto
+        // CORREÇÃO 2: Adicionar valor devido para cálculo de juros/desconto
         valorDevido: seguroLink?.valorDevido,
       }
     };

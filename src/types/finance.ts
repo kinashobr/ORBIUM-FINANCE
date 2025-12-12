@@ -94,6 +94,7 @@ export interface TransactionMeta {
   tipoVeiculo?: 'carro' | 'moto' | 'caminhao';
   numeroContrato?: string;
   pendingLoanConfig?: boolean;
+  valorDevido?: number; // ADICIONADO para rastrear o valor original da parcela de seguro
 }
 
 // Transação Completa (atualizada)
