@@ -28,7 +28,8 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { Plus, Trash2, Car, Shield, AlertTriangle, DollarSign, FileText, Search, ArrowRight, CheckCircle2, Clock, RefreshCw } from "lucide-react";
-import { useFinance, Veiculo, SeguroVeiculo } from "@/contexts/FinanceContext";
+import { useFinance } from "@/contexts/FinanceContext";
+import { Veiculo, SeguroVeiculo } from "@/types/finance";
 import { EditableCell } from "@/components/EditableCell";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -49,6 +50,7 @@ const Veiculos = () => {
     addSeguroVeiculo,
     updateSeguroVeiculo,
     deleteSeguroVeiculo,
+    markSeguroParcelPaid,
     getValorFipeTotal,
     transacoesV2,
   } = useFinance();

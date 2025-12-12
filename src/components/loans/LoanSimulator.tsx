@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Emprestimo } from "@/contexts/FinanceContext";
+import { Emprestimo } from "@/types/finance";
 import { cn } from "@/lib/utils";
 
 interface LoanSimulatorProps {
@@ -41,12 +41,11 @@ export function LoanSimulator({ emprestimos, className }: LoanSimulatorProps) {
     const novaParcela = parcelaTotal + aumento;
     const mesesRestantes = totalSaldoDevedor / parcelaTotal;
     const novosMesesRestantes = totalSaldoDevedor / novaParcela;
-    const mesesEconomizados = mesesRestantes - novosMesesRestantes;
-    const jurosEconomizados = (mesesEconomizados * totalSaldoDevedor * (taxaMedia / 100));
+    const jurosEconomizados = (mesesRestantes - novosMesesRestantes) * totalSaldoDevedor * (taxaMedia / 100);
 
     return {
       novaParcela,
-      mesesEconomizados: Math.max(0, mesesEconomizados),
+      mesesEconomizados: Math.max(0, mesesRestantes - novosMesesRestantes),
       jurosEconomizados: Math.max(0, jurosEconomizados),
     };
   }, [aumentoParcela, parcelaTotal, totalSaldoDevedor, taxaMedia]);

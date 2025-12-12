@@ -17,7 +17,7 @@ import {
   Building2, Calendar, Percent, DollarSign, Calculator, 
   Save, Info, Clock, TrendingDown, AlertCircle
 } from "lucide-react";
-import { Emprestimo } from "@/contexts/FinanceContext";
+import { Emprestimo } from "@/types/finance";
 import { ContaCorrente } from "@/types/finance";
 import { cn } from "@/lib/utils";
 

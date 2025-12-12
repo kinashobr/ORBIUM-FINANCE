@@ -16,7 +16,7 @@ import {
   FipeAno,
   FipeResult 
 } from "@/services/fipeService";
-import { Veiculo } from "@/contexts/FinanceContext";
+import { Veiculo } from "@/types/finance";
 import { cn } from "@/lib/utils";
 
 interface FipeConsultaDialogProps {

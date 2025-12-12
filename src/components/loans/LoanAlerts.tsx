@@ -10,7 +10,7 @@ import {
   Sparkles
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Emprestimo } from "@/contexts/FinanceContext";
+import { Emprestimo } from "@/types/finance";
 
 interface AlertItem {
   id: string;
@@ -49,8 +49,9 @@ export function LoanAlerts({ emprestimos, className }: LoanAlertsProps) {
 
     // Parcelas atrasadas (simulação)
     const emprestimosAtrasados = emprestimos.filter(e => {
-      const parcelasPagas = Math.floor(e.meses * 0.3);
+      const parcelasPagas = e.parcelasPagas || 0;
       const mesAtual = hoje.getMonth() + 1;
+      // Simplificação: verifica se o número de parcelas pagas está muito abaixo do esperado pelo tempo
       return parcelasPagas < mesAtual - 1;
     });
 
@@ -83,7 +84,7 @@ export function LoanAlerts({ emprestimos, className }: LoanAlertsProps) {
 
     // Conquistas
     const totalPago = emprestimos.reduce((acc, e) => {
-      const parcelasPagas = Math.floor(e.meses * 0.3);
+      const parcelasPagas = e.parcelasPagas || 0;
       return acc + (parcelasPagas * e.parcela);
     }, 0);
     const totalContratado = emprestimos.reduce((acc, e) => acc + e.valorTotal, 0);

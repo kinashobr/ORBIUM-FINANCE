@@ -10,8 +10,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Check, Clock, AlertTriangle, Upload, FileText, TrendingUp, TrendingDown } from "lucide-react";
-import { Emprestimo, useFinance } from "@/contexts/FinanceContext";
-import { TransacaoCompleta } from "@/types/finance";
+import { useFinance } from "@/contexts/FinanceContext";
+import { Emprestimo, TransacaoCompleta } from "@/types/finance";
 import { cn } from "@/lib/utils";
 
 interface Parcela {
@@ -149,13 +149,16 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
         saldoAtual = Math.max(0, saldoAtual - amortizacao);
       }
       
-      parcela.saldoDevedor = saldoAtual;
-      if (parcela.status !== 'pago') {
-        parcela.saldoDevedor = saldoAtual - amortizacao; // Saldo devedor antes do pagamento
+      parcela.juros = Math.max(0, juros);
+      parcela.amortizacao = Math.max(0, amortizacao);
+      
+      if (parcela.status === 'pago') {
+        saldoAtual = Math.max(0, saldoAtual - amortizacao);
       }
+      parcela.saldoDevedor = saldoAtual;
     }
     
-    // Correção final do saldo devedor
+    // Ajustar o saldo devedor para mostrar o saldo ANTES do pagamento da parcela
     let saldoCorrigido = emprestimo.valorTotal;
     for (let i = 0; i < result.length; i++) {
       const parcela = result[i];
@@ -168,20 +171,22 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
       if (parcela.status === 'pago') {
         saldoCorrigido = Math.max(0, saldoCorrigido - amortizacao);
       }
-      parcela.saldoDevedor = saldoCorrigido;
-    }
-    
-    // Ajustar o saldo devedor para mostrar o saldo ANTES do pagamento da parcela
-    for (let i = 0; i < result.length; i++) {
-      const parcela = result[i];
+      
+      // Se a parcela foi paga, o saldo devedor exibido deve ser o saldo ANTES da amortização
       if (parcela.status === 'pago') {
-        parcela.saldoDevedor = parcela.saldoDevedor + parcela.amortizacao;
+        parcela.saldoDevedor = saldoCorrigido + amortizacao;
+      } else {
+        // Se não foi paga, o saldo devedor é o saldo atual (antes da amortização desta parcela)
+        parcela.saldoDevedor = saldoCorrigido;
       }
     }
     
     // A última parcela paga deve ter saldo devedor 0
-    if (result.length > 0 && result[result.length - 1].status === 'pago') {
-      result[result.length - 1].saldoDevedor = 0;
+    if (result.length > 0) {
+      const lastPaidIndex = result.findIndex(p => p.status === 'pago' && p.numero === emprestimo.meses);
+      if (lastPaidIndex !== -1) {
+        result[lastPaidIndex].saldoDevedor = 0;
+      }
     }
 
 

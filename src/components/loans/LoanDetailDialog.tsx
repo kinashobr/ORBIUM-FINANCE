@@ -21,7 +21,8 @@ import {
   Settings,
   Edit,
 } from "lucide-react";
-import { Emprestimo, useFinance } from "@/contexts/FinanceContext";
+import { Emprestimo } from "@/types/finance";
+import { useFinance } from "@/contexts/FinanceContext";
 import { LoanCard } from "./LoanCard";
 import { LoanConfigForm } from "./LoanConfigForm";
 import { InstallmentsTable } from "./InstallmentsTable";

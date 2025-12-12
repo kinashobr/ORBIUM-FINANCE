@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Check, Shield, Car, Calendar, DollarSign } from "lucide-react";
-import { useFinance, SeguroVeiculo, Veiculo } from "@/contexts/FinanceContext";
+import { useFinance } from "@/contexts/FinanceContext";
+import { SeguroVeiculo, Veiculo } from "@/types/finance";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/types/finance";
 

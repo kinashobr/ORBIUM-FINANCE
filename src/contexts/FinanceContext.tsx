@@ -1,85 +1,18 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import {
-  Categoria, TransacaoCompleta, TransferGroup,
-  AccountType, CategoryNature, DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES,
-  generateTransactionId, ContaCorrente,
-  getFlowTypeFromOperation, getDomainFromOperation,
-  TransactionLinks, FinanceExportV2
+  Categoria, TransacaoCompleta,
+  DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES,
+  ContaCorrente,
+  FinanceExportV2,
+  Emprestimo, // V2 Entity
+  Veiculo, // V2 Entity
+  SeguroVeiculo, // V2 Entity
+  ObjetivoFinanceiro, // V2 Entity
 } from "@/types/finance";
 import { parseISO } from "date-fns";
 
 // ============================================
-// TIPOS DE DADOS V2 (Mantidos)
-// ============================================
-
-// Interfaces de Entidade V2 (Simplificadas para o que é necessário no contexto)
-// Empréstimo V2 (Mantido para compatibilidade com Emprestimos.tsx, mas simplificado)
-export interface Emprestimo {
-  id: number;
-  contrato: string;
-  parcela: number;
-  meses: number;
-  taxaMensal: number;
-  valorTotal: number;
-  contaCorrenteId?: string; // Link to conta movimento
-  dataInicio?: string;
-  status?: 'ativo' | 'pendente_config' | 'quitado';
-  parcelasPagas?: number;
-  liberacaoTransactionId?: string; // Link to liberation transaction
-  observacoes?: string;
-}
-
-// Veículo V2 (Mantido para compatibilidade com Veiculos.tsx, mas simplificado)
-export interface Veiculo {
-  id: number;
-  modelo: string;
-  tipo?: 'carro' | 'moto' | 'caminhao';
-  marca?: string;
-  ano: number;
-  dataCompra: string;
-  valorVeiculo: number;
-  valorSeguro: number;
-  vencimentoSeguro: string;
-  parcelaSeguro: number;
-  valorFipe: number;
-  compraTransactionId?: string; // Link to purchase transaction
-  vendaTransactionId?: string; // Link to sale transaction
-  status?: 'ativo' | 'pendente_cadastro' | 'vendido';
-}
-
-// Seguro de Veículo V2 (Mantido para compatibilidade com Veiculos.tsx, mas simplificado)
-export interface SeguroVeiculo {
-  id: number;
-  veiculoId: number;
-  numeroApolice: string;
-  seguradora: string;
-  vigenciaInicio: string;
-  vigenciaFim: string;
-  valorTotal: number;
-  numeroParcelas: number;
-  meiaParcela: boolean;
-  parcelas: {
-    numero: number;
-    vencimento: string;
-    valor: number;
-    paga: boolean;
-    transactionId?: string;
-  }[];
-}
-
-// Objetivo Financeiro V2 (Mantido para compatibilidade com Investimentos.tsx, mas simplificado)
-export interface ObjetivoFinanceiro {
-  id: number;
-  nome: string;
-  atual: number;
-  meta: number;
-  rentabilidade: number;
-  cor: string;
-  contaMovimentoId?: string;
-}
-
-// ============================================
-// INTERFACE DO CONTEXTO
+// INTERFACE DO CONTEXTO (Atualizada)
 // ============================================
 
 interface FinanceContextType {
@@ -147,6 +80,7 @@ interface FinanceContextType {
   importData: (file: File) => Promise<{ success: boolean; message: string }>;
   
   // Removidos: Investimentos RF, Criptomoedas, Stablecoins, Movimentações de Investimento
+  // Mantidos apenas para evitar erros de tipagem em componentes que ainda usam o nome, mas com valor vazio
   investimentosRF: any[];
   criptomoedas: any[];
   stablecoins: any[];
@@ -168,37 +102,30 @@ interface FinanceContextType {
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
 
 // ============================================
-// CHAVES DO LOCALSTORAGE (Apenas V2 e Entidades V2)
+// CHAVES DO LOCALSTORAGE
 // ============================================
 
 const STORAGE_KEYS = {
-  // Mantidos para Entidades V2 (Empréstimos, Veículos, Seguros, Objetivos)
+  // Entidades V2
   EMPRESTIMOS: "neon_finance_emprestimos",
   VEICULOS: "neon_finance_veiculos",
   SEGUROS_VEICULO: "neon_finance_seguros_veiculo",
   OBJETIVOS: "neon_finance_objetivos",
   
-  // New integrated keys (V2)
+  // Core V2
   CONTAS_MOVIMENTO: "fin_accounts_v1",
   CATEGORIAS_V2: "fin_categories_v1",
   TRANSACOES_V2: "fin_transactions_v1",
 };
 
 // ============================================
-// DADOS INICIAIS (usados se localStorage vazio)
+// DADOS INICIAIS
 // ============================================
 
 const initialEmprestimos: Emprestimo[] = [];
 const initialVeiculos: Veiculo[] = [];
 const initialSegurosVeiculo: SeguroVeiculo[] = [];
 const initialObjetivos: ObjetivoFinanceiro[] = [];
-
-// Dados V1 removidos, mas mantemos placeholders para evitar erros de compilação na Etapa 1
-const initialInvestimentosRF: any[] = [];
-const initialCriptomoedas: any[] = [];
-const initialStablecoins: any[] = [];
-const initialMovimentacoesInv: any[] = [];
-
 
 // ============================================
 // FUNÇÕES AUXILIARES DE LOCALSTORAGE
@@ -229,7 +156,7 @@ function saveToStorage<T>(key: string, data: T): void {
 // ============================================
 
 export function FinanceProvider({ children }: { children: ReactNode }) {
-  // Estados de Entidade V2 (Mantidos temporariamente para Emprestimos/Veiculos/Objetivos)
+  // Estados de Entidade V2 (Mantidos)
   const [emprestimos, setEmprestimos] = useState<Emprestimo[]>(() => 
     loadFromStorage(STORAGE_KEYS.EMPRESTIMOS, initialEmprestimos)
   );
@@ -243,13 +170,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     loadFromStorage(STORAGE_KEYS.OBJETIVOS, initialObjetivos)
   );
   
-  // Estados V1 removidos, mas mantemos o useState para evitar erros de compilação na Etapa 1
-  const [investimentosRF, setInvestimentosRF] = useState<any[]>(initialInvestimentosRF);
-  const [criptomoedas, setCriptomoedas] = useState<any[]>(initialCriptomoedas);
-  const [stablecoins, setStablecoins] = useState<any[]>(initialStablecoins);
-  const [movimentacoesInvestimento, setMovimentacoesInvestimento] = useState<any[]>(initialMovimentacoesInv);
-
-  // Estados novos integrados (V2)
+  // Estados V2 Core
   const [contasMovimento, setContasMovimento] = useState<ContaCorrente[]>(() => 
     loadFromStorage(STORAGE_KEYS.CONTAS_MOVIMENTO, DEFAULT_ACCOUNTS)
   );
@@ -261,7 +182,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   );
 
   // ============================================
-  // EFEITOS PARA PERSISTÊNCIA AUTOMÁTICA (Apenas V2 e Entidades V2)
+  // EFEITOS PARA PERSISTÊNCIA AUTOMÁTICA
   // ============================================
 
   useEffect(() => { saveToStorage(STORAGE_KEYS.EMPRESTIMOS, emprestimos); }, [emprestimos]);
@@ -274,7 +195,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveToStorage(STORAGE_KEYS.TRANSACOES_V2, transacoesV2); }, [transacoesV2]);
 
   // ============================================
-  // OPERAÇÕES DE EMPRÉSTIMOS (Mantidas para Etapa 3)
+  // OPERAÇÕES DE ENTIDADES V2 (Empréstimos, Veículos, etc.)
   // ============================================
 
   const addEmprestimo = (emprestimo: Omit<Emprestimo, "id">) => {
@@ -322,10 +243,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  // ============================================
-  // OPERAÇÕES DE VEÍCULOS (Mantidas para Etapa 3)
-  // ============================================
-
   const addVeiculo = (veiculo: Omit<Veiculo, "id">) => {
     const newId = Math.max(0, ...veiculos.map(v => v.id)) + 1;
     setVeiculos([...veiculos, { ...veiculo, id: newId, status: veiculo.status || 'ativo' }]);
@@ -342,10 +259,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const getPendingVehicles = useCallback(() => {
     return veiculos.filter(v => v.status === 'pendente_cadastro');
   }, [veiculos]);
-
-  // ============================================
-  // OPERAÇÕES DE SEGUROS DE VEÍCULO (Mantidas para Etapa 3)
-  // ============================================
 
   const addSeguroVeiculo = (seguro: Omit<SeguroVeiculo, "id">) => {
     const newId = Math.max(0, ...segurosVeiculo.map(s => s.id)) + 1;
@@ -374,10 +287,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       return { ...seguro, parcelas: updatedParcelas };
     }));
   }, []);
-
-  // ============================================
-  // OPERAÇÕES DE OBJETIVOS FINANCEIROS (Mantidas para Etapa 3)
-  // ============================================
 
   const addObjetivo = (obj: Omit<ObjetivoFinanceiro, "id">) => {
     const newId = Math.max(0, ...objetivos.map(o => o.id)) + 1;
@@ -469,7 +378,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     });
 
     return balance;
-  }, [contasMovimento, transacoesV2]); // Dependências ajustadas
+  }, [contasMovimento, transacoesV2]);
 
   const getSaldoAtual = useCallback(() => {
     let totalBalance = 0;
@@ -532,15 +441,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       }, 0);
       
     const valorVeiculos = getValorFipeTotal();
-    
-    // Investimentos Legados (agora vazios, mas mantemos a soma para o cálculo)
-    const investimentosLegados = investimentosRF.reduce((acc, i) => acc + i.valor, 0) +
-                          criptomoedas.reduce((acc, c) => acc + c.valorBRL, 0) +
-                          stablecoins.reduce((acc, s) => acc + s.valorBRL, 0) +
-                          objetivos.reduce((acc, o) => acc + o.atual, 0);
                           
-    return saldoContasAtivas + valorVeiculos + investimentosLegados;
-  }, [contasMovimento, transacoesV2, getValorFipeTotal, investimentosRF, criptomoedas, stablecoins, objetivos, calculateBalanceUpToDate]);
+    return saldoContasAtivas + valorVeiculos;
+  }, [contasMovimento, transacoesV2, getValorFipeTotal, calculateBalanceUpToDate]);
 
   const getPassivosTotal = useCallback(() => {
     return getSaldoDevedor();
@@ -562,7 +465,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         accounts: contasMovimento,
         categories: categoriasV2,
         transactions: transacoesV2,
-        transferGroups: [], // Transfer groups are implicitly handled by transactions V2
+        transferGroups: [],
       }
     };
 
@@ -598,12 +501,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (data.data.segurosVeiculo) setSegurosVeiculo(data.data.segurosVeiculo);
         if (data.data.objetivos) setObjetivos(data.data.objetivos);
         
-        // Resetar estados V1 que foram removidos
-        setInvestimentosRF(initialInvestimentosRF);
-        setCriptomoedas(initialCriptomoedas);
-        setStablecoins(initialStablecoins);
-        setMovimentacoesInvestimento(initialMovimentacoesInv);
-
         return { success: true, message: "Dados V2 importados com sucesso!" };
       } else {
         return { success: false, message: "Erro ao importar dados. Versão do schema incompatível." };
@@ -662,11 +559,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     exportData,
     importData,
     
-    // Placeholders para V1 removidos
-    investimentosRF,
-    criptomoedas,
-    stablecoins,
-    movimentacoesInvestimento,
+    // Placeholders para V1 removidos (mantidos para evitar erros de tipagem)
+    investimentosRF: [],
+    criptomoedas: [],
+    stablecoins: [],
+    movimentacoesInvestimento: [],
     addInvestimentoRF: () => { console.warn("Função V1 removida"); },
     updateInvestimentoRF: () => { console.warn("Função V1 removida"); },
     deleteInvestimentoRF: () => { console.warn("Função V1 removida"); },

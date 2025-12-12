@@ -123,6 +123,71 @@ export interface TransferGroup {
   description?: string;
 }
 
+// Empréstimo V2
+export interface Emprestimo {
+  id: number;
+  contrato: string;
+  parcela: number;
+  meses: number;
+  taxaMensal: number;
+  valorTotal: number;
+  contaCorrenteId?: string; // Link to conta movimento
+  dataInicio?: string;
+  status?: 'ativo' | 'pendente_config' | 'quitado';
+  parcelasPagas?: number;
+  liberacaoTransactionId?: string; // Link to liberation transaction
+  observacoes?: string;
+}
+
+// Veículo V2
+export interface Veiculo {
+  id: number;
+  modelo: string;
+  tipo?: 'carro' | 'moto' | 'caminhao';
+  marca?: string;
+  ano: number;
+  dataCompra: string;
+  valorVeiculo: number;
+  valorSeguro: number;
+  vencimentoSeguro: string;
+  parcelaSeguro: number;
+  valorFipe: number;
+  compraTransactionId?: string; // Link to purchase transaction
+  vendaTransactionId?: string; // Link to sale transaction
+  status?: 'ativo' | 'pendente_cadastro' | 'vendido';
+}
+
+// Seguro de Veículo V2
+export interface SeguroVeiculo {
+  id: number;
+  veiculoId: number;
+  numeroApolice: string;
+  seguradora: string;
+  vigenciaInicio: string;
+  vigenciaFim: string;
+  valorTotal: number;
+  numeroParcelas: number;
+  meiaParcela: boolean;
+  parcelas: {
+    numero: number;
+    vencimento: string;
+    valor: number;
+    paga: boolean;
+    transactionId?: string;
+  }[];
+}
+
+// Objetivo Financeiro V2
+export interface ObjetivoFinanceiro {
+  id: number;
+  nome: string;
+  atual: number;
+  meta: number;
+  rentabilidade: number;
+  cor: string;
+  contaMovimentoId?: string;
+}
+
 // Schema de Exportação V2 (Simplificado)
 export interface FinanceExportV2 {
   schemaVersion: '2.0';

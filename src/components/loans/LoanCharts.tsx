@@ -14,7 +14,7 @@ import {
   Legend,
   Cell,
 } from "recharts";
-import { Emprestimo } from "@/contexts/FinanceContext";
+import { Emprestimo } from "@/types/finance";
 import { ExpandablePanel } from "@/components/reports/ExpandablePanel";
 import { TrendingDown, BarChart3, Calendar, Scale } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -88,7 +88,7 @@ export function LoanCharts({ emprestimos, className }: LoanChartsProps) {
   const timeline = useMemo(() => {
     const hoje = new Date();
     return emprestimos.map((e) => {
-      const parcelasPagas = Math.floor(e.meses * 0.3);
+      const parcelasPagas = e.parcelasPagas || 0;
       const parcelasRestantes = e.meses - parcelasPagas;
       const dataFinal = new Date(hoje);
       dataFinal.setMonth(dataFinal.getMonth() + parcelasRestantes);
