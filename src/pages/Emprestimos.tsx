@@ -14,9 +14,9 @@ import { LoanAlerts } from "@/components/loans/LoanAlerts";
 import { LoanCharts } from "@/components/loans/LoanCharts";
 import { LoanDetailDialog } from "@/components/loans/LoanDetailDialog";
 import { LoanSimulator } from "@/components/loans/LoanSimulator";
-import { PeriodSelector, DateRange } from "@/components/dashboard/PeriodSelector";
+import { PeriodSelector, DateRange, ComparisonDateRanges } from "@/components/dashboard/PeriodSelector";
 import { cn } from "@/lib/utils";
-import { startOfMonth, endOfMonth, isWithinInterval, format } from "date-fns";
+import { startOfMonth, endOfMonth, isWithinInterval, format, subDays } from "date-fns";
 
 const Emprestimos = () => {
   const { 
@@ -35,11 +35,20 @@ const Emprestimos = () => {
   
   // Inicializa o range para o mês atual
   const now = new Date();
-  const initialRange: DateRange = { from: startOfMonth(now), to: endOfMonth(now) };
-  const [dateRange, setDateRange] = useState<DateRange>(initialRange);
+  const initialRange1: DateRange = { from: startOfMonth(now), to: endOfMonth(now) };
+  
+  // Calcula o período anterior como range inicial 2
+  const diffInDays = (initialRange1.to!.getTime() - initialRange1.from!.getTime()) / (1000 * 60 * 60 * 24);
+  const prevTo = subDays(initialRange1.from!, 1);
+  const prevFrom = subDays(prevTo, diffInDays);
+  const initialRange2: DateRange = { from: prevFrom, to: prevTo };
 
-  const handlePeriodChange = useCallback((range: DateRange) => {
-    setDateRange(range);
+  const initialRanges: ComparisonDateRanges = { range1: initialRange1, range2: initialRange2 };
+  
+  const [dateRanges, setDateRanges] = useState<ComparisonDateRanges>(initialRanges);
+
+  const handlePeriodChange = useCallback((ranges: ComparisonDateRanges) => {
+    setDateRanges(ranges);
   }, []);
 
   // Helper function to calculate the next due date for a loan
@@ -112,7 +121,7 @@ const Emprestimos = () => {
           </div>
           <div className="flex items-center gap-2">
             <PeriodSelector 
-              initialRange={initialRange}
+              initialRanges={initialRanges}
               onDateRangeChange={handlePeriodChange} 
             />
             <LoanForm onSubmit={handleAddLoan} contasCorrentes={contasCorrentes} />

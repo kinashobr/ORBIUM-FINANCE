@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import {
   TrendingUp,
   TrendingDown,
@@ -98,7 +98,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
   const { range1, range2 } = dateRanges;
 
   // Helper para calcular saldo até uma data (usado para saldo inicial do período)
-  const calculateBalanceUpToDate = (accountId: string, date: Date | undefined, allTransactions: typeof transacoesV2, accounts: typeof contasMovimento): number => {
+  const calculateBalanceUpToDate = useCallback((accountId: string, date: Date | undefined, allTransactions: typeof transacoesV2, accounts: typeof contasMovimento): number => {
     const account = accounts.find(a => a.id === accountId);
     if (!account) return 0;
 
@@ -128,7 +128,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
     });
 
     return balance;
-  };
+  }, [contasMovimento, transacoesV2]);
 
   // 1. Filtrar transações para um período específico
   const filterTransactionsByRange = useCallback((range: DateRange) => {
@@ -248,7 +248,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
       patrimonioLiquido,
       resultadoPeriodo,
     };
-  }, [contasMovimento, emprestimos, veiculos, transacoesV2, getPassivosTotal, calculateFinalBalances]);
+  }, [contasMovimento, emprestimos, veiculos, transacoesV2, getPassivosTotal, calculateFinalBalances, calculateBalanceUpToDate]);
 
   // Balanço para o Período 1 (Principal)
   const balanco1 = useMemo(() => calculateBalanco(transacoesPeriodo1, range1.from), [calculateBalanco, transacoesPeriodo1, range1.from]);
@@ -354,6 +354,11 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
   const formatCurrency = (value: number) => `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
   const formatPercent = (value: number) => `${value.toFixed(1)}%`;
   const formatRatio = (value: number) => value >= 999 ? "∞" : `${value.toFixed(2)}x`;
+
+  // Evolução do PL nos últimos 12 meses (mantido com base em todas as transações para histórico)
+  const evolucaoPLSparkline = useMemo(() => {
+    return evolucaoPL.map(e => e.pl);
+  }, [evolucaoPL]);
 
   // Sparkline generator (copiado de IndicadoresTab para consistência)
   const generateSparkline = (current: number, trend: "up" | "down" | "stable" = "stable") => {
@@ -777,6 +782,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
             value={formatPercent(metricas.plAtivos.valor)}
             status={metricas.plAtivos.status}
             trend={metricas.plAtivos.valor >= 50 ? "up" : "down"}
+            trendLabel="vs P2"
             descricao="Indica quanto do patrimônio é efetivamente seu. Ideal: acima de 50%"
             formula="(Patrimônio Líquido / Ativo Total) × 100"
             sparklineData={generateSparkline(metricas.plAtivos.valor, metricas.plAtivos.valor >= 50 ? "up" : "down")}
@@ -787,6 +793,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
             value={formatRatio(metricas.liquidezGeral.valor)}
             status={metricas.liquidezGeral.status}
             trend={metricas.liquidezGeral.valor >= 2 ? "up" : "down"}
+            trendLabel="vs P2"
             descricao="Capacidade de pagar todas as dívidas. Ideal: acima de 2x"
             formula="Ativo Total / Passivo Total"
             sparklineData={generateSparkline(metricas.liquidezGeral.valor, metricas.liquidezGeral.valor >= 2 ? "up" : "down")}
@@ -797,6 +804,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
             value={formatRatio(metricas.liquidezCorrente.valor)}
             status={metricas.liquidezCorrente.status}
             trend={metricas.liquidezCorrente.valor >= 1.5 ? "up" : "down"}
+            trendLabel="vs P2"
             descricao="Capacidade de pagar dívidas de curto prazo. Ideal: acima de 1.5x"
             formula="Ativo Circulante / Passivo Circulante"
             sparklineData={generateSparkline(metricas.liquidezCorrente.valor, metricas.liquidezCorrente.valor >= 1.5 ? "up" : "down")}
@@ -807,7 +815,8 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
             value={formatPercent(metricas.endividamento.valor)}
             status={metricas.endividamento.status}
             trend={metricas.endividamento.valor < 30 ? "up" : "down"}
-            descricao="Percentual dos ativos comprometidos com dívidas. Ideal: abaixo de 30%"
+            trendLabel="vs P2"
+            descricao="Percentual dos ativos comprometidos com dívidas. Quanto menor, melhor. Ideal: abaixo de 30%"
             formula="(Passivo Total / Ativo Total) × 100"
             sparklineData={generateSparkline(metricas.endividamento.valor, metricas.endividamento.valor < 30 ? "down" : "up")}
             icon={<CreditCard className="w-4 h-4" />}
@@ -817,6 +826,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
             value={formatRatio(metricas.coberturaAtivos.valor)}
             status={metricas.coberturaAtivos.status}
             trend={metricas.coberturaAtivos.valor >= 2 ? "up" : "down"}
+            trendLabel="vs P2"
             descricao="Quantas vezes os ativos cobrem os passivos. Ideal: acima de 2x"
             formula="Ativo Total / Passivo Total"
             sparklineData={generateSparkline(metricas.coberturaAtivos.valor, metricas.coberturaAtivos.valor >= 2 ? "up" : "down")}
@@ -827,6 +837,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
             value={formatPercent(metricas.imobilizacao.valor)}
             status={metricas.imobilizacao.status}
             trend={metricas.imobilizacao.valor < 30 ? "up" : "down"}
+            trendLabel="vs P2"
             descricao="Quanto do PL está em bens imobilizados (veículos). Ideal: abaixo de 30%"
             formula="(Ativo Imobilizado / Patrimônio Líquido) × 100"
             sparklineData={generateSparkline(metricas.imobilizacao.valor, metricas.imobilizacao.valor < 30 ? "down" : "up")}

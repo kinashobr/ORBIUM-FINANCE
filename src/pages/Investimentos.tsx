@@ -17,8 +17,8 @@ import { cn } from "@/lib/utils";
 import { useFinance } from "@/contexts/FinanceContext";
 import { EditableCell } from "@/components/EditableCell";
 import { toast } from "sonner";
-import { PeriodSelector, DateRange } from "@/components/dashboard/PeriodSelector";
-import { startOfMonth, endOfMonth, parseISO } from "date-fns";
+import { PeriodSelector, DateRange, ComparisonDateRanges } from "@/components/dashboard/PeriodSelector";
+import { startOfMonth, endOfMonth, parseISO, subDays } from "date-fns";
 import { ContaCorrente, TransacaoCompleta } from "@/types/finance";
 
 const pieColors = [
@@ -72,8 +72,21 @@ const Investimentos = () => {
   
   // Inicializa o range para o mês atual
   const now = new Date();
-  const initialRange: DateRange = { from: startOfMonth(now), to: endOfMonth(now) };
-  const [dateRange, setDateRange] = useState<DateRange>(initialRange);
+  const initialRange1: DateRange = { from: startOfMonth(now), to: endOfMonth(now) };
+  
+  // Calcula o período anterior como range inicial 2
+  const diffInDays = (initialRange1.to!.getTime() - initialRange1.from!.getTime()) / (1000 * 60 * 60 * 24);
+  const prevTo = subDays(initialRange1.from!, 1);
+  const prevFrom = subDays(prevTo, diffInDays);
+  const initialRange2: DateRange = { from: prevFrom, to: prevTo };
+
+  const initialRanges: ComparisonDateRanges = { range1: initialRange1, range2: initialRange2 };
+  
+  const [dateRanges, setDateRanges] = useState<ComparisonDateRanges>(initialRanges);
+
+  const handlePeriodChange = useCallback((ranges: ComparisonDateRanges) => {
+    setDateRanges(ranges);
+  }, []);
 
   // Dialogs
   const [showAddRendimento, setShowAddRendimento] = useState<string | null>(null); // Alterado para string (accountId)
@@ -84,10 +97,6 @@ const Investimentos = () => {
     valor: "",
     descricao: ""
   });
-
-  const handlePeriodChange = useCallback((range: DateRange) => {
-    setDateRange(range);
-  }, []);
 
   // Helper para calcular saldo atual de uma conta (sem filtro de data)
   const calculateBalanceUpToDate = useCallback((accountId: string, allTransactions: typeof transacoesV2, accounts: typeof contasMovimento): number => {
@@ -255,7 +264,7 @@ const Investimentos = () => {
             </p>
           </div>
           <PeriodSelector 
-            initialRange={initialRange}
+            initialRanges={initialRanges}
             onDateRangeChange={handlePeriodChange} 
           />
         </div>
@@ -364,7 +373,7 @@ const Investimentos = () => {
                           ))}
                         </Pie>
                         <Tooltip formatter={(value: number) => [formatCurrency(value), "Valor"]} />
-                      </PieChart>
+                      </RechartsPie>
                     </ResponsiveContainer>
                   </div>
                 </CardContent>

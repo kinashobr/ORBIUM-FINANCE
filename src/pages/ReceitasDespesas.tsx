@@ -21,7 +21,7 @@ import { AccountFormModal } from "@/components/transactions/AccountFormModal";
 import { CategoryFormModal } from "@/components/transactions/CategoryFormModal";
 import { CategoryListModal } from "@/components/transactions/CategoryListModal";
 import { AccountStatementDialog } from "@/components/transactions/AccountStatementDialog";
-import { PeriodSelector, DateRange } from "@/components/dashboard/PeriodSelector";
+import { PeriodSelector, DateRange, ComparisonDateRanges } from "@/components/dashboard/PeriodSelector";
 
 // Context
 import { useFinance } from "@/contexts/FinanceContext";
@@ -55,8 +55,17 @@ const ReceitasDespesas = () => {
   
   // Inicializa o range para o mês atual
   const now = new Date();
-  const initialRange: DateRange = { from: startOfMonth(now), to: endOfMonth(now) };
-  const [dateRange, setDateRange] = useState<DateRange>(initialRange);
+  const initialRange1: DateRange = { from: startOfMonth(now), to: endOfMonth(now) };
+  
+  // Calcula o período anterior como range inicial 2
+  const diffInDays = (initialRange1.to!.getTime() - initialRange1.from!.getTime()) / (1000 * 60 * 60 * 24);
+  const prevTo = subDays(initialRange1.from!, 1);
+  const prevFrom = subDays(prevTo, diffInDays);
+  const initialRange2: DateRange = { from: prevFrom, to: prevTo };
+
+  const initialRanges: ComparisonDateRanges = { range1: initialRange1, range2: initialRange2 };
+  
+  const [dateRanges, setDateRanges] = useState<ComparisonDateRanges>(initialRanges);
   
   // New modals
   const [showAccountModal, setShowAccountModal] = useState(false);
@@ -77,16 +86,16 @@ const ReceitasDespesas = () => {
   const [selectedTypes, setSelectedTypes] = useState<OperationType[]>(['receita', 'despesa', 'transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo', 'liberacao_emprestimo', 'veiculo', 'rendimento', 'initial_balance']);
   
   // Removendo dateFrom/dateTo do estado local, pois PeriodSelector controla isso
-  const dateFrom = dateRange.from ? dateRange.from.toISOString().split('T')[0] : "";
-  const dateTo = dateRange.to ? dateRange.to.toISOString().split('T')[0] : "";
+  const dateFrom = dateRanges.range1.from ? dateRanges.range1.from.toISOString().split('T')[0] : "";
+  const dateTo = dateRanges.range1.to ? dateRanges.range1.to.toISOString().split('T')[0] : "";
 
   // Alias for context data
   const accounts = contasMovimento;
   const transactions = transacoesV2;
   const categories = categoriasV2;
 
-  const handlePeriodChange = useCallback((range: DateRange) => {
-    setDateRange(range);
+  const handlePeriodChange = useCallback((ranges: ComparisonDateRanges) => {
+    setDateRanges(ranges);
   }, []);
 
   // Helper function to calculate balance up to a specific date (exclusive)
@@ -130,6 +139,8 @@ const ReceitasDespesas = () => {
 
   // Filter transactions
   const filteredTransactions = useMemo(() => {
+    const range = dateRanges.range1; // Use range1 for filtering transactions in this view
+    
     return transactions.filter(t => {
       const matchSearch = !searchTerm || t.description.toLowerCase().includes(searchTerm.toLowerCase());
       const matchAccount = selectedAccountId === 'all' || t.accountId === selectedAccountId;
@@ -138,17 +149,17 @@ const ReceitasDespesas = () => {
       
       const transactionDate = parseISO(t.date);
       
-      // Filtro de período usando dateRange
-      const matchPeriod = (!dateRange.from || isWithinInterval(transactionDate, { start: dateRange.from, end: dateRange.to || new Date() }));
+      // Filtro de período usando dateRange.range1
+      const matchPeriod = (!range.from || isWithinInterval(transactionDate, { start: range.from, end: range.to || new Date() }));
       
       return matchSearch && matchAccount && matchCategory && matchType && matchPeriod;
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [transactions, searchTerm, selectedAccountId, selectedCategoryId, selectedTypes, dateRange]);
+  }, [transactions, searchTerm, selectedAccountId, selectedCategoryId, selectedTypes, dateRanges]);
 
   // Calculate account summaries
   const accountSummaries: AccountSummary[] = useMemo(() => {
-    const periodStart = dateRange.from;
-    const periodEnd = dateRange.to;
+    const periodStart = dateRanges.range1.from;
+    const periodEnd = dateRanges.range1.to;
     
     return accounts.map(account => {
       // 1. Calculate Period Initial Balance (balance right before periodStart)
@@ -207,7 +218,7 @@ const ReceitasDespesas = () => {
         transactionCount: accountTxInPeriod.length
       };
     });
-  }, [accounts, transactions, dateRange, calculateBalanceUpToDate]);
+  }, [accounts, transactions, dateRanges, calculateBalanceUpToDate]);
 
   // Handlers
   const handleMovimentar = (accountId: string) => {
@@ -658,7 +669,7 @@ const ReceitasDespesas = () => {
             </div>
             <div className="flex items-center gap-2">
               <PeriodSelector 
-                initialRange={initialRange}
+                initialRanges={initialRanges}
                 onDateRangeChange={handlePeriodChange} 
               />
               <Button variant="outline" size="sm" onClick={() => setShowCategoryListModal(true)}>
