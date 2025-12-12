@@ -31,7 +31,7 @@ import { Plus, Trash2, Car, Shield, AlertTriangle, DollarSign, FileText, Search,
 import { useFinance } from "@/contexts/FinanceContext";
 import { Veiculo, SeguroVeiculo } from "@/types/finance";
 import { EditableCell } from "@/components/EditableCell";
-import { cn } from "@/lib/utils";
+import { cn, parseDateLocal } from "@/lib/utils";
 import { toast } from "sonner";
 import { FipeConsultaDialog } from "@/components/vehicles/FipeConsultaDialog";
 import { TransacaoCompleta, generateTransactionId, OperationType, getFlowTypeFromOperation, getDomainFromOperation } from "@/types/finance";
@@ -147,8 +147,9 @@ const Veiculos = () => {
     const valorTotal = Number(formSeguro.valorTotal);
     const valorParcela = valorTotal / numParcelas;
     
-    const primeiraParcelaDate = parseISO(formSeguro.dataPrimeiraParcela);
-    const ultimaParcelaDate = parseISO(formSeguro.dataUltimaParcela);
+    // Usar parseDateLocal para garantir que as datas sejam interpretadas corretamente
+    const primeiraParcelaDate = parseDateLocal(formSeguro.dataPrimeiraParcela);
+    const ultimaParcelaDate = parseDateLocal(formSeguro.dataUltimaParcela);
     
     // Calculate the number of months between the first and last installment dates
     const diffMonths = differenceInMonths(ultimaParcelaDate, primeiraParcelaDate);
@@ -161,10 +162,12 @@ const Veiculos = () => {
     // Generate installment dates based on first and last dates
     const parcelas = [];
     for (let i = 0; i < numParcelas; i++) {
+      // Usar addMonths com a data pura local
       const dataVencimento = addMonths(primeiraParcelaDate, i);
       
       parcelas.push({
         numero: i + 1,
+        // Salvar como string YYYY-MM-DD
         vencimento: dataVencimento.toISOString().split('T')[0],
         valor: valorParcela, // Sem meia parcela
         paga: false,
@@ -242,7 +245,8 @@ const Veiculos = () => {
   const hoje = new Date();
   const veiculosComSeguroVencendo = veiculos.filter(v => {
     if (!v.vencimentoSeguro || v.status === 'vendido') return false;
-    const venc = new Date(v.vencimentoSeguro);
+    // Usar parseDateLocal para a comparação
+    const venc = parseDateLocal(v.vencimentoSeguro);
     const dias = Math.ceil((venc.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
     return dias > 0 && dias <= 30;
   });
@@ -257,7 +261,8 @@ const Veiculos = () => {
 
   const getDiasVencimento = (data: string) => {
     if (!data) return null;
-    const venc = new Date(data);
+    // Usar parseDateLocal para a comparação
+    const venc = parseDateLocal(data);
     const dias = Math.ceil((venc.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
     return dias;
   };
@@ -274,7 +279,8 @@ const Veiculos = () => {
       });
     });
     
-    return all.sort((a, b) => new Date(a.parcela.vencimento).getTime() - new Date(b.parcela.vencimento).getTime());
+    // Usar parseDateLocal para garantir a ordenação correta
+    return all.sort((a, b) => parseDateLocal(a.parcela.vencimento).getTime() - parseDateLocal(b.parcela.vencimento).getTime());
   }, [segurosVeiculo, veiculos, transacoesV2]);
 
   const parcelasPendentes = allParcelas.filter(p => !p.parcela.paga);
@@ -452,7 +458,7 @@ const Veiculos = () => {
                     className="gap-2 border-warning/50 hover:bg-warning/20"
                   >
                     <Car className="w-4 h-4" />
-                    Compra em {new Date(vehicle.dataCompra).toLocaleDateString("pt-BR")} - R$ {vehicle.valorVeiculo.toLocaleString("pt-BR")}
+                    Compra em {parseDateLocal(vehicle.dataCompra).toLocaleDateString("pt-BR")} - R$ {vehicle.valorVeiculo.toLocaleString("pt-BR")}
                   </Button>
                 ))}
               </div>
@@ -635,7 +641,7 @@ const Veiculos = () => {
                           <TableCell>
                             <EditableCell value={item.ano} type="number" onSave={(v) => updateVeiculo(item.id, { ano: Number(v) })} />
                           </TableCell>
-                          <TableCell>{new Date(item.dataCompra).toLocaleDateString("pt-BR")}</TableCell>
+                          <TableCell>{parseDateLocal(item.dataCompra).toLocaleDateString("pt-BR")}</TableCell>
                           <TableCell className="text-right">
                             <EditableCell value={item.valorVeiculo} type="currency" onSave={(v) => updateVeiculo(item.id, { valorVeiculo: Number(v) })} />
                           </TableCell>
@@ -732,7 +738,7 @@ const Veiculos = () => {
                           <TableCell>{seguro.numeroApolice}</TableCell>
                           <TableCell>{seguro.seguradora}</TableCell>
                           <TableCell>
-                            {new Date(seguro.vigenciaInicio).toLocaleDateString("pt-BR")} - {new Date(seguro.vigenciaFim).toLocaleDateString("pt-BR")}
+                            {parseDateLocal(seguro.vigenciaInicio).toLocaleDateString("pt-BR")} - {parseDateLocal(seguro.vigenciaFim).toLocaleDateString("pt-BR")}
                           </TableCell>
                           <TableCell className="text-right">
                             R$ {seguro.valorTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
@@ -814,7 +820,7 @@ const Veiculos = () => {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
-                              {new Date(item.parcela.vencimento).toLocaleDateString("pt-BR")}
+                              {parseDateLocal(item.parcela.vencimento).toLocaleDateString("pt-BR")}
                               {vencida && (
                                 <Badge variant="destructive" className="text-xs">Vencida</Badge>
                               )}
@@ -840,7 +846,7 @@ const Veiculos = () => {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            {item.transaction?.date ? new Date(item.transaction.date).toLocaleDateString("pt-BR") : '—'}
+                            {item.transaction?.date ? parseDateLocal(item.transaction.date).toLocaleDateString("pt-BR") : '—'}
                           </TableCell>
                           <TableCell className="text-right font-medium text-success">
                             {item.transaction?.amount ? `R$ ${item.transaction.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : '—'}
