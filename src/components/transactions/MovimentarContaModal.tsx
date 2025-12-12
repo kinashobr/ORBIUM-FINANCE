@@ -17,7 +17,7 @@ import {
   OperationType, ContaCorrente, Categoria, AccountType,
   TransacaoCompleta, formatCurrency, generateTransactionId,
   generateTransferGroupId, getDomainFromOperation,
-  TransferGroup, FlowType
+  TransferGroup, FlowType // <-- FIXED: FlowType is now exported
 } from "@/types/finance";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";

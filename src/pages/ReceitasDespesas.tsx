@@ -46,7 +46,7 @@ const ReceitasDespesas = () => {
     dateRanges, // <-- Use context state
     setDateRanges, // <-- Use context setter
     markSeguroParcelPaid,
-    unmarkSeguroParcelaid, // <-- ADDED
+    unmarkSeguroParcelPaid, // <-- FIXED: Renamed from unmarkSeguroParcelaid
     getInitialBalanceContraAccount, // NOVO: Obter conta de contrapartida
   } = useFinance();
 
@@ -471,7 +471,7 @@ const ReceitasDespesas = () => {
         const parcelaNumero = parseInt(parcelaNumeroStr);
         
         if (!isNaN(seguroId) && !isNaN(parcelaNumero)) {
-            unmarkSeguroParcelaid(seguroId, parcelaNumero); 
+            unmarkSeguroParcelPaid(seguroId, parcelaNumero); 
         }
     }
 
@@ -546,7 +546,7 @@ const ReceitasDespesas = () => {
           attachments: [],
           meta: {
             createdBy: 'system',
-            source: 'manual',
+            source: 'manual', // FIXED: source must be 'manual'
             createdAt: new Date().toISOString(),
             notes: `Saldo inicial de ${formatCurrency(initialBalanceAmount)} em ${account.startDate}`
           }
@@ -566,6 +566,7 @@ const ReceitasDespesas = () => {
             meta: {
                 ...userTx.meta,
                 createdBy: 'system',
+                source: 'manual', // FIXED: source must be 'manual'
             }
         };
         
@@ -598,7 +599,7 @@ const ReceitasDespesas = () => {
             links: { investmentId: null, loanId: null, transferGroupId: txId, parcelaId: null, vehicleTransactionId: null },
             conciliated: true,
             attachments: [],
-            meta: { createdBy: 'system', source: 'manual', createdAt: new Date().toISOString() }
+            meta: { createdBy: 'system', source: 'manual' as const, createdAt: new Date().toISOString() } // FIXED: source must be 'manual'
         };
         
         // Transação 1: Atualiza/Cria userTx
@@ -617,7 +618,7 @@ const ReceitasDespesas = () => {
             flow: initialBalanceAmount >= 0 ? 'out' : 'in', // Fluxo oposto
             description: `Contrapartida Saldo Inicial ${account.name}`,
             links: { ...userTx.links },
-            meta: { ...userTx.meta, createdBy: 'system' }
+            meta: { ...userTx.meta, createdBy: 'system', source: 'manual' as const } // FIXED: source must be 'manual'
         };
 
         setTransacoesV2(prev => {

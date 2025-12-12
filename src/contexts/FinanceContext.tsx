@@ -89,7 +89,7 @@ interface FinanceContextType {
   updateSeguroVeiculo: (id: number, seguro: Partial<SeguroVeiculo>) => void;
   deleteSeguroVeiculo: (id: number) => void;
   markSeguroParcelPaid: (seguroId: number, parcelaNumero: number, transactionId: string) => void;
-  unmarkSeguroParcelPaid: (seguroId: number, parcelaNumero: number) => void; // <-- ADDED
+  unmarkSeguroParcelPaid: (seguroId: number, parcelaNumero: number) => void; // <-- FIXED: Correct function name
   
   // Objetivos Financeiros
   objetivos: ObjetivoFinanceiro[];
@@ -695,7 +695,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     updateSeguroVeiculo,
     deleteSeguroVeiculo,
     markSeguroParcelPaid,
-    unmarkSeguroParcelPaid, // <-- ADDED
+    unmarkSeguroParcelPaid, // <-- FIXED
     objetivos,
     addObjetivo,
     updateObjetivo,

@@ -67,6 +67,9 @@ export interface TransactionLinks {
   vehicleTransactionId: string | null;
 }
 
+// Tipos de Fluxo
+export type FlowType = 'in' | 'out' | 'transfer_in' | 'transfer_out';
+
 // Tipos de Operação no Modal (atualizado com veículos e liberação empréstimo)
 export type OperationType = 
   | 'receita' 
