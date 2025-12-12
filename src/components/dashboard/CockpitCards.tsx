@@ -108,8 +108,9 @@ export function CockpitCards({ data }: CockpitCardsProps) {
             <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
               {card.title}
             </span>
-            <div className={cn("p-1.5 rounded-md", card.bgColor)}>
-              <card.icon className={cn("h-4 w-4", card.color)} />
+            {/* Ajustado para p-3 e w-6 h-6 para padronizar */}
+            <div className={cn("p-3 rounded-xl", card.bgColor)}>
+              <card.icon className={cn("h-6 w-6", card.color)} />
             </div>
           </div>
           
