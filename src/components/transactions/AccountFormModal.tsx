@@ -30,8 +30,19 @@ const ACCOUNT_TYPE_ICONS: Record<AccountType, typeof Building2> = {
 // Helper para formatar número para string BR
 const formatToBR = (value: number) => value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-// Helper para converter string BR para float
-const parseFromBR = (value: string) => parseFloat(value.replace('.', '').replace(',', '.'));
+// Helper para converter string BR para float, permitindo sinal negativo e separadores BR
+const parseFromBR = (value: string) => {
+  const isNegative = value.startsWith('-');
+  // Remove o sinal de menos temporariamente
+  let cleaned = value.replace('-', '');
+  // Remove pontos (milhares) e substitui vírgula (decimal) por ponto
+  cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+  
+  let parsed = parseFloat(cleaned);
+  if (isNaN(parsed)) return 0;
+  
+  return isNegative ? -parsed : parsed;
+};
 
 export function AccountFormModal({
   open,
@@ -70,8 +81,16 @@ export function AccountFormModal({
   }, [open, account]);
 
   const handleBalanceChange = (value: string) => {
-    // Permite apenas números, vírgula e ponto (para facilitar a digitação)
-    const cleanedValue = value.replace(/[^\d,.]/g, '');
+    // Permite o sinal de menos (-) no início, além de números, vírgula e ponto.
+    let cleanedValue = value.replace(/[^\d,.-]/g, '');
+    
+    // Garante que o '-' só apareça no início
+    if (cleanedValue.startsWith('-')) {
+      cleanedValue = '-' + cleanedValue.substring(1).replace(/-/g, '');
+    } else {
+      cleanedValue = cleanedValue.replace(/-/g, '');
+    }
+    
     setInitialBalance(cleanedValue);
   };
 
