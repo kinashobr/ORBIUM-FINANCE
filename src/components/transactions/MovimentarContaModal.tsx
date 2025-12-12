@@ -113,7 +113,7 @@ export function MovimentarContaModal({
 
   // Estado para Seguro
   const [showSeguroSelector, setShowSeguroSelector] = useState(false);
-  const [seguroLink, setSeguroLink] = useState<{ seguroId: number; parcelaNumero: number; valor: number; vencimento: string } | null>(null);
+  const [seguroLink, setSeguroLink] = useState<{ seguroId: number; parcelaNumero: number; valorDevido: number; dataPagamento: string; valorPago: number } | null>(null);
 
   // Estado para busca de categoria
   const [categorySearchTerm, setCategorySearchTerm] = useState('');
@@ -187,10 +187,14 @@ export function MovimentarContaModal({
           const [seguroIdStr, parcelaNumeroStr] = editingTransaction.links.vehicleTransactionId.split('_');
           const seguroId = parseInt(seguroIdStr);
           const parcelaNumero = parseInt(parcelaNumeroStr);
+          
+          // Tentativa de recuperar valor devido e pago (simplificado para edição)
+          const valorPago = editingTransaction.amount;
+          const valorDevido = editingTransaction.meta.valorDevido || valorPago; // Usar meta se existir
+          const dataPagamento = editingTransaction.date;
+
           if (!isNaN(seguroId) && !isNaN(parcelaNumero)) {
-            // Note: We don't have the full SeguroVeiculo object here, only the IDs and the amount/date from the transaction itself.
-            // We set a placeholder link object.
-            setSeguroLink({ seguroId, parcelaNumero, valor: editingTransaction.amount, vencimento: editingTransaction.date });
+            setSeguroLink({ seguroId, parcelaNumero, valorDevido, dataPagamento, valorPago });
           }
         } else {
           setSeguroLink(null);
@@ -212,7 +216,7 @@ export function MovimentarContaModal({
           setCategoryId(rendimentoCategoryId || '');
         } else {
           setCategoryId('');
-        }
+      }
       } else if (operationType === 'rendimento') {
         setCategoryId(rendimentoCategoryId || '');
       } else if (operationType !== 'transferencia') {
@@ -225,15 +229,24 @@ export function MovimentarContaModal({
   useEffect(() => {
     const seguroCategory = categories.find(c => c.label.toLowerCase() === 'seguro');
 
-    // CORREÇÃO: Remover a exclusão de 'cartao_credito' para permitir o seletor de parcela
     if (operationType === 'despesa' && categoryId === seguroCategory?.id && !seguroLink) {
       setShowSeguroSelector(true);
     }
 
     if (seguroLink) {
-      setAmount(seguroLink.valor.toString());
-      setDate(seguroLink.vencimento);
-      setDescription(prev => prev || `Pagamento Parcela ${seguroLink.parcelaNumero} - Seguro Veículo`);
+      // Usa o valor pago e a data de pagamento selecionados no seletor
+      setAmount(seguroLink.valorPago.toString());
+      setDate(seguroLink.dataPagamento);
+      
+      const diferenca = seguroLink.valorPago - seguroLink.valorDevido;
+      let desc = `Pagamento Parcela ${seguroLink.parcelaNumero} - Seguro Veículo`;
+      if (diferenca > 0) {
+        desc += ` (+Juros: ${formatCurrency(diferenca)})`;
+      } else if (diferenca < 0) {
+        desc += ` (-Desconto: ${formatCurrency(Math.abs(diferenca))})`;
+      }
+      
+      setDescription(prev => prev || desc);
     }
   }, [operationType, categoryId, categories, seguroLink]);
 
@@ -387,7 +400,9 @@ export function MovimentarContaModal({
         updatedAt: isEditing ? now : undefined,
         vehicleOperation: operationType === 'veiculo' ? vehicleOperation : undefined,
         numeroContrato: operationType === 'liberacao_emprestimo' ? numeroContrato : undefined,
-        pendingLoanConfig: operationType === 'liberacao_emprestimo' ? true : undefined
+        pendingLoanConfig: operationType === 'liberacao_emprestimo' ? true : undefined,
+        // Adicionar valor devido para cálculo de juros/desconto
+        valorDevido: seguroLink?.valorDevido,
       }
     };
 
@@ -497,8 +512,8 @@ export function MovimentarContaModal({
     );
   };
 
-  const handleSelectSeguroParcela = (seguroId: number, parcelaNumero: number, valor: number, vencimento: string) => {
-    setSeguroLink({ seguroId, parcelaNumero, valor, vencimento });
+  const handleSelectSeguroParcela = (seguroId: number, parcelaNumero: number, valorDevido: number, dataPagamento: string, valorPago: number) => {
+    setSeguroLink({ seguroId, parcelaNumero, valorDevido, dataPagamento, valorPago });
     const seguroCategory = categories.find(c => c.label.toLowerCase() === 'seguro');
     if (seguroCategory) {
       setCategoryId(seguroCategory.id);
@@ -743,7 +758,7 @@ export function MovimentarContaModal({
                 {seguroLink && (
                   <div className="flex items-center gap-2 p-2 rounded-md bg-primary/10 border border-primary/30 text-sm">
                     <Shield className="w-4 h-4 text-primary" />
-                    <span>Parcela de Seguro Selecionada: {seguroLink.parcelaNumero} ({formatCurrency(seguroLink.valor)})</span>
+                    <span>Parcela de Seguro Selecionada: {seguroLink.parcelaNumero} ({formatCurrency(seguroLink.valorPago)})</span>
                     <Button variant="ghost" size="icon" className="h-6 w-6 ml-auto" onClick={() => setSeguroLink(null)}>
                       <X className="w-3 h-3" />
                     </Button>

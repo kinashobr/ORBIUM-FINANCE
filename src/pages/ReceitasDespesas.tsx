@@ -231,20 +231,21 @@ const ReceitasDespesas = () => {
         let incomingTx: TransacaoCompleta;
         
         if (isToCreditCard) {
-          // Pagamento de Fatura: CC (toAccount) recebe (flow: in), CC (fromAccount) sai (flow: out)
-          // A transação original (transaction) é a entrada no CC (flow: in)
+          // Pagamento de Fatura: 
+          // Transação original (transaction) é a ENTRADA no CC (flow: in)
+          // Precisamos criar a transação de SAÍDA da Conta Corrente (fromAccount)
           
           // Transação de SAÍDA da Conta Corrente (fromAccount)
           incomingTx = {
             ...transaction,
             id: generateTransactionId(),
             accountId: transferGroup.fromAccountId,
-            flow: 'transfer_out',
+            flow: 'transfer_out', // Saída da conta corrente
             operationType: 'transferencia',
             domain: 'operational',
             categoryId: null,
             links: { ...transaction.links, transferGroupId: transferGroup.id },
-            description: transferGroup.description || `Transferência enviada para ${toAccount?.name}`,
+            description: transferGroup.description || `Pagamento de fatura CC ${toAccount?.name}`,
           };
           
           // Atualiza a transação original (entrada no CC)
@@ -511,7 +512,7 @@ const ReceitasDespesas = () => {
         }
       } else {
         // Editando conta existente: apenas atualiza os detalhes
-        setContasMovimento(accounts.map(a => a.id === account.id ? account : a));
+        setContasMovimento(accounts.map(a => a.id === account.id ? a : a));
       }
       setEditingAccount(undefined);
     };

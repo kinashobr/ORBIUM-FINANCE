@@ -307,8 +307,20 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     transactionsBeforeDate.forEach(t => {
         const isCreditCard = account.accountType === 'cartao_credito';
         
+        // 1. Tratar Saldo Inicial (initial_balance)
+        if (t.operationType === 'initial_balance') {
+            // O fluxo da transação initial_balance já indica se é 'in' (positivo) ou 'out' (negativo)
+            if (t.flow === 'in') {
+                balance += t.amount;
+            } else {
+                balance -= t.amount;
+            }
+            return; // Pula para a próxima transação
+        }
+        
+        // 2. Tratar transações operacionais e de transferência
         if (isCreditCard) {
-          // Cartão de Crédito: Despesa (out) subtrai, Transferência (in) soma
+          // Cartão de Crédito: Despesa (out) subtrai, Transferência (in) soma (Pagamento de Fatura)
           if (t.operationType === 'despesa') {
             balance -= t.amount;
           } else if (t.operationType === 'transferencia') {
@@ -316,7 +328,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           }
         } else {
           // Contas normais: in soma, out subtrai
-          if (t.flow === 'in' || t.flow === 'transfer_in' || t.operationType === 'initial_balance') {
+          if (t.flow === 'in' || t.flow === 'transfer_in') {
             balance += t.amount;
           } else {
             balance -= t.amount;
