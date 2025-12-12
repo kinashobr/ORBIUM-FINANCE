@@ -19,7 +19,6 @@ import {
   AlertTriangle,
   LineChart,
   ChevronDown,
-  Sparkles,
   Building,
   Coins,
   Bitcoin,
@@ -47,6 +46,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SidebarAlertas } from "@/components/dashboard/SidebarAlertas";
+import { GlobeNeonIcon } from "@/components/GlobeNeonIcon"; // Importando o novo ícone
 
 interface NavSection {
   id: string;
@@ -219,7 +219,7 @@ export function Sidebar() {
         {!collapsed ? (
           <div className="flex items-center gap-3 overflow-hidden">
             <div className="w-9 h-9 rounded-xl sidebar-logo-bg flex items-center justify-center shrink-0">
-              <Sparkles className="w-5 h-5 sidebar-logo-icon" />
+              <GlobeNeonIcon className="w-5 h-5 sidebar-logo-icon" />
             </div>
             <div className="flex flex-col min-w-0">
               <span className="font-bold text-sm sidebar-brand-text truncate">
@@ -234,7 +234,7 @@ export function Sidebar() {
           <Tooltip>
             <TooltipTrigger asChild>
               <div className="w-9 h-9 rounded-xl sidebar-logo-bg flex items-center justify-center mx-auto cursor-pointer">
-                <Sparkles className="w-5 h-5 sidebar-logo-icon" />
+                <GlobeNeonIcon className="w-5 h-5 sidebar-logo-icon" />
               </div>
             </TooltipTrigger>
             <TooltipContent side="right" className="sidebar-tooltip">
