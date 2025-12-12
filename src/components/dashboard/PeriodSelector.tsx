@@ -310,7 +310,7 @@ export function PeriodSelector({
         <Button
           variant="outline"
           className={cn(
-            "w-[320px] justify-start text-left font-normal bg-muted border-border h-12", // Aumentado h-9 para h-12
+            "w-[320px] justify-start text-left font-normal bg-muted border-border h-12",
             (!ranges.range1.from && !ranges.range1.to) && "text-muted-foreground",
             className
           )}
@@ -323,7 +323,7 @@ export function PeriodSelector({
           <ChevronDown className="ml-auto h-4 w-4 opacity-50 shrink-0" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[650px] p-0 bg-card border-border" align="end">
+      <PopoverContent className="w-full max-w-[650px] p-0 bg-card border-border" align="end">
         <div className="grid grid-cols-5 gap-4 p-4">
           {/* Coluna 1: Presets Período 1 */}
           <div className="col-span-1 space-y-2 border-r border-border pr-4">
@@ -406,7 +406,7 @@ export function PeriodSelector({
                   setCustomFrom(range?.from);
                   setCustomTo(range?.to);
                 }}
-                numberOfMonths={2} // Aumentado para 2 meses para melhor visualização
+                numberOfMonths={2}
                 locale={ptBR}
                 initialFocus
               />
