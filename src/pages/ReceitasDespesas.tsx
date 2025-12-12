@@ -45,6 +45,8 @@ const ReceitasDespesas = () => {
     calculateBalanceUpToDate, // Importado do contexto
     dateRanges, // <-- Use context state
     setDateRanges, // <-- Use context setter
+    markSeguroParcelPaid,
+    unmarkSeguroParcelPaid, // <-- ADDED
   } = useFinance();
 
   // Local state for transfer groups
@@ -247,25 +249,6 @@ const ReceitasDespesas = () => {
           }
           return t;
         }));
-      } else {
-        // Sem linkedGroup, atualiza apenas a transação específica
-        setTransacoesV2(prev => prev.map(t => { // <-- TS Error 2 Fix: Ensure return type is TransacaoCompleta
-          if (t.id === tx.id) {
-            // Fix 2a: Ensure tx has full TransactionLinks structure
-            const fullTx: TransacaoCompleta = {
-              ...tx,
-              links: {
-                investmentId: tx.links.investmentId || null,
-                loanId: tx.links.loanId || null,
-                transferGroupId: tx.links.transferGroupId || null,
-                parcelaId: tx.links.parcelaId || null,
-                vehicleTransactionId: tx.links.vehicleTransactionId || null,
-              }
-            };
-            return fullTx;
-          }
-          return t;
-        }));
       }
       return;
     }
@@ -455,6 +438,17 @@ const ReceitasDespesas = () => {
       }
     }
     
+    // 4. Handle Seguro Payment (NEW LOGIC)
+    if (finalTx.links?.vehicleTransactionId && finalTx.flow === 'out') {
+        const [seguroIdStr, parcelaNumeroStr] = finalTx.links.vehicleTransactionId.split('_');
+        const seguroId = parseInt(seguroIdStr);
+        const parcelaNumero = parseInt(parcelaNumeroStr);
+        
+        if (!isNaN(seguroId) && !isNaN(parcelaNumero)) {
+            markSeguroParcelPaid(seguroId, parcelaNumero, finalTx.id);
+        }
+    }
+    
     // Adiciona todas as transações criadas
     newTransactions.forEach(t => addTransacaoV2(t));
   };
@@ -476,6 +470,17 @@ const ReceitasDespesas = () => {
       if (!isNaN(loanIdNum)) {
         unmarkLoanParcelPaid(loanIdNum);
       }
+    }
+    
+    // Reverter marcação de pagamento seguro (NEW LOGIC)
+    if (transactionToDelete?.links?.vehicleTransactionId && transactionToDelete.flow === 'out') {
+        const [seguroIdStr, parcelaNumeroStr] = transactionToDelete.links.vehicleTransactionId.split('_');
+        const seguroId = parseInt(seguroIdStr);
+        const parcelaNumero = parseInt(parcelaNumeroStr);
+        
+        if (!isNaN(seguroId) && !isNaN(parcelaNumero)) {
+            unmarkSeguroParcelPaid(seguroId, parcelaNumero); 
+        }
     }
 
     const linkedGroupId = transactionToDelete?.links?.transferGroupId;
@@ -591,7 +596,7 @@ const ReceitasDespesas = () => {
   const handleAccountDelete = (accountId: string) => {
     const hasTransactions = transactions.some(t => t.accountId === accountId);
     if (hasTransactions) {
-      toast.error("Não é possível excluir conta com transações");
+      toast.error("Não é possível excluir conta com transações vinculadas");
       return;
     }
     setContasMovimento(prev => prev.filter(a => a.id !== accountId));

@@ -52,6 +52,8 @@ const Veiculos = () => {
     updateSeguroVeiculo,
     deleteSeguroVeiculo,
     markSeguroParcelPaid,
+    unmarkSeguroParcelPaid, // <-- ADDED
+    setTransacoesV2, // <-- ADDED
     getValorFipeTotal,
     transacoesV2,
   } = useFinance();
@@ -215,6 +217,19 @@ const Veiculos = () => {
       valorFipe: vehicle.valorFipe.toString(),
     });
     setShowAddVeiculo(true);
+  };
+
+  const handleUnmarkSeguroParcelPaid = (seguroId: number, parcelaNumero: number, transactionId: string | undefined) => {
+    if (!window.confirm("Tem certeza que deseja estornar este pagamento? A transação será excluída.")) return;
+    
+    unmarkSeguroParcelPaid(seguroId, parcelaNumero);
+    
+    if (transactionId) {
+      setTransacoesV2(prev => prev.filter(t => t.id !== transactionId));
+      toast.success("Pagamento estornado e transação excluída.");
+    } else {
+      toast.success("Pagamento estornado.");
+    }
   };
 
   // Cálculos
@@ -844,7 +859,7 @@ const Veiculos = () => {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => { /* Opção de estornar */ }}
+                                onClick={() => handleUnmarkSeguroParcelPaid(item.seguro.id, item.parcela.numero, item.transaction?.id)}
                                 className="h-8 w-8 text-muted-foreground"
                                 title="Estornar pagamento"
                               >

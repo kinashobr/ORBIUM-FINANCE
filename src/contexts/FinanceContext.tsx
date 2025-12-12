@@ -88,7 +88,8 @@ interface FinanceContextType {
   updateSeguroVeiculo: (id: number, seguro: Partial<SeguroVeiculo>) => void;
   deleteSeguroVeiculo: (id: number) => void;
   markSeguroParcelPaid: (seguroId: number, parcelaNumero: number, transactionId: string) => void;
-
+  unmarkSeguroParcelPaid: (seguroId: number, parcelaNumero: number) => void; // <-- ADDED
+  
   // Objetivos Financeiros
   objetivos: ObjetivoFinanceiro[];
   addObjetivo: (obj: Omit<ObjetivoFinanceiro, "id">) => void;
@@ -431,6 +432,22 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       return { ...seguro, parcelas: updatedParcelas };
     }));
   }, []);
+  
+  const unmarkSeguroParcelPaid = useCallback((seguroId: number, parcelaNumero: number) => {
+    setSegurosVeiculo(prevSeguros => prevSeguros.map(seguro => {
+      if (seguro.id !== seguroId) return seguro;
+      
+      const updatedParcelas = seguro.parcelas.map(parcela => {
+        if (parcela.numero === parcelaNumero) {
+          // Remove transactionId and mark as not paid
+          return { ...parcela, paga: false, transactionId: undefined };
+        }
+        return parcela;
+      });
+      
+      return { ...seguro, parcelas: updatedParcelas };
+    }));
+  }, []);
 
   const addObjetivo = (obj: Omit<ObjetivoFinanceiro, "id">) => {
     const newId = Math.max(0, ...objetivos.map(o => o.id)) + 1;
@@ -643,6 +660,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     updateSeguroVeiculo,
     deleteSeguroVeiculo,
     markSeguroParcelPaid,
+    unmarkSeguroParcelPaid, // <-- ADDED
     objetivos,
     addObjetivo,
     updateObjetivo,
