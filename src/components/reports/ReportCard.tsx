@@ -61,13 +61,13 @@ export function ReportCard({
 
   const sizeClasses = {
     sm: "p-3",
-    md: "p-4",
+    md: "p-5",
     lg: "p-6",
   };
 
   const valueSizes = {
     sm: "text-xl",
-    md: "text-3xl",
+    md: "text-2xl",
     lg: "text-4xl",
   };
   
@@ -113,10 +113,9 @@ export function ReportCard({
         </div>
         {icon && (
           <div className={cn(
-            "p-3 rounded-xl shrink-0 flex items-center justify-center", // <-- APLICADO: p-3 rounded-xl
+            "p-3 rounded-xl shrink-0 flex items-center justify-center",
             statusIconBg[status]
           )}>
-            {/* Ajuste do tamanho do ícone */}
             {typeof icon === 'object' && icon !== null && 'type' in icon && (icon.type as any).displayName === 'LucideIcon' ? (
               // @ts-ignore
               <icon.type {...icon.props} className={iconSizes[size]} />
