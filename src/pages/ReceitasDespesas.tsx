@@ -3,7 +3,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Tags, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { isWithinInterval, startOfMonth, endOfMonth, parseISO, subDays, startOfDay } from "date-fns";
+import { isWithinInterval, startOfMonth, endOfMonth, parseISO, subDays, startOfDay, endOfDay } from "date-fns";
 
 // Types
 import { 
@@ -90,8 +90,9 @@ const ReceitasDespesas = () => {
   const filterTransactionsByRange = useCallback((range: DateRange) => {
     if (!range.from || !range.to) return transacoesV2;
     
+    // REFINAMENTO CRÍTICO: Garante que o início é startOfDay e o fim é endOfDay
     const start = startOfDay(range.from);
-    const end = range.to; // range.to já é endOfDay
+    const end = endOfDay(range.to); // Garante inclusão total do último dia
 
     return transacoesV2.filter(t => {
       const transactionDate = startOfDay(parseISO(t.date));
@@ -130,15 +131,12 @@ const ReceitasDespesas = () => {
       const accountTxInPeriod = transactions.filter(t => {
         if (t.accountId !== account.id) return false;
         
-        const transactionDate = startOfDay(parseISO(t.date)); // Usar startOfDay para comparação
+        const transactionDate = startOfDay(parseISO(t.date)); // Usa startOfDay para comparação
         
-        // Se o período não tem início, filtramos apenas até o fim (se houver)
-        if (!periodStart) {
-            return !periodEnd || isWithinInterval(transactionDate, { start: new Date(0), end: periodEnd });
-        }
+        const start = periodStart ? startOfDay(periodStart) : new Date(0);
+        const end = periodEnd ? endOfDay(periodEnd) : new Date(9999, 11, 31);
         
-        // Se o período tem início, filtramos dentro do intervalo [periodStart, periodEnd]
-        return isWithinInterval(transactionDate, { start: periodStart, end: periodEnd || new Date() });
+        return isWithinInterval(transactionDate, { start, end });
       });
 
       // 3. Calculate Period Totals (apenas transações DENTRO do período)

@@ -40,7 +40,7 @@ import { ExpandablePanel } from "./ExpandablePanel";
 import { IndicatorBadge } from "./IndicatorBadge";
 import { DetailedIndicatorBadge } from "./DetailedIndicatorBadge";
 import { cn } from "@/lib/utils";
-import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval, startOfDay } from "date-fns";
+import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ComparisonDateRanges, DateRange } from "@/types/finance";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -157,8 +157,9 @@ export function DRETab({ dateRanges }: DRETabProps) {
   const filterTransactionsByRange = useCallback((range: DateRange) => {
     if (!range.from || !range.to) return transacoesV2;
     
+    // REFINAMENTO CRÍTICO: Garante que o início é startOfDay e o fim é endOfDay
     const start = startOfDay(range.from);
-    const end = range.to; // range.to já é endOfDay
+    const end = endOfDay(range.to); // Garante inclusão total do último dia
 
     return transacoesV2.filter(t => {
       try {

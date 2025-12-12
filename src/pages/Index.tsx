@@ -38,8 +38,9 @@ const Index = () => {
   const filterTransactionsByRange = useCallback((range: DateRange) => {
     if (!range.from || !range.to) return transacoesV2;
     
+    // REFINAMENTO CRÍTICO: Garante que o início é startOfDay e o fim é endOfDay
     const start = startOfDay(range.from);
-    const end = range.to; // range.to já é endOfDay
+    const end = endOfDay(range.to); // Garante inclusão total do último dia
 
     return transacoesV2.filter(t => {
       const transactionDate = startOfDay(parseISO(t.date));
