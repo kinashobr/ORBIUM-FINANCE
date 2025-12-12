@@ -3,7 +3,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Tags, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { isWithinInterval, startOfMonth, endOfMonth, parseISO, subDays, endOfDay } from "date-fns";
+import { isWithinInterval, startOfMonth, endOfMonth, parseISO, subDays, endOfDay, startOfDay } from "date-fns";
 
 // Types
 import { 
@@ -46,7 +46,7 @@ const ReceitasDespesas = () => {
     dateRanges, // <-- Use context state
     setDateRanges, // <-- Use context setter
     markSeguroParcelPaid,
-    unmarkSeguroParcelPaid, // <-- Corrigido
+    unmarkSeguroParcelaid, // <-- Corrigido
   } = useFinance();
 
   // Local state for transfer groups
@@ -114,12 +114,19 @@ const ReceitasDespesas = () => {
     
     return accounts.map(account => {
       // 1. Calculate Period Initial Balance (balance accumulated up to the day BEFORE the period starts)
-      const initialBalanceTargetDate = periodStart 
-        ? endOfDay(subDays(periodStart, 1)) // Balance up to 23:59:59 of the day before D_start
-        : undefined; // If no period start, calculate from the beginning of time
-        
-      const periodInitialBalance = calculateBalanceUpToDate(account.id, initialBalanceTargetDate, transactions, accounts); 
-
+      let periodInitialBalance = 0;
+      
+      if (periodStart) {
+        // Calcula o saldo até o final do dia anterior ao início do período (D_start - 1)
+        const initialBalanceTargetDate = endOfDay(subDays(periodStart, 1));
+        periodInitialBalance = calculateBalanceUpToDate(account.id, initialBalanceTargetDate, transactions, accounts);
+      } else {
+        // Se não há filtro de período, o saldo inicial é 0 (pois o cálculo de fluxo abaixo cobrirá tudo)
+        // OU, se quisermos o saldo total, passamos undefined para a data.
+        // Para o AccountSummary, se não há filtro, queremos o saldo total acumulado.
+        periodInitialBalance = calculateBalanceUpToDate(account.id, undefined, transactions, accounts);
+      }
+      
       // 2. Calculate Period Transactions (transactions from D_start up to D_end)
       const accountTxInPeriod = transactions.filter(t => {
         if (t.accountId !== account.id) return false;
@@ -129,10 +136,10 @@ const ReceitasDespesas = () => {
         
         const transactionDate = parseISO(t.date);
         
-        // If no period is defined, include all transactions (excluding initial_balance)
+        // Se não há período definido, incluímos todas as transações (exceto initial_balance)
         if (!periodStart || !periodEnd) return true;
         
-        // We include transactions from periodStart (startOfDay) up to periodEnd (endOfDay)
+        // Incluímos transações de periodStart (startOfDay) até periodEnd (endOfDay)
         return isWithinInterval(transactionDate, { start: periodStart, end: periodEnd });
       });
 
