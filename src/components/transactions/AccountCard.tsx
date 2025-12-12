@@ -91,7 +91,8 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit }: Ac
       <div className="space-y-2 mb-4">
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>Saldo Inicial (período)</span>
-          <span>{formatCurrency(initialBalance)}</span>
+          {/* Garantindo que initialBalance seja tratado como número e formatado */}
+          <span>{formatCurrency(Number(initialBalance))}</span>
         </div>
         
         <div className="flex items-center justify-between">
