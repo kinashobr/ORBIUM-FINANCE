@@ -223,10 +223,10 @@ export function Sidebar() {
             </div>
             <div className="flex flex-col min-w-0">
               <span className="font-bold text-sm sidebar-brand-text truncate">
-                Dark Stream
+                Orbium
               </span>
               <span className="text-xs sidebar-brand-subtitle truncate">
-                Money
+                Finance
               </span>
             </div>
           </div>
@@ -238,7 +238,7 @@ export function Sidebar() {
               </div>
             </TooltipTrigger>
             <TooltipContent side="right" className="sidebar-tooltip">
-              Dark Stream Money
+              Orbium Finance
             </TooltipContent>
           </Tooltip>
         )}
