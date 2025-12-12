@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { ChevronDown, Calendar as CalendarIcon, X, Equal } from "lucide-react";
+import { ChevronDown, Calendar as CalendarIcon, X, Equal, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subDays, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 // Interface padronizada para range de data (usando Date)
 export interface DateRange {
@@ -26,38 +27,21 @@ interface PeriodSelectorProps {
   className?: string;
 }
 
-const months = [
-  { value: 0, label: "Janeiro" },
-  { value: 1, label: "Fevereiro" },
-  { value: 2, label: "Março" },
-  { value: 3, label: "Abril" },
-  { value: 4, label: "Maio" },
-  { value: 5, label: "Junho" },
-  { value: 6, label: "Julho" },
-  { value: 7, label: "Agosto" },
-  { value: 8, label: "Setembro" },
-  { value: 9, label: "Outubro" },
-  { value: 10, label: "Novembro" },
-  { value: 11, label: "Dezembro" },
-];
-
-const years = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - 5 + i);
-
-// Presets para o Período 1
+// Presets para o Período Principal
 const presets = [
   { id: "thisMonth", label: "Este mês" },
   { id: "lastMonth", label: "Mês passado" },
   { id: "last3Months", label: "Últimos 3 meses" },
   { id: "thisYear", label: "Este ano" },
   { id: "all", label: "Todo o período" },
+  { id: "custom", label: "Personalizado" },
 ];
 
-// Presets para o Período 2 (Comparação)
+// Presets para o Período de Comparação
 const comparisonPresets = [
   { id: "previousPeriod", label: "Período Anterior" },
   { id: "previousYear", label: "Ano Anterior" },
   { id: "custom", label: "Personalizado" },
-  { id: "none", label: "Nenhuma Comparação" },
 ];
 
 export function PeriodSelector({
@@ -67,19 +51,52 @@ export function PeriodSelector({
 }: PeriodSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [ranges, setRanges] = useState<ComparisonDateRanges>(initialRanges);
+  
+  // Estado de edição: qual range está sendo configurado no calendário
   const [editingRange, setEditingRange] = useState<'range1' | 'range2'>('range1');
-  const [customFrom, setCustomFrom] = useState<Date | undefined>(initialRanges.range1.from);
-  const [customTo, setCustomTo] = useState<Date | undefined>(initialRanges.range1.to);
+  
+  // Estado temporário para o calendário
+  const [tempRange, setTempRange] = useState<DateRange>(initialRanges.range1);
+  
+  // Estado de presets
   const [selectedPreset1, setSelectedPreset1] = useState<string>('custom');
   const [selectedPreset2, setSelectedPreset2] = useState<string>('none');
+  
+  // Estado do toggle de comparação
+  const [isComparisonEnabled, setIsComparisonEnabled] = useState(!!initialRanges.range2.from);
 
   // Sincroniza o estado interno com o prop initialRanges
   useEffect(() => {
     setRanges(initialRanges);
+    setIsComparisonEnabled(!!initialRanges.range2.from);
+    
     // Determinar presets iniciais (simplificado)
-    setSelectedPreset1(initialRanges.range1.from ? 'custom' : 'all');
-    setSelectedPreset2(initialRanges.range2.from ? 'custom' : 'none');
+    const isRange1Custom = initialRanges.range1.from && initialRanges.range1.to;
+    setSelectedPreset1(isRange1Custom ? 'custom' : 'all');
+    
+    if (initialRanges.range2.from) {
+      const prevPeriod = calculatePreviousPeriod(initialRanges.range1);
+      const prevYear = calculatePreviousYear(initialRanges.range1);
+      
+      if (isSameDay(initialRanges.range2.from, prevPeriod.from!) && isSameDay(initialRanges.range2.to!, prevPeriod.to!)) {
+        setSelectedPreset2('previousPeriod');
+      } else if (isSameDay(initialRanges.range2.from, prevYear.from!) && isSameDay(initialRanges.range2.to!, prevYear.to!)) {
+        setSelectedPreset2('previousYear');
+      } else {
+        setSelectedPreset2('custom');
+      }
+    } else {
+      setSelectedPreset2('none');
+    }
   }, [initialRanges]);
+
+  // Sincroniza o range temporário ao abrir ou mudar o range de edição
+  useEffect(() => {
+    if (isOpen) {
+      const rangeToEdit = editingRange === 'range1' ? ranges.range1 : ranges.range2;
+      setTempRange(rangeToEdit);
+    }
+  }, [isOpen, editingRange, ranges]);
 
   // Função auxiliar para garantir que 'to' seja o final do dia
   const normalizeRange = (range: DateRange): DateRange => ({
@@ -108,7 +125,7 @@ export function PeriodSelector({
     return normalizeRange({ from: prevFrom, to: prevTo });
   }, []);
 
-  // Aplica as mudanças e fecha o popover
+  // Aplica as mudanças e emite o evento
   const handleApply = useCallback((newRanges: ComparisonDateRanges) => {
     const finalRanges: ComparisonDateRanges = {
       range1: normalizeRange(newRanges.range1),
@@ -117,10 +134,9 @@ export function PeriodSelector({
     
     setRanges(finalRanges);
     onDateRangeChange(finalRanges);
-    // Mantemos o popover aberto para melhor UX
   }, [onDateRangeChange]);
   
-  // Lógica de presets para o Período 1
+  // Lógica de presets para o Período Principal (Range 1)
   const handlePreset1Click = (presetId: string) => {
     const today = new Date();
     let newRange: DateRange;
@@ -143,32 +159,32 @@ export function PeriodSelector({
       case "all":
         newRange = { from: undefined, to: undefined };
         break;
+      case "custom":
+        setSelectedPreset1(presetId);
+        setEditingRange('range1');
+        setTempRange(ranges.range1);
+        return;
       default:
         return;
     }
     
     setSelectedPreset1(presetId);
     
-    // Atualiza o Período 2 automaticamente se estiver em 'Período Anterior'
+    // Atualiza o Período 2 automaticamente se estiver em modo automático
     let newRange2 = ranges.range2;
     if (selectedPreset2 === 'previousPeriod') {
       newRange2 = calculatePreviousPeriod(newRange);
     } else if (selectedPreset2 === 'previousYear') {
       newRange2 = calculatePreviousYear(newRange);
-    } else if (selectedPreset2 === 'none') {
+    } else if (selectedPreset2 === 'none' || !isComparisonEnabled) {
       newRange2 = { from: undefined, to: undefined };
     }
 
-    const newRanges = { range1: newRange, range2: newRange2 };
-    handleApply(newRanges);
-    
-    // Sincroniza custom dates para o range 1
-    setCustomFrom(newRange.from);
-    setCustomTo(newRange.to);
+    handleApply({ range1: newRange, range2: newRange2 });
   };
 
-  // Lógica de presets para o Período 2
-  const handlePreset2Change = (presetId: string) => {
+  // Lógica de presets para o Período de Comparação (Range 2)
+  const handlePreset2Click = (presetId: string) => {
     setSelectedPreset2(presetId);
     let newRange2: DateRange = { from: undefined, to: undefined };
     
@@ -176,29 +192,24 @@ export function PeriodSelector({
       newRange2 = calculatePreviousPeriod(ranges.range1);
     } else if (presetId === 'previousYear') {
       newRange2 = calculatePreviousYear(ranges.range1);
+    } else if (presetId === 'custom') {
+      setEditingRange('range2');
+      setTempRange(ranges.range2);
+      return;
     } else if (presetId === 'none') {
       newRange2 = { from: undefined, to: undefined };
-    }
-    
-    // Se for personalizado, abre o calendário para o range 2
-    if (presetId === 'custom') {
-      setEditingRange('range2');
-      // Sincroniza custom dates com o range 2 atual
-      setCustomFrom(ranges.range2.from);
-      setCustomTo(ranges.range2.to);
-      return;
     }
 
     handleApply({ range1: ranges.range1, range2: newRange2 });
   };
-
-  // Aplica o intervalo personalizado (usado para range1 ou range2)
-  const handleCustomApply = () => {
-    if (!customFrom && !customTo) return;
+  
+  // Aplica o intervalo temporário (do calendário) ao range de edição
+  const handleCalendarApply = () => {
+    if (!tempRange.from && !tempRange.to) return;
     
-    const newRange: DateRange = (customFrom && customTo && customFrom > customTo)
-      ? { from: customTo, to: customFrom }
-      : { from: customFrom, to: customTo };
+    const newRange: DateRange = (tempRange.from && tempRange.to && tempRange.from > tempRange.to)
+      ? { from: tempRange.to, to: tempRange.from }
+      : { from: tempRange.from, to: tempRange.to };
 
     let newRanges = { ...ranges };
     
@@ -211,7 +222,7 @@ export function PeriodSelector({
         newRanges.range2 = calculatePreviousPeriod(newRange);
       } else if (selectedPreset2 === 'previousYear') {
         newRanges.range2 = calculatePreviousYear(newRange);
-      } else if (selectedPreset2 === 'none') {
+      } else if (selectedPreset2 === 'none' || !isComparisonEnabled) {
         newRanges.range2 = { from: undefined, to: undefined };
       }
     } else {
@@ -220,14 +231,15 @@ export function PeriodSelector({
     }
     
     handleApply(newRanges);
+    setEditingRange('range1'); // Volta para o P1 após aplicar
   };
 
-  const handleClear = () => {
+  const handleClearAll = () => {
     handleApply({ range1: { from: undefined, to: undefined }, range2: { from: undefined, to: undefined } });
     setSelectedPreset1('all');
     setSelectedPreset2('none');
-    setCustomFrom(undefined);
-    setCustomTo(undefined);
+    setIsComparisonEnabled(false);
+    setEditingRange('range1');
   };
 
   const formatDateRange = (range: DateRange) => {
@@ -249,141 +261,74 @@ export function PeriodSelector({
 
   const displayRange1 = useMemo(() => formatDateRange(ranges.range1), [ranges.range1]);
   const displayRange2 = useMemo(() => ranges.range2.from ? formatDateRange(ranges.range2) : "Nenhuma Comparação", [ranges.range2]);
-
-  const renderDateSelect = (type: 'from' | 'to') => {
-    const date = type === 'from' ? customFrom : customTo;
-    const setDate = type === 'from' ? setCustomFrom : setCustomTo;
-    const monthValue = date ? date.getMonth().toString() : "";
-    const yearValue = date ? date.getFullYear().toString() : "";
-
-    const handleMonthChange = (value: string) => {
-      const month = parseInt(value);
-      const newDate = date ? new Date(date.getFullYear(), month, date.getDate()) : new Date(new Date().getFullYear(), month, 1);
-      setDate(newDate);
-    };
-
-    const handleYearChange = (value: string) => {
-      const year = parseInt(value);
-      const newDate = date ? new Date(year, date.getMonth(), date.getDate()) : new Date(year, new Date().getMonth(), 1);
-      setDate(newDate);
-    };
-
-    return (
-      <div className="space-y-2">
-        <label className="block text-xs font-medium text-muted-foreground">
-          {type === 'from' ? 'Data Inicial' : 'Data Final'}
-        </label>
-        <div className="flex gap-2">
-          <Select value={monthValue} onValueChange={handleMonthChange}>
-            <SelectTrigger className="flex-1 bg-muted border-border h-9 text-sm">
-              <SelectValue placeholder="Mês" />
-            </SelectTrigger>
-            <SelectContent>
-              {months.map((month) => (
-                <SelectItem key={month.value} value={month.value.toString()}>
-                  {month.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={yearValue} onValueChange={handleYearChange}>
-            <SelectTrigger className="w-24 bg-muted border-border h-9 text-sm">
-              <SelectValue placeholder="Ano" />
-            </SelectTrigger>
-            <SelectContent>
-              {years.map((year) => (
-                <SelectItem key={year} value={year.toString()}>
-                  {year}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-    );
-  };
-
-  // Define o título do popover e o range atual para edição
-  const popoverTitle = editingRange === 'range1' ? 'Período Principal (1)' : 'Período de Comparação (2)';
   
-  // Atualiza o estado customFrom/customTo quando o range de edição muda
-  useEffect(() => {
-    const range = editingRange === 'range1' ? ranges.range1 : ranges.range2;
-    setCustomFrom(range.from);
-    setCustomTo(range.to);
-  }, [editingRange, ranges]);
+  const isRange1Custom = selectedPreset1 === 'custom';
+  const isRange2Custom = selectedPreset2 === 'custom';
   
-  // --- UX Helpers ---
-  const handleSwitchEditingRange = (range: 'range1' | 'range2') => {
-    setEditingRange(range);
-    // O useEffect acima sincroniza customFrom/customTo
-  };
-  
-  const isPreset1Active = (presetId: string) => {
-    if (selectedPreset1 === presetId) return true;
+  const isPresetActive = (presetId: string, currentRange: DateRange, isRange1: boolean) => {
+    const selectedPreset = isRange1 ? selectedPreset1 : selectedPreset2;
+    if (selectedPreset === presetId) return true;
+    
+    // Lógica de verificação de igualdade de range para presets automáticos
+    if (presetId === 'custom' || presetId === 'none') return false;
     
     const today = new Date();
     let targetRange: DateRange | null = null;
 
-    switch (presetId) {
-      case "thisMonth":
-        targetRange = { from: startOfMonth(today), to: endOfMonth(today) };
-        break;
-      case "lastMonth":
-        const lastMonth = subMonths(today, 1);
-        targetRange = { from: startOfMonth(lastMonth), to: endOfMonth(lastMonth) };
-        break;
-      case "last3Months":
-        const last3Months = subMonths(today, 2);
-        targetRange = { from: startOfMonth(last3Months), to: endOfMonth(today) };
-        break;
-      case "thisYear":
-        targetRange = { from: startOfYear(today), to: endOfYear(today) };
-        break;
-      case "all":
-        targetRange = { from: undefined, to: undefined };
-        break;
-      default:
-        return false;
+    if (isRange1) {
+      switch (presetId) {
+        case "thisMonth":
+          targetRange = { from: startOfMonth(today), to: endOfMonth(today) };
+          break;
+        case "lastMonth":
+          const lastMonth = subMonths(today, 1);
+          targetRange = { from: startOfMonth(lastMonth), to: endOfMonth(lastMonth) };
+          break;
+        case "last3Months":
+          const last3Months = subMonths(today, 2);
+          targetRange = { from: startOfMonth(last3Months), to: endOfMonth(today) };
+          break;
+        case "thisYear":
+          targetRange = { from: startOfYear(today), to: endOfYear(today) };
+          break;
+        case "all":
+          targetRange = { from: undefined, to: undefined };
+          break;
+      }
+    } else { // Range 2 comparison presets
+      if (!ranges.range1.from) return false; // Cannot calculate comparison without range 1
+      switch (presetId) {
+        case "previousPeriod":
+          targetRange = calculatePreviousPeriod(ranges.range1);
+          break;
+        case "previousYear":
+          targetRange = calculatePreviousYear(ranges.range1);
+          break;
+      }
     }
     
-    const currentRange = ranges.range1;
+    if (!targetRange) return false;
     
-    if (!targetRange.from && !targetRange.to) {
-        return !currentRange.from && !currentRange.to;
-    }
+    const normalizedTarget = normalizeRange(targetRange);
+    const normalizedCurrent = normalizeRange(currentRange);
+
+    if (!normalizedTarget.from && !normalizedCurrent.from) return true;
+    if (!normalizedTarget.from || !normalizedCurrent.from) return false;
     
-    if (currentRange.from && currentRange.to && targetRange.from && targetRange.to) {
-        return isSameDay(currentRange.from, targetRange.from) && isSameDay(currentRange.to, targetRange.to);
-    }
-    
-    return false;
-  };
-  
-  const isPreset2Active = (presetId: string) => {
-    if (selectedPreset2 === presetId) return true;
-    
-    const currentRange = ranges.range2;
-    
-    if (presetId === 'previousPeriod') {
-      const calculated = calculatePreviousPeriod(ranges.range1);
-      if (!calculated.from && !currentRange.from) return true;
-      if (!calculated.from || !currentRange.from) return false;
-      return isSameDay(calculated.from, currentRange.from) && isSameDay(calculated.to!, currentRange.to!);
-    }
-    if (presetId === 'previousYear') {
-      const calculated = calculatePreviousYear(ranges.range1);
-      if (!calculated.from && !currentRange.from) return true;
-      if (!calculated.from || !currentRange.from) return false;
-      return isSameDay(calculated.from, currentRange.from) && isSameDay(calculated.to!, currentRange.to!);
-    }
-    if (presetId === 'none') {
-      return !currentRange.from;
-    }
-    
-    return false;
+    return isSameDay(normalizedTarget.from, normalizedCurrent.from) && isSameDay(normalizedTarget.to!, normalizedCurrent.to!);
   };
 
+  const handleComparisonToggle = (checked: boolean) => {
+    setIsComparisonEnabled(checked);
+    if (!checked) {
+      // Limpa o range 2 se desativado
+      handleApply({ range1: ranges.range1, range2: { from: undefined, to: undefined } });
+      setSelectedPreset2('none');
+    } else {
+      // Ativa com o preset padrão (Período Anterior)
+      handlePreset2Click('previousPeriod');
+    }
+  };
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -398,137 +343,152 @@ export function PeriodSelector({
         >
           <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
           <div className="flex flex-col items-start text-xs flex-1 min-w-0">
-            <span className="font-medium text-foreground truncate w-full">P1: {displayRange1}</span>
-            <span className="text-muted-foreground truncate w-full">P2: {displayRange2}</span>
+            <span className="font-medium text-foreground truncate w-full">
+              {displayRange1}
+            </span>
+            {isComparisonEnabled && (
+              <span className="text-muted-foreground truncate w-full">
+                vs {displayRange2}
+              </span>
+            )}
           </div>
           <ChevronDown className="ml-auto h-4 w-4 opacity-50 shrink-0" />
         </Button>
       </PopoverTrigger>
-      {/* CORREÇÃO DE LAYOUT: Aumentar max-w para 850px para acomodar 2 meses + sidebars */}
-      <PopoverContent className="w-full max-w-[850px] p-0 bg-card border-border" align="end">
-        <div className="grid grid-cols-5 gap-4 p-4">
+      
+      {/* Popover Content - Layout de coluna única e compacto */}
+      <PopoverContent className="w-full max-w-[650px] p-0 bg-card border-border" align="end">
+        <div className="p-4 space-y-6">
           
-          {/* Coluna 1: Presets Período 1 */}
-          <div className="col-span-1 space-y-2 border-r border-border pr-4">
-            <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center justify-between">
-              Período 1 (Principal)
-              {editingRange === 'range1' && <Equal className="w-3 h-3 text-primary" />}
-            </p>
-            {presets.map((preset) => (
-              <Button
-                key={preset.id}
-                variant={isPreset1Active(preset.id) ? "default" : "ghost"}
-                size="sm"
-                className={cn(
-                  "w-full justify-start text-sm h-8",
-                  isPreset1Active(preset.id) && "bg-primary text-primary-foreground hover:bg-primary/90"
-                )}
-                onClick={() => handlePreset1Click(preset.id)}
-              >
-                {preset.label}
-              </Button>
-            ))}
-            <Button
-              variant={selectedPreset1 === 'custom' && editingRange === 'range1' ? "default" : "outline"}
-              size="sm"
-              className={cn(
-                "w-full justify-start text-sm h-8 mt-2",
-                selectedPreset1 === 'custom' && editingRange === 'range1' && "bg-primary text-primary-foreground hover:bg-primary/90",
-                selectedPreset1 === 'custom' && editingRange !== 'range1' && "bg-primary/10 text-primary border-primary/30 hover:bg-primary/20"
-              )}
-              onClick={() => handleSwitchEditingRange('range1')}
-            >
-              <CalendarIcon className="w-4 h-4 mr-2" />
-              Personalizar P1
-            </Button>
-          </div>
-
-          {/* Coluna 2: Presets Período 2 */}
-          <div className="col-span-1 space-y-2 border-r border-border pr-4">
-            <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center justify-between">
-              Período 2 (Comparação)
-              {editingRange === 'range2' && <Equal className="w-3 h-3 text-primary" />}
-            </p>
-            {comparisonPresets.map((preset) => (
-              <Button
-                key={preset.id}
-                variant={isPreset2Active(preset.id) ? "default" : "ghost"}
-                size="sm"
-                className={cn(
-                  "w-full justify-start text-sm h-8",
-                  isPreset2Active(preset.id) && "bg-primary text-primary-foreground hover:bg-primary/90"
-                )}
-                onClick={() => handlePreset2Change(preset.id)}
-              >
-                {preset.label}
-              </Button>
-            ))}
-            {selectedPreset2 === 'custom' && (
-              <Button
-                variant={selectedPreset2 === 'custom' && editingRange === 'range2' ? "default" : "outline"}
-                size="sm"
-                className={cn(
-                  "w-full justify-start text-sm h-8 mt-2",
-                  selectedPreset2 === 'custom' && editingRange === 'range2' && "bg-primary text-primary-foreground hover:bg-primary/90",
-                  selectedPreset2 === 'custom' && editingRange !== 'range2' && "bg-primary/10 text-primary border-primary/30 hover:bg-primary/20"
-                )}
-                onClick={() => handleSwitchEditingRange('range2')}
-              >
-                <CalendarIcon className="w-4 h-4 mr-2" />
-                Personalizar P2
-              </Button>
+          {/* 1) Período Principal */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <CalendarIcon className="w-4 h-4 text-primary" />
+              Período Principal
+            </h3>
+            
+            {/* Presets e Customização */}
+            <div className="grid grid-cols-3 gap-2">
+              {presets.map((preset) => (
+                <Button
+                  key={preset.id}
+                  variant={isPresetActive(preset.id, ranges.range1, true) ? "default" : "outline"}
+                  size="sm"
+                  className={cn(
+                    "w-full justify-center text-sm h-9",
+                    isPresetActive(preset.id, ranges.range1, true) && "bg-primary text-primary-foreground hover:bg-primary/90"
+                  )}
+                  onClick={() => handlePreset1Click(preset.id)}
+                >
+                  {preset.label}
+                </Button>
+              ))}
+            </div>
+            
+            {/* Calendário para Personalizado (Range 1) */}
+            {isRange1Custom && (
+              <div className="space-y-3 p-3 rounded-lg bg-muted/30 border border-border/50">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Selecione o intervalo para o Período Principal
+                </p>
+                <div className="flex justify-center overflow-x-auto">
+                  <Calendar
+                    mode="range"
+                    selected={{ from: tempRange.from, to: tempRange.to }}
+                    onSelect={(range) => setTempRange(range as DateRange)}
+                    numberOfMonths={2}
+                    locale={ptBR}
+                    initialFocus
+                    className="max-w-full" 
+                  />
+                </div>
+                <Button 
+                  onClick={handleCalendarApply} 
+                  className="w-full h-9 gap-2"
+                  disabled={!tempRange.from || !tempRange.to}
+                >
+                  <Check className="w-4 h-4" />
+                  Aplicar Período Principal
+                </Button>
+              </div>
             )}
           </div>
-
-          {/* Coluna 3, 4, 5: Seleção Manual e Calendário */}
-          <div className="col-span-3 space-y-4">
-            <p className="text-xs font-medium text-primary mb-2 flex items-center gap-2">
-              <Equal className="w-4 h-4" />
-              {popoverTitle}
-            </p>
-            
-            {/* Seletores de Mês/Ano */}
-            <div className="grid grid-cols-2 gap-4">
-              {renderDateSelect('from')}
-              {renderDateSelect('to')}
-            </div>
-
-            {/* Calendário - Envolvido em um container flexível para centralizar e evitar overflow */}
-            <div className="flex justify-center overflow-x-auto">
-              <Calendar
-                mode="range"
-                selected={{ from: customFrom, to: customTo }}
-                onSelect={(range) => {
-                  setCustomFrom(range?.from);
-                  setCustomTo(range?.to);
-                }}
-                numberOfMonths={2}
-                locale={ptBR}
-                initialFocus
-                className="max-w-full" 
+          
+          {/* 2) Período de Comparação (Opcional) */}
+          <div className="space-y-4 pt-4 border-t border-border/50">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Equal className="w-4 h-4 text-accent" />
+                Comparar com outro período
+              </h3>
+              <Switch
+                checked={isComparisonEnabled}
+                onCheckedChange={handleComparisonToggle}
               />
             </div>
-
-            {/* Ações */}
-            <div className="flex justify-between pt-2 border-t border-border">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleClear}
-                className="text-destructive hover:text-destructive"
-              >
-                <X className="w-4 h-4 mr-1" />
-                Limpar Tudo
-              </Button>
-              <Button
-                onClick={handleCustomApply}
-                className="bg-primary hover:bg-primary/90 gap-2"
-                disabled={!customFrom && !customTo}
-              >
-                <CalendarIcon className="w-4 h-4" />
-                Aplicar {editingRange === 'range1' ? 'P1' : 'P2'}
-              </Button>
-            </div>
+            
+            {isComparisonEnabled && (
+              <div className="space-y-4">
+                {/* Presets e Customização */}
+                <div className="grid grid-cols-3 gap-2">
+                  {comparisonPresets.map((preset) => (
+                    <Button
+                      key={preset.id}
+                      variant={isPresetActive(preset.id, ranges.range2, false) ? "default" : "outline"}
+                      size="sm"
+                      className={cn(
+                        "w-full justify-center text-sm h-9",
+                        isPresetActive(preset.id, ranges.range2, false) && "bg-primary text-primary-foreground hover:bg-primary/90"
+                      )}
+                      onClick={() => handlePreset2Click(preset.id)}
+                    >
+                      {preset.label}
+                    </Button>
+                  ))}
+                </div>
+                
+                {/* Calendário para Personalizado (Range 2) */}
+                {isRange2Custom && (
+                  <div className="space-y-3 p-3 rounded-lg bg-muted/30 border border-border/50">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Selecione o intervalo para o Período de Comparação
+                    </p>
+                    <div className="flex justify-center overflow-x-auto">
+                      <Calendar
+                        mode="range"
+                        selected={{ from: tempRange.from, to: tempRange.to }}
+                        onSelect={(range) => setTempRange(range as DateRange)}
+                        numberOfMonths={2}
+                        locale={ptBR}
+                        initialFocus
+                        className="max-w-full" 
+                      />
+                    </div>
+                    <Button 
+                      onClick={handleCalendarApply} 
+                      className="w-full h-9 gap-2"
+                      disabled={!tempRange.from || !tempRange.to}
+                    >
+                      <Check className="w-4 h-4" />
+                      Aplicar Comparação
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          
+          {/* Ações Finais */}
+          <div className="flex justify-end pt-4 border-t border-border/50">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleClearAll}
+              className="text-destructive hover:text-destructive gap-1"
+            >
+              <X className="w-4 h-4" />
+              Limpar Filtros
+            </Button>
           </div>
         </div>
       </PopoverContent>
