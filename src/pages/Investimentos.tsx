@@ -19,8 +19,7 @@ import { EditableCell } from "@/components/EditableCell";
 import { toast } from "sonner";
 import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
 import { DateRange, ComparisonDateRanges } from "@/types/finance";
-import { startOfMonth, endOfMonth, parseISO, subDays, subMonths, isWithinInterval, format, endOfDay } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { startOfMonth, endOfMonth, parseISO, subDays } from "date-fns";
 import { ContaCorrente, TransacaoCompleta } from "@/types/finance";
 
 const pieColors = [
@@ -87,7 +86,6 @@ const Investimentos = () => {
 
   // Helper para calcular saldo atual de uma conta (usando a data final do período P1)
   const calculateAccountBalance = useCallback((accountId: string, targetDate: Date | undefined): number => {
-    // CRITICAL FIX: targetDate é o fim do período, então passamos ele diretamente para o cálculo
     return calculateBalanceUpToDate(accountId, targetDate, transacoesV2, contasMovimento);
   }, [calculateBalanceUpToDate, transacoesV2, contasMovimento]);
 
@@ -125,53 +123,6 @@ const Investimentos = () => {
       c.accountType === 'objetivos_financeiros' || c.accountType === 'reserva_emergencia'
     );
   }, [investmentAccounts]);
-
-  // Função de cálculo de PL sensível ao tempo (copiada da Dashboard)
-  const calculatePLAtDate = useCallback((targetDate: Date) => {
-    let totalAtivos = 0;
-    let totalPassivos = 0;
-    
-    const valorVeiculos = getValorFipeTotal(); 
-    totalAtivos += valorVeiculos;
-
-    contasMovimento.forEach(conta => {
-      const saldo = calculateBalanceUpToDate(conta.id, targetDate, transacoesV2, contasMovimento);
-      
-      if (conta.accountType === 'cartao_credito') {
-        totalPassivos += Math.abs(Math.min(0, saldo));
-      } else {
-        totalAtivos += Math.max(0, saldo);
-      }
-    });
-    
-    const patrimonioLiquido = totalAtivos - totalPassivos;
-    
-    return { patrimonioLiquido };
-  }, [contasMovimento, transacoesV2, calculateBalanceUpToDate, getValorFipeTotal]);
-
-  // Dados para o gráfico de Evolução Patrimonial (12 meses)
-  const evolucaoPatrimonialData = useMemo(() => {
-    const now = new Date();
-    const targetDate = dateRanges.range1.to || endOfDay(now); // Usa o fim do período selecionado como ponto final
-    
-    const result: { mes: string; patrimonio: number }[] = [];
-
-    // Calcula 12 meses retroativos a partir do mês do targetDate
-    for (let i = 11; i >= 0; i--) {
-      const data = subMonths(targetDate, i);
-      const fimDoMes = endOfDay(endOfMonth(data)); 
-      const mesLabel = format(data, 'MMM', { locale: ptBR });
-
-      const { patrimonioLiquido } = calculatePLAtDate(fimDoMes);
-      
-      result.push({ 
-        mes: mesLabel.charAt(0).toUpperCase() + mesLabel.slice(1), 
-        patrimonio: patrimonioLiquido, 
-      });
-    }
-    return result;
-  }, [calculatePLAtDate, dateRanges.range1.to]);
-
 
   // Cálculos padronizados
   const calculosPatrimonio = useMemo(() => {
@@ -397,26 +348,12 @@ const Investimentos = () => {
                 <CardContent>
                   <div className="h-[300px]">
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={evolucaoPatrimonialData}>
+                      <AreaChart data={[]}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                        <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
-                        <YAxis 
-                          tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} 
-                          axisLine={false} 
-                          tickLine={false} 
-                          tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-                        />
-                        <Tooltip 
-                          formatter={(value: number) => [formatCurrency(value), "Patrimônio"]} 
-                          contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "12px" }}
-                        />
-                        <Area 
-                          type="monotone" 
-                          dataKey="patrimonio" 
-                          stroke="hsl(var(--primary))" 
-                          fill="hsl(var(--primary) / 0.2)" 
-                          name="Patrimônio Líquido"
-                        />
+                        <XAxis dataKey="mes" />
+                        <YAxis tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
+                        <Tooltip formatter={(value: number) => [formatCurrency(value), "Valor"]} />
+                        <Area type="monotone" dataKey="patrimonio" stroke="hsl(var(--primary))" fill="hsl(var(--primary) / 0.2)" />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>

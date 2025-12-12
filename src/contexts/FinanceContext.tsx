@@ -12,7 +12,7 @@ import {
   DateRange, // Import new types
   ComparisonDateRanges, // Import new types
 } from "@/types/finance";
-import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, endOfDay, startOfDay } from "date-fns"; // Import date-fns helpers
+import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays } from "date-fns"; // Import date-fns helpers
 
 // ============================================
 // FUNÇÕES AUXILIARES PARA DATAS
@@ -42,8 +42,7 @@ function parseDateRanges(storedRanges: any): ComparisonDateRanges {
     const parseDate = (dateStr: string | undefined): Date | undefined => {
         if (!dateStr) return undefined;
         try {
-            // Garante que a data seja tratada como UTC para evitar problemas de fuso horário
-            const date = parseISO(dateStr);
+            const date = new Date(dateStr);
             return isNaN(date.getTime()) ? undefined : date;
         } catch {
             return undefined;
@@ -89,7 +88,7 @@ interface FinanceContextType {
   updateSeguroVeiculo: (id: number, seguro: Partial<SeguroVeiculo>) => void;
   deleteSeguroVeiculo: (id: number) => void;
   markSeguroParcelPaid: (seguroId: number, parcelaNumero: number, transactionId: string) => void;
-  unmarkSeguroParcelPaid: (seguroId: number, parcelaNumero: number) => void; // <-- FIX 2
+  unmarkSeguroParcelPaid: (seguroId: number, parcelaNumero: number) => void; // <-- ADDED
   
   // Objetivos Financeiros
   objetivos: ObjetivoFinanceiro[];
@@ -109,7 +108,7 @@ interface FinanceContextType {
   // Transações V2 (integrated)
   transacoesV2: TransacaoCompleta[];
   setTransacoesV2: Dispatch<SetStateAction<TransacaoCompleta[]>>;
-  addTransacaoV2: (transaction: TransacaoCompleta) => void; // <-- FIX 1 & 3
+  addTransacaoV2: (transaction: TransacaoCompleta) => void;
   
   // Data Filtering (NEW)
   dateRanges: ComparisonDateRanges;
@@ -295,27 +294,14 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const account = accounts.find(a => a.id === accountId);
     if (!account) return 0;
 
-    // Saldo sempre começa em zero, pois o saldo inicial é uma transação sintética.
     let balance = 0; 
     
-    // Se nenhuma data for fornecida, usa uma data futura para incluir todas as transações.
+    // Se não houver data, calcula o saldo global (fim de todo o histórico)
     const targetDate = date || new Date(9999, 11, 31);
 
-    // Filtra transações até o final do dia alvo (inclusivo)
+    // Filtra transações até a data limite (inclusive)
     const transactionsBeforeDate = allTransactions
-        .filter(t => {
-            if (t.accountId !== accountId) return false;
-            try {
-                // CRITICAL FIX: Usamos startOfDay na data da transação para garantir que a comparação
-                // seja feita no início do dia local, evitando desvios de fuso horário.
-                const transactionDate = startOfDay(parseISO(t.date));
-                
-                // Comparação inclusiva: transações até o final do dia alvo
-                return transactionDate <= targetDate;
-            } catch {
-                return false;
-            }
-        })
+        .filter(t => t.accountId === accountId && parseISO(t.date) <= targetDate) // MUDANÇA AQUI: <= targetDate
         .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
 
     transactionsBeforeDate.forEach(t => {
@@ -363,11 +349,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   };
 
   const updateEmprestimo = (id: number, updates: Partial<Emprestimo>) => {
-    setEmprestimos(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
+    setEmprestimos(emprestimos.map(e => e.id === id ? { ...e, ...updates } : e));
   };
 
   const deleteEmprestimo = (id: number) => {
-    setEmprestimos(prev => prev.filter(e => e.id !== id));
+    setEmprestimos(emprestimos.filter(e => e.id !== id));
   };
 
   const getPendingLoans = useCallback(() => {
@@ -408,11 +394,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   };
 
   const updateVeiculo = (id: number, updates: Partial<Veiculo>) => {
-    setVeiculos(prev => prev.map(v => v.id === id ? { ...v, ...updates } : v));
+    setVeiculos(veiculos.map(v => v.id === id ? { ...v, ...updates } : v));
   };
 
   const deleteVeiculo = (id: number) => {
-    setVeiculos(prev => prev.filter(v => v.id !== id));
+    setVeiculos(veiculos.filter(v => v.id !== id));
   };
 
   const getPendingVehicles = useCallback(() => {
@@ -425,11 +411,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   };
 
   const updateSeguroVeiculo = (id: number, updates: Partial<SeguroVeiculo>) => {
-    setSegurosVeiculo(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+    setSegurosVeiculo(segurosVeiculo.map(s => s.id === id ? { ...s, ...updates } : s));
   };
 
   const deleteSeguroVeiculo = (id: number) => {
-    setSegurosVeiculo(prev => prev.filter(s => s.id !== id));
+    setSegurosVeiculo(segurosVeiculo.filter(s => s.id !== id));
   };
   
   const markSeguroParcelPaid = useCallback((seguroId: number, parcelaNumero: number, transactionId: string) => {
@@ -447,12 +433,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
   
-  const unmarkSeguroParcelPaid = useCallback((seguroId: number, parcelaNumero: number) => { // <-- FIX 2 Implementation
+  const unmarkSeguroParcelPaid = useCallback((seguroId: number, parcelaNumero: number) => {
     setSegurosVeiculo(prevSeguros => prevSeguros.map(seguro => {
       if (seguro.id !== seguroId) return seguro;
       
       const updatedParcelas = seguro.parcelas.map(parcela => {
         if (parcela.numero === parcelaNumero) {
+          // Remove transactionId and mark as not paid
           return { ...parcela, paga: false, transactionId: undefined };
         }
         return parcela;
@@ -468,18 +455,18 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   };
 
   const updateObjetivo = (id: number, updates: Partial<ObjetivoFinanceiro>) => {
-    setObjetivos(prev => prev.map(o => o.id === id ? { ...o, ...updates } : o));
+    setObjetivos(objetivos.map(o => o.id === id ? { ...o, ...updates } : o));
   };
 
   const deleteObjetivo = (id: number) => {
-    setObjetivos(prev => prev.filter(o => o.id !== id));
+    setObjetivos(objetivos.filter(o => o.id !== id));
   };
 
   // ============================================
   // OPERAÇÕES TRANSAÇÕES V2
   // ============================================
 
-  const addTransacaoV2 = (transaction: TransacaoCompleta) => { // <-- FIX 1 & 3 Implementation
+  const addTransacaoV2 = (transaction: TransacaoCompleta) => {
     setTransacoesV2(prev => [...prev, transaction]);
   };
 
@@ -673,7 +660,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     updateSeguroVeiculo,
     deleteSeguroVeiculo,
     markSeguroParcelPaid,
-    unmarkSeguroParcelPaid, // <-- FIX 2 Implementation
+    unmarkSeguroParcelPaid, // <-- ADDED
     objetivos,
     addObjetivo,
     updateObjetivo,
@@ -685,7 +672,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setCategoriasV2,
     transacoesV2,
     setTransacoesV2,
-    addTransacaoV2, // <-- FIX 1 & 3 Implementation
+    addTransacaoV2,
     
     // Data Filtering (NEW)
     dateRanges,

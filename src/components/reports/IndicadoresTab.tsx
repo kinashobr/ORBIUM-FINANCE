@@ -52,7 +52,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval, subDays } from "date-fns";
+import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval } from "date-fns";
 import { toast } from "sonner";
 import { ComparisonDateRanges, DateRange } from "@/types/finance";
 import { ContaCorrente, TransacaoCompleta } from "@/types/finance";
@@ -120,6 +120,27 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
 
   const { range1, range2 } = dateRanges;
 
+  // Estado para indicadores personalizados
+  const [customIndicators, setCustomIndicators] = useState<CustomIndicator[]>(() => {
+    try {
+      const stored = localStorage.getItem(CUSTOM_INDICATORS_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [newIndicator, setNewIndicator] = useState<Partial<CustomIndicator>>({
+    nome: '',
+    descricao: '',
+    formula: '',
+    formato: 'percent',
+    limiteVerde: 0,
+    limiteAmarelo: 0,
+    invertido: false,
+  });
+
   // --- NOVOS TIPOS PARA CORREÇÃO ---
   type LiquidezKey = 'corrente' | 'seca' | 'imediata' | 'geral';
   type EndividamentoKey = 'total' | 'dividaPL' | 'composicao' | 'imobilizacao';
@@ -155,27 +176,6 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
       return base + range * 0.5 + (Math.random() - 0.5) * range * 0.4;
     }).concat([Math.abs(current)]);
   }, []);
-
-  // Estado para indicadores personalizados
-  const [customIndicators, setCustomIndicators] = useState<CustomIndicator[]>(() => {
-    try {
-      const stored = localStorage.getItem(CUSTOM_INDICATORS_KEY);
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [newIndicator, setNewIndicator] = useState<Partial<CustomIndicator>>({
-    nome: '',
-    descricao: '',
-    formula: '',
-    formato: 'percent',
-    limiteVerde: 0,
-    limiteAmarelo: 0,
-    invertido: false,
-  });
 
   // Salvar indicadores personalizados
   const saveCustomIndicators = (indicators: CustomIndicator[]) => {
@@ -228,7 +228,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
     contasMovimento.forEach(conta => {
       // O saldo inicial é o saldo acumulado ANTES do período
       const saldoInicialPeriodo = periodStart 
-        ? calculateBalanceUpToDate(conta.id, subDays(periodStart, 1), transacoesV2, contasMovimento)
+        ? calculateBalanceUpToDate(conta.id, periodStart, transacoesV2, contasMovimento)
         : calculateBalanceUpToDate(conta.id, undefined, transacoesV2, contasMovimento);
         
       saldos[conta.id] = saldoInicialPeriodo;
@@ -281,15 +281,13 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
 
     // Passivos
     const emprestimosAtivos = emprestimos.filter(e => e.status !== 'quitado');
+    const saldoDevedor = getSaldoDevedor();
+    const passivoCurtoPrazo = emprestimosAtivos.reduce((acc, e) => {
+      const parcelasRestantes = Math.min(12, e.meses - (e.parcelasPagas || 0));
+      return acc + (e.parcela * parcelasRestantes);
+    }, 0);
     const totalPassivos = getPassivosTotal();
 
-    // Passivo curto prazo (próximos 12 meses)
-    const passivoCurtoPrazo = emprestimosAtivos.reduce((acc, e) => {
-      const parcelasRestantes = e.meses - (e.parcelasPagas || 0);
-      // Simplificação: Passivo circulante é o valor da parcela * 12 meses ou o restante
-      return acc + (e.parcela * Math.min(12, parcelasRestantes));
-    }, 0);
-    
     // Patrimônio Líquido
     const patrimonioLiquido = totalAtivos - totalPassivos;
 
@@ -327,7 +325,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
 
     // === INDICADORES DE ENDIVIDAMENTO ===
     const endividamentoTotal = totalAtivos > 0 ? (totalPassivos / totalAtivos) * 100 : 0;
-    const dividaPL = patrimonioLiquido > 0 ? (getSaldoDevedor() / patrimonioLiquido) * 100 : 0;
+    const dividaPL = patrimonioLiquido > 0 ? (saldoDevedor / patrimonioLiquido) * 100 : 0;
     const composicaoEndividamento = totalPassivos > 0 ? (passivoCurtoPrazo / totalPassivos) * 100 : 0;
     const imobilizacaoPL = patrimonioLiquido > 0 ? (valorVeiculos / patrimonioLiquido) * 100 : 0;
 
@@ -400,14 +398,14 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
         receitasMesAtual,
         despesasMesAtual,
         resultadoMesAtual,
-        saldoDevedor: getSaldoDevedor(),
+        saldoDevedor,
         passivoCurtoPrazo,
       },
       // Adicionado para cálculo de variação
       receitasMesAtual,
       despesasMesAtual,
     };
-  }, [transacoesV2, contasMovimento, emprestimos, veiculos, categoriasV2, getSaldoDevedor, getJurosTotais, calculateFinalBalances, calculateBalanceUpToDate, getPassivosTotal]);
+  }, [transacoesV2, contasMovimento, emprestimos, veiculos, categoriasV2, getSaldoDevedor, getJurosTotais, calculateFinalBalances, calculateBalanceUpToDate]);
 
   // Cálculos para Período 1 e Período 2
   const indicadores1 = useMemo(() => calculateIndicatorsForRange(range1), [calculateIndicatorsForRange, range1]);
@@ -438,7 +436,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
       // Lógica simplificada para tendência baseada no status (para indicadores que 'melhoram' com o aumento)
       let defaultTrend: "up" | "down" | "stable" = "stable";
       if (status === 'success') defaultTrend = "up";
-      else if (status === 'danger') defaultTrend = "down"; 
+      else if (status === 'danger') defaultTrend = "down"; // CORRIGIDO: Removido o apóstrofo extra
       
       // Inverte a tendência para indicadores onde 'menor é melhor' (ex: endividamento)
       const isInverse = group === 'endividamento' || (group === 'eficiencia' && key !== 'despesasFixas') || (group === 'pessoais' && key === 'comprometimento');

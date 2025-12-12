@@ -40,7 +40,7 @@ import { ExpandablePanel } from "./ExpandablePanel";
 import { IndicatorBadge } from "./IndicatorBadge";
 import { DetailedIndicatorBadge } from "./DetailedIndicatorBadge";
 import { cn } from "@/lib/utils";
-import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval, startOfDay, endOfDay } from "date-fns";
+import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ComparisonDateRanges, DateRange } from "@/types/finance";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -153,19 +153,14 @@ export function DRETab({ dateRanges }: DRETabProps) {
   const formatPercent = (value: number) => `${value.toFixed(1)}%`;
   const now = new Date();
 
-  // Helper para filtrar transações por um range específico (local definition)
+  // Helper para filtrar transações por um range específico
   const filterTransactionsByRange = useCallback((range: DateRange) => {
     if (!range.from || !range.to) return transacoesV2;
     
-    // REFINAMENTO CRÍTICO: Garante que o início é startOfDay e o fim é endOfDay
-    const start = startOfDay(range.from);
-    const end = endOfDay(range.to); // Garante inclusão total do último dia
-
     return transacoesV2.filter(t => {
       try {
-        const transactionDate = startOfDay(parseISO(t.date));
-        // range.from is startOfDay, range.to is endOfDay, so isWithinInterval is inclusive
-        return isWithinInterval(transactionDate, { start, end });
+        const dataT = parseISO(t.date);
+        return isWithinInterval(dataT, { start: range.from!, end: range.to! });
       } catch {
         return false;
       }
@@ -302,11 +297,10 @@ export function DRETab({ dateRanges }: DRETabProps) {
       const fim = endOfMonth(data);
       const mesLabel = format(data, 'MMM', { locale: ptBR });
 
-      // Filtra transações para o mês completo (inclusivo)
       const transacoesMes = transacoesV2.filter(t => {
         try {
-          const d = startOfDay(parseISO(t.date));
-          return isWithinInterval(d, { start: inicio, end: fim });
+          const dataT = parseISO(t.date);
+          return isWithinInterval(dataT, { start: inicio, end: fim });
         } catch {
           return false;
         }
