@@ -165,6 +165,18 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
   };
   // ---------------------------------
 
+  // Sparkline generator (copiado de BalancoTab para consistência)
+  const generateSparkline = useCallback((current: number, trend: "up" | "down" | "stable" = "stable") => {
+    const base = Math.abs(current) * 0.7;
+    const range = Math.abs(current) * 0.3 || 10;
+    return Array.from({ length: 6 }, (_, i) => {
+      const progress = i / 5;
+      if (trend === "up") return base + range * progress + Math.random() * range * 0.2;
+      if (trend === "down") return base + range * (1 - progress) + Math.random() * range * 0.2;
+      return base + range * 0.5 + (Math.random() - 0.5) * range * 0.4;
+    }).concat([Math.abs(current)]);
+  }, []);
+
   // Salvar indicadores personalizados
   const saveCustomIndicators = (indicators: CustomIndicator[]) => {
     setCustomIndicators(indicators);
@@ -424,7 +436,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
       // Lógica simplificada para tendência baseada no status (para indicadores que 'melhoram' com o aumento)
       let defaultTrend: "up" | "down" | "stable" = "stable";
       if (status === 'success') defaultTrend = "up";
-      else if (status === 'danger') defaultTrend = "down";
+      else if (status === 'danger') defaultTrend = "down';
       
       // Inverte a tendência para indicadores onde 'menor é melhor' (ex: endividamento)
       const isInverse = group === 'endividamento' || (group === 'eficiencia' && key !== 'despesasFixas') || (group === 'pessoais' && key === 'comprometimento');
