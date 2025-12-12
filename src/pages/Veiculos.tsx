@@ -36,6 +36,7 @@ import { toast } from "sonner";
 import { FipeConsultaDialog } from "@/components/vehicles/FipeConsultaDialog";
 import { TransacaoCompleta, generateTransactionId, OperationType, getFlowTypeFromOperation, getDomainFromOperation } from "@/types/finance";
 import { useNavigate } from "react-router-dom";
+import { differenceInMonths, addMonths, parseISO } from "date-fns";
 
 const Veiculos = () => {
   const navigate = useNavigate();
@@ -79,10 +80,11 @@ const Veiculos = () => {
     seguradora: "",
     vigenciaInicio: "",
     vigenciaFim: "",
+    dataPrimeiraParcela: "", // NOVO CAMPO
+    dataUltimaParcela: "", // NOVO CAMPO
     valorTotal: "",
     numeroParcelas: "",
-    diaVencimentoParcela: "", // NOVO CAMPO
-    meiaParcela: false,
+    // Removidos: diaVencimentoParcela, meiaParcela
   });
 
   const handleOpenFipeConsulta = (veiculo?: Veiculo) => {
@@ -134,35 +136,35 @@ const Veiculos = () => {
     e.preventDefault();
     if (!formSeguro.veiculoId || !formSeguro.numeroApolice || !formSeguro.seguradora || 
         !formSeguro.vigenciaInicio || !formSeguro.vigenciaFim || !formSeguro.valorTotal || 
-        !formSeguro.numeroParcelas || !formSeguro.diaVencimentoParcela) return;
+        !formSeguro.numeroParcelas || !formSeguro.dataPrimeiraParcela || !formSeguro.dataUltimaParcela) {
+          toast.error("Preencha todos os campos obrigatórios.");
+          return;
+        }
     
     const numParcelas = Number(formSeguro.numeroParcelas);
     const valorTotal = Number(formSeguro.valorTotal);
-    const diaVencimento = Number(formSeguro.diaVencimentoParcela);
     const valorParcela = valorTotal / numParcelas;
     
-    // Generate installment dates
-    const parcelas = [];
-    const vigenciaInicio = new Date(formSeguro.vigenciaInicio + "T00:00:00");
+    const primeiraParcelaDate = parseISO(formSeguro.dataPrimeiraParcela);
+    const ultimaParcelaDate = parseISO(formSeguro.dataUltimaParcela);
     
-    // Determinar a data de vencimento da primeira parcela
-    let primeiraDataVencimento = new Date(vigenciaInicio);
-    primeiraDataVencimento.setDate(diaVencimento);
+    // Calculate the number of months between the first and last installment dates
+    const diffMonths = differenceInMonths(ultimaParcelaDate, primeiraParcelaDate);
     
-    // Se o dia de vencimento for anterior à data de início da vigência,
-    // a primeira parcela deve ser no próximo mês.
-    if (primeiraDataVencimento <= vigenciaInicio) {
-        primeiraDataVencimento.setMonth(primeiraDataVencimento.getMonth() + 1);
+    if (diffMonths !== numParcelas - 1) {
+        toast.error(`O número de parcelas (${numParcelas}) não corresponde ao intervalo de datas (${diffMonths + 1} meses).`);
+        return;
     }
     
+    // Generate installment dates based on first and last dates
+    const parcelas = [];
     for (let i = 0; i < numParcelas; i++) {
-      const dataVencimento = new Date(primeiraDataVencimento);
-      dataVencimento.setMonth(dataVencimento.getMonth() + i);
+      const dataVencimento = addMonths(primeiraParcelaDate, i);
       
       parcelas.push({
         numero: i + 1,
         vencimento: dataVencimento.toISOString().split('T')[0],
-        valor: formSeguro.meiaParcela && i === 0 ? valorParcela / 2 : valorParcela,
+        valor: valorParcela, // Sem meia parcela
         paga: false,
       });
     }
@@ -175,7 +177,7 @@ const Veiculos = () => {
       vigenciaFim: formSeguro.vigenciaFim,
       valorTotal: valorTotal,
       numeroParcelas: numParcelas,
-      meiaParcela: formSeguro.meiaParcela,
+      meiaParcela: false, // Removido
       parcelas,
     });
     
@@ -186,7 +188,17 @@ const Veiculos = () => {
       parcelaSeguro: valorParcela,
     });
     
-    setFormSeguro({ veiculoId: "", numeroApolice: "", seguradora: "", vigenciaInicio: "", vigenciaFim: "", valorTotal: "", numeroParcelas: "", diaVencimentoParcela: "", meiaParcela: false });
+    setFormSeguro({ 
+      veiculoId: "", 
+      numeroApolice: "", 
+      seguradora: "", 
+      vigenciaInicio: "", 
+      vigenciaFim: "", 
+      dataPrimeiraParcela: "",
+      dataUltimaParcela: "",
+      valorTotal: "", 
+      numeroParcelas: "",
+    });
     setShowAddSeguro(false);
     toast.success("Seguro cadastrado!");
   };
@@ -294,6 +306,8 @@ const Veiculos = () => {
                       </SelectContent>
                     </Select>
                   </div>
+                  
+                  {/* Layout 2 colunas */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Número da Apólice *</Label>
@@ -312,6 +326,7 @@ const Veiculos = () => {
                       />
                     </div>
                   </div>
+                  
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Vigência Início *</Label>
@@ -332,7 +347,29 @@ const Veiculos = () => {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-4">
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Data Primeira Parcela *</Label>
+                      <Input
+                        type="date"
+                        value={formSeguro.dataPrimeiraParcela}
+                        onChange={(e) => setFormSeguro(prev => ({ ...prev, dataPrimeiraParcela: e.target.value }))}
+                        className="mt-1 bg-muted border-border"
+                      />
+                    </div>
+                    <div>
+                      <Label>Data Última Parcela *</Label>
+                      <Input
+                        type="date"
+                        value={formSeguro.dataUltimaParcela}
+                        onChange={(e) => setFormSeguro(prev => ({ ...prev, dataUltimaParcela: e.target.value }))}
+                        className="mt-1 bg-muted border-border"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Valor Total (R$) *</Label>
                       <Input
@@ -353,29 +390,10 @@ const Veiculos = () => {
                         className="mt-1 bg-muted border-border"
                       />
                     </div>
-                    <div>
-                      <Label>Dia Vencimento *</Label>
-                      <Input
-                        type="number"
-                        min="1"
-                        max="31"
-                        value={formSeguro.diaVencimentoParcela}
-                        onChange={(e) => setFormSeguro(prev => ({ ...prev, diaVencimentoParcela: e.target.value }))}
-                        placeholder="Ex: 10"
-                        className="mt-1 bg-muted border-border"
-                      />
-                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Checkbox 
-                      id="meiaParcela"
-                      checked={formSeguro.meiaParcela}
-                      onCheckedChange={(checked) => setFormSeguro(prev => ({ ...prev, meiaParcela: checked === true }))}
-                    />
-                    <Label htmlFor="meiaParcela" className="text-sm cursor-pointer">
-                      Seguro é meia parcela? (primeira parcela com 50% de desconto)
-                    </Label>
-                  </div>
+                  
+                  {/* Checkbox de meia parcela removido */}
+                  
                   <Button type="submit" className="w-full">
                     <Plus className="w-4 h-4 mr-2" />
                     Cadastrar Seguro
