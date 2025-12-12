@@ -189,12 +189,12 @@ export function PeriodSelector({
       </PopoverTrigger>
       
       {/* Popover Content - Layout de duas colunas compactas */}
-      <PopoverContent className="w-full p-3 bg-card border-border max-w-[500px]" align="end">
-        <div className="grid grid-cols-[auto_1fr] gap-3">
+      <PopoverContent className="w-full p-3 bg-card border-border max-w-[600px]" align="end">
+        <div className="grid grid-cols-[150px_1fr] gap-3">
           
           {/* Coluna 1: Presets Rápidos (Botões Pequenos) */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-muted-foreground px-1">Presets</Label>
+            <Label className="text-xs font-medium text-muted-foreground px-1">Seleção Rápida</Label>
             <div className="flex flex-col gap-1">
               {presets.map((preset) => (
                 <Button
