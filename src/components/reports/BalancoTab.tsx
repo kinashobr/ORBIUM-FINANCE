@@ -51,7 +51,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { ACCOUNT_TYPE_LABELS } from "@/types/finance";
-import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval, subDays, endOfDay } from "date-fns";
+import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ComparisonDateRanges, DateRange } from "@/types/finance";
 import { ContaCorrente, TransacaoCompleta } from "@/types/finance";
@@ -62,11 +62,9 @@ const COLORS = {
   danger: "hsl(0, 72%, 51%)",
   primary: "hsl(199, 89%, 48%)",
   accent: "hsl(270, 80%, 60%)",
-  muted: "hsl(var(--muted-foreground))",
-  card: "hsl(var(--card))",
-  border: "hsl(var(--border))",
-  gold: "hsl(45, 93%, 47%)", // Added
-  cyan: "hsl(180, 70%, 50%)", // Added
+  muted: "hsl(215, 20%, 55%)",
+  gold: "hsl(45, 93%, 47%)",
+  cyan: "hsl(180, 70%, 50%)",
 };
 
 const PIE_COLORS = [
@@ -252,29 +250,31 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
     return { diff, percent };
   }, [balanco1, balanco2, range2.from]);
 
-  // Evolução do PL nos últimos 12 meses (usando o ponto final do range1)
+  // Evolução do PL nos últimos 12 meses (mantido com base em todas as transações para histórico)
   const evolucaoPL = useMemo(() => {
-    const targetDate = range1.to || endOfDay(new Date());
     const resultado: { mes: string; ativos: number; passivos: number; pl: number }[] = [];
+    const now = new Date();
 
     for (let i = 11; i >= 0; i--) {
-      const data = subMonths(targetDate, i);
-      const fim = endOfDay(endOfMonth(data));
+      const data = subMonths(now, i);
       const mesLabel = format(data, 'MMM', { locale: ptBR });
+      
+      const fim = endOfMonth(data);
 
       // Calcular o balanço no final deste mês (fim)
-      const { totalAtivos, totalPassivos, patrimonioLiquido } = calculatePLAtDate(fim); 
+      // Passamos o range completo para calculateBalanco, que usa o fim do range como targetDate
+      const balancoMes = calculateBalanco({ from: startOfMonth(data), to: fim }); 
 
       resultado.push({
         mes: mesLabel.charAt(0).toUpperCase() + mesLabel.slice(1),
-        ativos: totalAtivos,
-        passivos: totalPassivos,
-        pl: patrimonioLiquido,
+        ativos: balancoMes.ativos.total,
+        passivos: balancoMes.passivos.total,
+        pl: balancoMes.patrimonioLiquido,
       });
     }
 
     return resultado;
-  }, [calculatePLAtDate, range1.to]);
+  }, [calculateBalanco]);
 
   // Composição dos ativos para gráfico pizza (usando P1)
   const composicaoAtivos = useMemo(() => {
@@ -711,7 +711,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
         {/* Evolução do PL */}
         <ExpandablePanel
           title="Evolução Patrimonial"
-          subtitle={`Histórico até ${format(range1.to || new Date(), 'dd/MM/yyyy')}`}
+          subtitle="Últimos 12 meses"
           icon={<LineChart className="w-4 h-4" />}
           badge={variacaoPL.percent >= 0 ? "Crescendo" : "Reduzindo"}
           badgeStatus={variacaoPL.percent >= 0 ? "success" : "danger"}
@@ -721,17 +721,17 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
               <ComposedChart data={evolucaoPL}>
                 <defs>
                   <linearGradient id="colorPL" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                    <stop offset="5%" stopColor={COLORS.primary} stopOpacity={0.4} />
+                    <stop offset="95%" stopColor={COLORS.primary} stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+                <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fill: COLORS.muted, fontSize: 11 }} />
                 <YAxis
                   yAxisId="left"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                  tick={{ fill: COLORS.muted, fontSize: 11 }}
                   tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
                 />
                 <Tooltip
@@ -743,9 +743,9 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
                   formatter={(value: number, name: string) => [formatCurrency(value), name === 'pl' ? 'Patrimônio Líquido' : name === 'ativos' ? 'Ativos' : 'Passivos']}
                 />
                 <Legend />
-                <Area yAxisId="left" dataKey="ativos" name="Ativos" fill="url(#colorPL)" stroke="none" opacity={0.3} />
-                <Line yAxisId="left" type="monotone" dataKey="pl" name="Patrimônio Líquido" stroke="hsl(var(--primary))" strokeWidth={3} dot={false} />
-                <Line yAxisId="left" type="monotone" dataKey="passivos" name="Passivos" stroke="hsl(var(--destructive))" strokeWidth={1} dot={false} strokeDasharray="3 3" />
+                <Bar yAxisId="left" dataKey="ativos" name="Ativos" fill={COLORS.success} opacity={0.7} radius={[4, 4, 0, 0]} />
+                <Bar yAxisId="left" dataKey="passivos" name="Passivos" fill={COLORS.danger} opacity={0.7} radius={[4, 4, 0, 0]} />
+                <Line yAxisId="left" type="monotone" dataKey="pl" name="Patrimônio Líquido" stroke={COLORS.primary} strokeWidth={3} dot={false} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
