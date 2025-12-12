@@ -42,7 +42,7 @@ import { DetailedIndicatorBadge } from "./DetailedIndicatorBadge";
 import { cn } from "@/lib/utils";
 import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ComparisonDateRanges, DateRange } from "../dashboard/PeriodSelector";
+import { ComparisonDateRanges, DateRange } from "@/types/finance";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TransacaoCompleta } from "@/types/finance";
 

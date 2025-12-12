@@ -53,7 +53,7 @@ import { cn } from "@/lib/utils";
 import { ACCOUNT_TYPE_LABELS } from "@/types/finance";
 import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ComparisonDateRanges, DateRange } from "../dashboard/PeriodSelector";
+import { ComparisonDateRanges, DateRange } from "@/types/finance";
 import { ContaCorrente, TransacaoCompleta } from "@/types/finance";
 
 const COLORS = {
@@ -182,7 +182,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
     }, 0);
     
     // Passivo longo prazo
-    const passivoLongoPrazo = totalPassivos - passivoCurtoPrazo;
+    const passivoLongoPrazo = totalPassivos - passivoCurtoPrato;
 
     // === PATRIMÔNIO LÍQUIDO ===
     const patrimonioLiquido = totalAtivos - totalPassivos;

@@ -54,7 +54,7 @@ import {
 import { cn } from "@/lib/utils";
 import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval } from "date-fns";
 import { toast } from "sonner";
-import { ComparisonDateRanges, DateRange } from "../dashboard/PeriodSelector";
+import { ComparisonDateRanges, DateRange } from "@/types/finance";
 import { ContaCorrente, TransacaoCompleta } from "@/types/finance";
 
 interface IndicatorGroupProps {

@@ -5,7 +5,8 @@ import { BalancoTab } from "@/components/reports/BalancoTab";
 import { DRETab } from "@/components/reports/DRETab";
 import { IndicadoresTab } from "@/components/reports/IndicadoresTab";
 import { Scale, Receipt, Activity } from "lucide-react";
-import { PeriodSelector, DateRange, ComparisonDateRanges } from "@/components/dashboard/PeriodSelector";
+import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
+import { DateRange, ComparisonDateRanges } from "@/types/finance";
 import { startOfMonth, endOfMonth, subDays } from "date-fns";
 import { useFinance } from "@/contexts/FinanceContext";
 

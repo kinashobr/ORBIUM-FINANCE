@@ -17,7 +17,8 @@ import { cn } from "@/lib/utils";
 import { useFinance } from "@/contexts/FinanceContext";
 import { EditableCell } from "@/components/EditableCell";
 import { toast } from "sonner";
-import { PeriodSelector, DateRange, ComparisonDateRanges } from "@/components/dashboard/PeriodSelector";
+import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
+import { DateRange, ComparisonDateRanges } from "@/types/finance";
 import { startOfMonth, endOfMonth, parseISO, subDays } from "date-fns";
 import { ContaCorrente, TransacaoCompleta } from "@/types/finance";
 

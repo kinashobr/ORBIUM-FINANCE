@@ -8,7 +8,8 @@ import { MovimentacoesRelevantes } from "@/components/dashboard/MovimentacoesRel
 import { AcompanhamentoAtivos } from "@/components/dashboard/AcompanhamentoAtivos";
 import { SaudeFinanceira } from "@/components/dashboard/SaudeFinanceira";
 import { FluxoCaixaHeatmap } from "@/components/dashboard/FluxoCaixaHeatmap";
-import { PeriodSelector, DateRange, ComparisonDateRanges } from "@/components/dashboard/PeriodSelector";
+import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
+import { DateRange, ComparisonDateRanges } from "@/types/finance";
 import { 
   Activity,
   LayoutDashboard

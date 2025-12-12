@@ -14,7 +14,8 @@ import { LoanAlerts } from "@/components/loans/LoanAlerts";
 import { LoanCharts } from "@/components/loans/LoanCharts";
 import { LoanDetailDialog } from "@/components/loans/LoanDetailDialog";
 import { LoanSimulator } from "@/components/loans/LoanSimulator";
-import { PeriodSelector, DateRange, ComparisonDateRanges } from "@/components/dashboard/PeriodSelector";
+import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
+import { DateRange, ComparisonDateRanges } from "@/types/finance";
 import { cn } from "@/lib/utils";
 import { startOfMonth, endOfMonth, isWithinInterval, format, subDays } from "date-fns";
 
