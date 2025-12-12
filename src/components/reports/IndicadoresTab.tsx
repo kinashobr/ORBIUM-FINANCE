@@ -52,7 +52,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval } from "date-fns";
+import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval, subDays } from "date-fns";
 import { toast } from "sonner";
 import { ComparisonDateRanges, DateRange } from "@/types/finance";
 import { ContaCorrente, TransacaoCompleta } from "@/types/finance";
@@ -228,7 +228,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
     contasMovimento.forEach(conta => {
       // O saldo inicial é o saldo acumulado ANTES do período
       const saldoInicialPeriodo = periodStart 
-        ? calculateBalanceUpToDate(conta.id, periodStart, transacoesV2, contasMovimento)
+        ? calculateBalanceUpToDate(conta.id, subDays(periodStart, 1), transacoesV2, contasMovimento)
         : calculateBalanceUpToDate(conta.id, undefined, transacoesV2, contasMovimento);
         
       saldos[conta.id] = saldoInicialPeriodo;
@@ -237,15 +237,35 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
     transactions.forEach(t => {
       if (!saldos[t.accountId]) saldos[t.accountId] = 0;
       
-      if (t.flow === 'in' || t.flow === 'transfer_in') {
-        saldos[t.accountId] += t.amount;
+      // Lógica de fluxo de caixa (simplificada para o balanço)
+      const account = contasMovimento.find(c => c.id === t.accountId);
+      const isCreditCard = account?.accountType === 'cartao_credito';
+
+      if (isCreditCard) {
+        // CC: Despesa (out) subtrai (aumenta passivo), Transferência (in) soma (diminui passivo)
+        if (t.operationType === 'despesa') {
+          saldos[t.accountId] -= t.amount;
+        } else if (t.operationType === 'transferencia') {
+          saldos[t.accountId] += t.amount;
+        }
       } else {
-        saldos[t.accountId] -= t.amount;
+        // Contas normais: in soma, out subtrai
+        if (t.flow === 'in' || t.flow === 'transfer_in') {
+          saldos[t.accountId] += t.amount;
+        } else {
+          saldos[t.accountId] -= t.amount;
+        }
       }
     });
 
     return saldos;
   }, [contasMovimento, transacoesV2, calculateBalanceUpToDate]);
+
+  // Função para calcular a variação percentual
+  const calculatePercentChange = useCallback((value1: number, value2: number) => {
+    if (value2 === 0) return 0;
+    return ((value1 - value2) / Math.abs(value2)) * 100;
+  }, []);
 
   // Função para calcular todos os dados brutos e indicadores para um período
   const calculateIndicatorsForRange = useCallback((range: DateRange) => {
@@ -255,7 +275,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
       if (!range.from || !range.to) return true;
       try {
         const dataT = parseISO(t.date);
-        return isWithinInterval(dataT, { start: range.from!, end: range.to! });
+        return isWithinInterval(dataT, { start: startOfDay(range.from!), end: endOfDay(range.to!) });
       } catch {
         return false;
       }
@@ -281,15 +301,16 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
 
     // Passivos
     const emprestimosAtivos = emprestimos.filter(e => e.status !== 'quitado');
-    const saldoDevedor = getSaldoDevedor();
+    const saldoDevedor = getSaldoDevedor(); // Saldo devedor global
+    const totalPassivos = getPassivosTotal(); // Total passivo global
+
+    // Passivo curto prazo (próximos 12 meses de parcelas + saldo CC)
     const passivoCurtoPrazo = emprestimosAtivos.reduce((acc, e) => {
       const parcelasRestantes = Math.min(12, e.meses - (e.parcelasPagas || 0));
       return acc + (e.parcela * parcelasRestantes);
-    }, 0);
-    const totalPassivos = getPassivosTotal();
-
-    // Patrimônio Líquido
-    const patrimonioLiquido = totalAtivos - totalPassivos;
+    }, 0) + contasMovimento
+      .filter(c => c.accountType === 'cartao_credito')
+      .reduce((acc, c) => acc + Math.abs(Math.min(0, saldosPorConta[c.id] || 0)), 0);
 
     // Receitas e Despesas do período
     const calcReceitas = (trans: typeof transacoesV2) => trans
@@ -325,6 +346,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
 
     // === INDICADORES DE ENDIVIDAMENTO ===
     const endividamentoTotal = totalAtivos > 0 ? (totalPassivos / totalAtivos) * 100 : 0;
+    const patrimonioLiquido = totalAtivos - totalPassivos;
     const dividaPL = patrimonioLiquido > 0 ? (saldoDevedor / patrimonioLiquido) * 100 : 0;
     const composicaoEndividamento = totalPassivos > 0 ? (passivoCurtoPrazo / totalPassivos) * 100 : 0;
     const imobilizacaoPL = patrimonioLiquido > 0 ? (valorVeiculos / patrimonioLiquido) * 100 : 0;
@@ -413,41 +435,47 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
 
   // Função para calcular a variação percentual entre P1 e P2 para um indicador
   const calculateTrend = useCallback(<G extends ValidGroupKey, K extends AllIndicatorKeys>(key: K, group: G): TrendResult => {
-    // Usamos 'as any' para acessar as propriedades dinamicamente, pois o TypeScript não consegue mapear K para o tipo correto dentro de G
+    // Usamos 'as any' para acessar as propriedades dinamicamente
     const val1 = (indicadores1[group] as any)[key].valor;
     const val2 = (indicadores2[group] as any)[key].valor;
     
     if (!range2.from || val2 === 0) return { diff: 0, percent: 0, trend: "stable" };
     
-    const diff = val1 - val2;
-    const percent = (diff / Math.abs(val2)) * 100;
+    const percent = calculatePercentChange(val1, val2);
     const trend: "up" | "down" | "stable" = percent >= 0 ? "up" : "down";
     
-    return { diff, percent, trend };
-  }, [indicadores1, indicadores2, range2.from]);
+    return { diff: val1 - val2, percent, trend };
+  }, [indicadores1, indicadores2, range2.from, calculatePercentChange]);
 
   // Função para determinar o status e a tendência de exibição
   const getDisplayTrend = useCallback(<G extends ValidGroupKey, K extends AllIndicatorKeys>(key: K, group: G): DisplayTrendResult => {
     const { percent, trend } = calculateTrend(key, group);
     const { status } = (indicadores1[group] as any)[key];
     
-    // Se não houver comparação, retorna a tendência baseada no status (simplificado)
-    if (!range2.from) {
-      // Lógica simplificada para tendência baseada no status (para indicadores que 'melhoram' com o aumento)
-      let defaultTrend: "up" | "down" | "stable" = "stable";
-      if (status === 'success') defaultTrend = "up";
-      else if (status === 'danger') defaultTrend = "down"; // CORRIGIDO: Removido o apóstrofo extra
-      
-      // Inverte a tendência para indicadores onde 'menor é melhor' (ex: endividamento)
-      const isInverse = group === 'endividamento' || (group === 'eficiencia' && key !== 'despesasFixas') || (group === 'pessoais' && key === 'comprometimento');
-      if (isInverse) {
-        defaultTrend = defaultTrend === 'up' ? 'down' : defaultTrend === 'down' ? 'up' : 'stable';
-      }
+    // Indicadores onde 'menor é melhor' (tendência invertida)
+    const isInverse = group === 'endividamento' || 
+                      (group === 'eficiencia' && key === 'operacional') || 
+                      (group === 'pessoais' && key === 'comprometimento');
 
-      return { trend: defaultTrend, percent: 0, status };
+    let finalTrend: "up" | "down" | "stable" = trend;
+
+    if (range2.from) {
+        // Se houver comparação, inverte a tendência se for um indicador 'menor é melhor'
+        if (isInverse) {
+            finalTrend = trend === 'up' ? 'down' : trend === 'down' ? 'up' : 'stable';
+        }
+    } else {
+        // Se não houver comparação, a tendência é baseada no status (simplificado)
+        if (status === 'success') {
+            finalTrend = isInverse ? 'down' : 'up';
+        } else if (status === 'danger') {
+            finalTrend = isInverse ? 'up' : 'down';
+        } else {
+            finalTrend = 'stable';
+        }
     }
 
-    return { trend, percent, status };
+    return { trend: finalTrend, percent, status };
   }, [calculateTrend, indicadores1, range2.from]);
 
   const formatPercent = (value: number) => `${value.toFixed(1)}%`;
@@ -459,22 +487,20 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
   const crescimentoReceitas = useMemo(() => {
     const rec1 = indicadores1.receitasMesAtual;
     const rec2 = indicadores2.receitasMesAtual;
-    const diff = rec1 - rec2;
-    const percent = rec2 !== 0 ? (diff / Math.abs(rec2)) * 100 : 0;
+    const percent = calculatePercentChange(rec1, rec2);
     const trend: "up" | "down" | "stable" = percent >= 0 ? "up" : "down";
     const status: IndicatorStatus = percent > 5 ? "success" : percent >= 0 ? "warning" : "danger";
     return { valor: percent, trend, status, formula: "((Receitas P1 - Receitas P2) / Receitas P2) × 100" };
-  }, [indicadores1, indicadores2]);
+  }, [indicadores1, indicadores2, calculatePercentChange]);
 
   const crescimentoDespesas = useMemo(() => {
     const desp1 = indicadores1.despesasMesAtual;
     const desp2 = indicadores2.despesasMesAtual;
-    const diff = desp1 - desp2;
-    const percent = desp2 !== 0 ? (diff / Math.abs(desp2)) * 100 : 0;
+    const percent = calculatePercentChange(desp1, desp2);
     const trend: "up" | "down" | "stable" = percent <= 0 ? "up" : "down"; // Menor crescimento de despesas é melhor (up)
     const status: IndicatorStatus = percent < 0 ? "success" : percent < 10 ? "warning" : "danger";
     return { valor: percent, trend, status, formula: "((Despesas P1 - Despesas P2) / Despesas P2) × 100" };
-  }, [indicadores1, indicadores2]);
+  }, [indicadores1, indicadores2, calculatePercentChange]);
 
   return (
     <div className="space-y-6">
@@ -571,7 +597,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
                     <SelectContent>
                       <SelectItem value="false">Maior é melhor</SelectItem>
                       <SelectItem value="true">Menor é melhor</SelectItem>
-                    </SelectContent>
+                    </SelectItemContent>
                   </Select>
                 </div>
               </div>

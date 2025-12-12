@@ -63,7 +63,7 @@ const COLORS = {
   danger: "hsl(0, 72%, 51%)",
   primary: "hsl(199, 89%, 48%)",
   accent: "hsl(270, 80%, 60%)",
-  muted: "hsl(215, 20%, 55%)",
+  muted: "hsl(215, 20% 55%)",
   gold: "hsl(45, 93%, 47%)",
   cyan: "hsl(180, 70%, 50%)",
 };
@@ -136,27 +136,46 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
     transactions.forEach(t => {
       if (!saldos[t.accountId]) saldos[t.accountId] = 0;
       
-      if (t.flow === 'in' || t.flow === 'transfer_in') {
-        saldos[t.accountId] += t.amount;
+      // Lógica de fluxo de caixa (simplificada para o balanço)
+      const account = contasMovimento.find(c => c.id === t.accountId);
+      const isCreditCard = account?.accountType === 'cartao_credito';
+
+      if (isCreditCard) {
+        // CC: Despesa (out) subtrai (aumenta passivo), Transferência (in) soma (diminui passivo)
+        if (t.operationType === 'despesa') {
+          saldos[t.accountId] -= t.amount;
+        } else if (t.operationType === 'transferencia') {
+          saldos[t.accountId] += t.amount;
+        }
       } else {
-        saldos[t.accountId] -= t.amount;
+        // Contas normais: in soma, out subtrai
+        if (t.flow === 'in' || t.flow === 'transfer_in') {
+          saldos[t.accountId] += t.amount;
+        } else {
+          saldos[t.accountId] -= t.amount;
+        }
       }
     });
 
     return saldos;
   }, [contasMovimento, transacoesV2, calculateBalanceUpToDate]);
 
+  // Função auxiliar para calcular a variação percentual
+  const calculatePercentChange = useCallback((value1: number, value2: number) => {
+    if (value2 === 0) return 0;
+    return ((value1 - value2) / Math.abs(value2)) * 100;
+  }, []);
+
   // Cálculos do Balanço Patrimonial para um período
   const calculateBalanco = useCallback((transactions: typeof transacoesV2, periodStart: Date | undefined) => {
     const saldosPorConta = calculateFinalBalances(transactions, periodStart);
 
-    // === ATIVOS CIRCULANTES ===
+    // === ATIVOS ===
     const contasCirculantes = contasMovimento.filter(c => 
       ['conta_corrente', 'poupanca', 'reserva_emergencia'].includes(c.accountType)
     );
     const caixaEquivalentes = contasCirculantes.reduce((acc, c) => acc + Math.max(0, saldosPorConta[c.id] || 0), 0);
 
-    // === INVESTIMENTOS ===
     const contasInvestimento = contasMovimento.filter(c => 
       ['aplicacao_renda_fixa', 'criptoativos', 'objetivos_financeiros'].includes(c.accountType)
     );
@@ -168,22 +187,35 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
     
     const investimentosTotal = saldoRendaFixa + saldoCripto + saldoStable + saldoObjetivos;
 
-    // === IMOBILIZADO ===
     const veiculosAtivos = veiculos.filter(v => v.status !== 'vendido');
     const valorVeiculos = veiculosAtivos.reduce((acc, v) => acc + (v.valorFipe || v.valorVeiculo || 0), 0);
 
-    // === TOTAL ATIVOS
     const totalAtivos = caixaEquivalentes + investimentosTotal + valorVeiculos;
 
     // === PASSIVOS ===
     const emprestimosAtivos = emprestimos.filter(e => e.status !== 'quitado');
-    const totalPassivos = getPassivosTotal(); // Usamos o total passivo global, pois dívidas são passivos de longo prazo
+    
+    // Saldo devedor de empréstimos (simplificado: valor total - valor pago)
+    const saldoDevedorEmprestimos = emprestimosAtivos.reduce((acc, e) => {
+      const valorPago = (e.parcelasPagas || 0) * e.parcela;
+      return acc + Math.max(0, e.valorTotal - valorPago);
+    }, 0);
+    
+    // Saldo devedor de cartões de crédito (saldos negativos)
+    const saldoDevedorCartoes = contasMovimento
+      .filter(c => c.accountType === 'cartao_credito')
+      .reduce((acc, c) => {
+        const balance = saldosPorConta[c.id] || 0;
+        return acc + Math.abs(Math.min(0, balance));
+      }, 0);
+      
+    const totalPassivos = saldoDevedorEmprestimos + saldoDevedorCartoes;
 
-    // Passivo curto prazo (próximos 12 meses)
+    // Passivo curto prazo (próximos 12 meses de parcelas + saldo CC)
     const passivoCurtoPrazo = emprestimosAtivos.reduce((acc, e) => {
       const parcelasRestantes = Math.min(12, e.meses - (e.parcelasPagas || 0));
       return acc + (e.parcela * parcelasRestantes);
-    }, 0);
+    }, 0) + saldoDevedorCartoes;
     
     // Passivo longo prazo
     const passivoLongoPrazo = totalPassivos - passivoCurtoPrazo;
@@ -220,7 +252,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
       patrimonioLiquido,
       resultadoPeriodo,
     };
-  }, [contasMovimento, emprestimos, veiculos, transacoesV2, getPassivosTotal, calculateFinalBalances, calculateBalanceUpToDate]);
+  }, [contasMovimento, emprestimos, veiculos, transacoesV2, calculateFinalBalances, calculateBalanceUpToDate]);
 
   // Balanço para o Período 1 (Principal)
   const balanco1 = useMemo(() => calculateBalanco(transacoesPeriodo1, range1.from), [calculateBalanco, transacoesPeriodo1, range1.from]);
@@ -228,32 +260,18 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
   // Balanço para o Período 2 (Comparação)
   const balanco2 = useMemo(() => calculateBalanco(transacoesPeriodo2, range2.from), [calculateBalanco, transacoesPeriodo2, range2.from]);
 
-  // Variação do Patrimônio Líquido (PL) entre P1 e P2
-  const variacaoPL = useMemo(() => {
-    if (!range2.from) return { diff: 0, percent: 0 };
+  // Variações entre P1 e P2
+  const variacoes = useMemo(() => {
+    if (!range2.from) return {};
     
-    const pl1 = balanco1.patrimonioLiquido;
-    const pl2 = balanco2.patrimonioLiquido;
-    
-    const diff = pl1 - pl2;
-    const percent = pl2 !== 0 ? (diff / Math.abs(pl2)) * 100 : 0;
-    
-    return { diff, percent };
-  }, [balanco1, balanco2, range2.from]);
-
-  // Composição dos ativos para gráfico pizza (usando P1)
-  const composicaoAtivos = useMemo(() => {
-    const items = [
-      { name: "Caixa e Equivalentes", value: balanco1.ativos.circulantes.caixa, color: COLORS.primary },
-      { name: "Renda Fixa", value: balanco1.ativos.naoCirculantes.rendaFixa, color: COLORS.success },
-      { name: "Criptoativos", value: balanco1.ativos.naoCirculantes.criptoativos, color: COLORS.gold },
-      { name: "Stablecoins", value: balanco1.ativos.naoCirculantes.stablecoins, color: COLORS.cyan },
-      { name: "Objetivos", value: balanco1.ativos.naoCirculantes.objetivos, color: COLORS.accent },
-      { name: "Veículos", value: balanco1.ativos.naoCirculantes.veiculos, color: COLORS.warning },
-    ].filter(item => item.value > 0);
-
-    return items;
-  }, [balanco1]);
+    return {
+      ativosTotal: calculatePercentChange(balanco1.ativos.total, balanco2.ativos.total),
+      circulantes: calculatePercentChange(balanco1.ativos.circulantes.caixa, balanco2.ativos.circulantes.caixa),
+      investimentos: calculatePercentChange(balanco1.ativos.naoCirculantes.investimentos, balanco2.ativos.naoCirculantes.investimentos),
+      passivosTotal: calculatePercentChange(balanco1.passivos.total, balanco2.passivos.total),
+      patrimonioLiquido: calculatePercentChange(balanco1.patrimonioLiquido, balanco2.patrimonioLiquido),
+    };
+  }, [balanco1, balanco2, range2.from, calculatePercentChange]);
 
   // Métricas (usando P1)
   const metricas = useMemo(() => {
@@ -297,6 +315,20 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
     };
   }, [balanco1]);
 
+  // Composição dos ativos para gráfico pizza (usando P1)
+  const composicaoAtivos = useMemo(() => {
+    const items = [
+      { name: "Caixa e Equivalentes", value: balanco1.ativos.circulantes.caixa, color: COLORS.primary },
+      { name: "Renda Fixa", value: balanco1.ativos.naoCirculantes.rendaFixa, color: COLORS.success },
+      { name: "Criptoativos", value: balanco1.ativos.naoCirculantes.criptoativos, color: COLORS.gold },
+      { name: "Stablecoins", value: balanco1.ativos.naoCirculantes.stablecoins, color: COLORS.cyan },
+      { name: "Objetivos", value: balanco1.ativos.naoCirculantes.objetivos, color: COLORS.accent },
+      { name: "Veículos", value: balanco1.ativos.naoCirculantes.veiculos, color: COLORS.warning },
+    ].filter(item => item.value > 0);
+
+    return items;
+  }, [balanco1]);
+
   const formatCurrency = (value: number) => `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
   const formatPercent = (value: number) => `${value.toFixed(1)}%`;
   const formatRatio = (value: number) => value >= 999 ? "∞" : `${value.toFixed(2)}x`;
@@ -313,6 +345,18 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
     }).concat([Math.abs(current)]);
   };
 
+  // Função para determinar a tendência de exibição (up/down/stable)
+  const getTrend = (percent: number, isInverse: boolean = false): "up" | "down" | "stable" => {
+    if (!range2.from) return "stable";
+    if (Math.abs(percent) < 0.1) return "stable";
+    
+    if (isInverse) {
+      return percent < 0 ? "up" : "down"; // Menor percentual é melhor (up)
+    } else {
+      return percent > 0 ? "up" : "down"; // Maior percentual é melhor (up)
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Cards Superiores */}
@@ -324,6 +368,8 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
           icon={<TrendingUp className="w-5 h-5" />}
           tooltip="Soma de todos os bens e direitos: caixa, investimentos, veículos"
           delay={0}
+          trend={variacoes.ativosTotal}
+          trendLabel={range2.from ? "Período 2" : undefined}
         />
         <ReportCard
           title="Ativos Circulantes"
@@ -332,6 +378,8 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
           icon={<Banknote className="w-5 h-5" />}
           tooltip="Recursos de alta liquidez: contas correntes, poupança, reserva"
           delay={50}
+          trend={variacoes.circulantes}
+          trendLabel={range2.from ? "Período 2" : undefined}
         />
         <ReportCard
           title="Investimentos"
@@ -340,6 +388,8 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
           icon={<PiggyBank className="w-5 h-5" />}
           tooltip="Renda fixa, criptoativos, stablecoins e objetivos"
           delay={100}
+          trend={variacoes.investimentos}
+          trendLabel={range2.from ? "Período 2" : undefined}
         />
         <ReportCard
           title="Total de Passivos"
@@ -348,6 +398,8 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
           icon={<TrendingDown className="w-5 h-5" />}
           tooltip="Soma de todas as obrigações: empréstimos e financiamentos"
           delay={150}
+          trend={variacoes.passivosTotal}
+          trendLabel={range2.from ? "Período 2" : undefined}
         />
         <ReportCard
           title="Patrimônio Líquido"
@@ -356,15 +408,17 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
           icon={<Scale className="w-5 h-5" />}
           tooltip="Ativos - Passivos = Riqueza Líquida"
           delay={200}
+          trend={variacoes.patrimonioLiquido}
+          trendLabel={range2.from ? "Período 2" : undefined}
         />
         <ReportCard
           title="Variação do PL"
-          value={formatPercent(variacaoPL.percent)}
-          trend={variacaoPL.percent}
+          value={formatPercent(variacoes.patrimonioLiquido || 0)}
+          trend={variacoes.patrimonioLiquido}
           trendLabel="Período 2"
-          status={variacaoPL.percent >= 0 ? "success" : "danger"}
+          status={getTrend(variacoes.patrimonioLiquido || 0) === "up" ? "success" : "danger"}
           icon={<LineChart className="w-5 h-5" />}
-          tooltip={`Variação do Patrimônio Líquido comparado ao Período 2. Diferença: ${formatCurrency(variacaoPL.diff)}`}
+          tooltip={`Variação do Patrimônio Líquido comparado ao Período 2. Diferença: ${formatCurrency(balanco1.patrimonioLiquido - balanco2.patrimonioLiquido)}`}
           delay={250}
         />
       </div>
@@ -668,13 +722,13 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
           </div>
         </ExpandablePanel>
 
-        {/* Evolução do PL (REPLACED WITH DEDICATED COMPONENT) */}
+        {/* Evolução do PL */}
         <ExpandablePanel
           title="Evolução Patrimonial"
           subtitle="Últimos 12 meses"
           icon={<LineChart className="w-4 h-4" />}
-          badge={variacaoPL.percent >= 0 ? "Crescendo" : "Reduzindo"}
-          badgeStatus={variacaoPL.percent >= 0 ? "success" : "danger"}
+          badge={getTrend(variacoes.patrimonioLiquido || 0) === "up" ? "Crescendo" : "Reduzindo"}
+          badgeStatus={getTrend(variacoes.patrimonioLiquido || 0) === "up" ? "success" : "danger"}
         >
           <EvolucaoPatrimonialChart />
         </ExpandablePanel>
@@ -691,66 +745,66 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
             title="PL / Total de Ativos"
             value={formatPercent(metricas.plAtivos.valor)}
             status={metricas.plAtivos.status}
-            trend={metricas.plAtivos.valor >= 50 ? "up" : "down"}
-            trendLabel="vs P2"
+            trend={getTrend(variacoes.patrimonioLiquido || 0)}
+            trendLabel={range2.from ? `${(variacoes.patrimonioLiquido || 0).toFixed(1)}% vs P2` : undefined}
             descricao="Indica quanto do patrimônio é efetivamente seu. Ideal: acima de 50%"
             formula="(Patrimônio Líquido / Ativo Total) × 100"
-            sparklineData={generateSparkline(metricas.plAtivos.valor, metricas.plAtivos.valor >= 50 ? "up" : "down")}
+            sparklineData={generateSparkline(metricas.plAtivos.valor, getTrend(variacoes.patrimonioLiquido || 0))}
             icon={<Scale className="w-4 h-4" />}
           />
           <DetailedIndicatorBadge
             title="Liquidez Geral"
             value={formatRatio(metricas.liquidezGeral.valor)}
             status={metricas.liquidezGeral.status}
-            trend={metricas.liquidezGeral.valor >= 2 ? "up" : "down"}
-            trendLabel="vs P2"
+            trend={getTrend(variacoes.ativosTotal || 0)}
+            trendLabel={range2.from ? `${(variacoes.ativosTotal || 0).toFixed(1)}% vs P2` : undefined}
             descricao="Capacidade de pagar todas as dívidas. Ideal: acima de 2x"
             formula="Ativo Total / Passivo Total"
-            sparklineData={generateSparkline(metricas.liquidezGeral.valor, metricas.liquidezGeral.valor >= 2 ? "up" : "down")}
+            sparklineData={generateSparkline(metricas.liquidezGeral.valor, getTrend(variacoes.ativosTotal || 0))}
             icon={<Droplets className="w-4 h-4" />}
           />
           <DetailedIndicatorBadge
             title="Liquidez Corrente"
             value={formatRatio(metricas.liquidezCorrente.valor)}
             status={metricas.liquidezCorrente.status}
-            trend={metricas.liquidezCorrente.valor >= 1.5 ? "up" : "down"}
-            trendLabel="vs P2"
+            trend={getTrend(variacoes.circulantes || 0)}
+            trendLabel={range2.from ? `${(variacoes.circulantes || 0).toFixed(1)}% vs P2` : undefined}
             descricao="Capacidade de pagar dívidas de curto prazo. Ideal: acima de 1.5x"
             formula="Ativo Circulante / Passivo Circulante"
-            sparklineData={generateSparkline(metricas.liquidezCorrente.valor, metricas.liquidezCorrente.valor >= 1.5 ? "up" : "down")}
+            sparklineData={generateSparkline(metricas.liquidezCorrente.valor, getTrend(variacoes.circulantes || 0))}
             icon={<Banknote className="w-4 h-4" />}
           />
           <DetailedIndicatorBadge
             title="Endividamento"
             value={formatPercent(metricas.endividamento.valor)}
             status={metricas.endividamento.status}
-            trend={metricas.endividamento.valor < 30 ? "up" : "down"}
-            trendLabel="vs P2"
+            trend={getTrend(variacoes.passivosTotal || 0, true)}
+            trendLabel={range2.from ? `${(variacoes.passivosTotal || 0).toFixed(1)}% vs P2` : undefined}
             descricao="Percentual dos ativos comprometidos com dívidas. Quanto menor, melhor. Ideal: abaixo de 30%"
             formula="(Passivo Total / Ativo Total) × 100"
-            sparklineData={generateSparkline(metricas.endividamento.valor, metricas.endividamento.valor < 30 ? "down" : "up")}
+            sparklineData={generateSparkline(metricas.endividamento.valor, getTrend(variacoes.passivosTotal || 0, true))}
             icon={<CreditCard className="w-4 h-4" />}
           />
           <DetailedIndicatorBadge
             title="Cobertura de Ativos"
             value={formatRatio(metricas.coberturaAtivos.valor)}
             status={metricas.coberturaAtivos.status}
-            trend={metricas.coberturaAtivos.valor >= 2 ? "up" : "down"}
-            trendLabel="vs P2"
+            trend={getTrend(variacoes.ativosTotal || 0)}
+            trendLabel={range2.from ? `${(variacoes.ativosTotal || 0).toFixed(1)}% vs P2` : undefined}
             descricao="Quantas vezes os ativos cobrem os passivos. Ideal: acima de 2x"
             formula="Ativo Total / Passivo Total"
-            sparklineData={generateSparkline(metricas.coberturaAtivos.valor, metricas.coberturaAtivos.valor >= 2 ? "up" : "down")}
+            sparklineData={generateSparkline(metricas.coberturaAtivos.valor, getTrend(variacoes.ativosTotal || 0))}
             icon={<ShieldCheck className="w-4 h-4" />}
           />
           <DetailedIndicatorBadge
             title="Imobilização do PL"
             value={formatPercent(metricas.imobilizacao.valor)}
             status={metricas.imobilizacao.status}
-            trend={metricas.imobilizacao.valor < 30 ? "up" : "down"}
-            trendLabel="vs P2"
+            trend={getTrend(variacoes.patrimonioLiquido || 0, true)}
+            trendLabel={range2.from ? `${(variacoes.patrimonioLiquido || 0).toFixed(1)}% vs P2` : undefined}
             descricao="Quanto do PL está em bens imobilizados (veículos). Ideal: abaixo de 30%"
             formula="(Ativo Imobilizado / Patrimônio Líquido) × 100"
-            sparklineData={generateSparkline(metricas.imobilizacao.valor, metricas.imobilizacao.valor < 30 ? "down" : "up")}
+            sparklineData={generateSparkline(metricas.imobilizacao.valor, getTrend(variacoes.patrimonioLiquido || 0, true))}
             icon={<Car className="w-4 h-4" />}
           />
         </div>
