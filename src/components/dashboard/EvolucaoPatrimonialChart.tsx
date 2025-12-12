@@ -4,7 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area, XAxis, YAxis } from "recharts";
 import { cn } from "@/lib/utils";
 import { useFinance } from "@/contexts/FinanceContext";
-import { subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval, format } from "date-fns";
+import { subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval, format, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 interface EvolucaoData {
@@ -59,6 +59,7 @@ export function EvolucaoPatrimonialChart({ data }: EvolucaoPatrimonialChartProps
     const saldosPorConta = contasMovimento.map(conta => ({
       id: conta.id,
       type: conta.accountType,
+      // Calcula o saldo acumulado até o final do dia targetDate
       saldo: calculateBalanceUpToDate(conta.id, targetDate, transacoesV2, contasMovimento),
     }));
 
@@ -92,7 +93,7 @@ export function EvolucaoPatrimonialChart({ data }: EvolucaoPatrimonialChartProps
     for (let i = 11; i >= 0; i--) {
       const data = subMonths(now, i);
       const inicio = startOfMonth(data);
-      const fim = endOfMonth(data);
+      const fim = endOfDay(endOfMonth(data)); // Garante que o filtro vai até o final do dia
       const mesLabel = format(data, 'MMM', { locale: ptBR });
 
       // 1. Calcular PL no final do mês (fim)
@@ -102,6 +103,7 @@ export function EvolucaoPatrimonialChart({ data }: EvolucaoPatrimonialChartProps
       const transacoesMes = transacoesV2.filter(t => {
         try {
           const dataT = parseISO(t.date);
+          // Filtra transações entre o início do mês (startOfDay) e o fim do mês (endOfDay)
           return isWithinInterval(dataT, { start: inicio, end: fim });
         } catch {
           return false;

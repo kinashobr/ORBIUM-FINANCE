@@ -12,7 +12,7 @@ import {
   DateRange, // Import new types
   ComparisonDateRanges, // Import new types
 } from "@/types/finance";
-import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays } from "date-fns"; // Import date-fns helpers
+import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, startOfDay, endOfDay } from "date-fns"; // Import date-fns helpers
 
 // ============================================
 // FUNÇÕES AUXILIARES PARA DATAS
@@ -20,7 +20,7 @@ import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays } from "d
 
 const calculateDefaultRange = (): DateRange => {
     const now = new Date();
-    return { from: startOfMonth(now), to: endOfMonth(now) };
+    return { from: startOfDay(startOfMonth(now)), to: endOfDay(endOfMonth(now)) };
 };
 
 const calculateComparisonRange = (range1: DateRange): DateRange => {
@@ -30,7 +30,7 @@ const calculateComparisonRange = (range1: DateRange): DateRange => {
     const diffInDays = differenceInDays(range1.to, range1.from) + 1;
     const prevTo = subDays(range1.from, 1);
     const prevFrom = subDays(prevTo, diffInDays - 1);
-    return { from: prevFrom, to: prevTo };
+    return { from: startOfDay(prevFrom), to: endOfDay(prevTo) };
 };
 
 const DEFAULT_RANGES: ComparisonDateRanges = {
@@ -42,7 +42,7 @@ function parseDateRanges(storedRanges: any): ComparisonDateRanges {
     const parseDate = (dateStr: string | undefined): Date | undefined => {
         if (!dateStr) return undefined;
         try {
-            const date = new Date(dateStr);
+            const date = parseISO(dateStr);
             return isNaN(date.getTime()) ? undefined : date;
         } catch {
             return undefined;

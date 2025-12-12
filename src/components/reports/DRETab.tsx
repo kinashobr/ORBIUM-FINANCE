@@ -153,13 +153,14 @@ export function DRETab({ dateRanges }: DRETabProps) {
   const formatPercent = (value: number) => `${value.toFixed(1)}%`;
   const now = new Date();
 
-  // Helper para filtrar transações por um range específico
+  // Helper para filtrar transações por um range específico (local definition)
   const filterTransactionsByRange = useCallback((range: DateRange) => {
     if (!range.from || !range.to) return transacoesV2;
     
     return transacoesV2.filter(t => {
       try {
         const dataT = parseISO(t.date);
+        // range.from is startOfDay, range.to is endOfDay, so isWithinInterval is inclusive
         return isWithinInterval(dataT, { start: range.from!, end: range.to! });
       } catch {
         return false;
@@ -297,6 +298,7 @@ export function DRETab({ dateRanges }: DRETabProps) {
       const fim = endOfMonth(data);
       const mesLabel = format(data, 'MMM', { locale: ptBR });
 
+      // Filtra transações para o mês completo (inclusivo)
       const transacoesMes = transacoesV2.filter(t => {
         try {
           const dataT = parseISO(t.date);

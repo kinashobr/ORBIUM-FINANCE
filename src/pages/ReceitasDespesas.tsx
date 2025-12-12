@@ -3,7 +3,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Tags, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { isWithinInterval, startOfMonth, endOfMonth, parseISO, subDays } from "date-fns";
+import { isWithinInterval, startOfMonth, endOfMonth, parseISO, subDays, endOfDay } from "date-fns";
 
 // Types
 import { 
@@ -46,7 +46,7 @@ const ReceitasDespesas = () => {
     dateRanges, // <-- Use context state
     setDateRanges, // <-- Use context setter
     markSeguroParcelPaid,
-    unmarkSeguroParcelPaid, // <-- ADDED
+    unmarkSeguroParcelaid, // <-- ADDED
   } = useFinance();
 
   // Local state for transfer groups
@@ -100,7 +100,8 @@ const ReceitasDespesas = () => {
       const transactionDate = parseISO(t.date);
       
       // Filtro de período usando dateRange.range1
-      const matchPeriod = (!range.from || isWithinInterval(transactionDate, { start: range.from, end: range.to || new Date() }));
+      // range.from is startOfDay(D_start), range.to is endOfDay(D_end)
+      const matchPeriod = (!range.from || !range.to || isWithinInterval(transactionDate, { start: range.from, end: range.to }));
       
       return matchSearch && matchAccount && matchCategory && matchType && matchPeriod;
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -108,29 +109,31 @@ const ReceitasDespesas = () => {
 
   // Calculate account summaries
   const accountSummaries: AccountSummary[] = useMemo(() => {
-    const periodStart = dateRanges.range1.from;
-    const periodEnd = dateRanges.range1.to;
+    const periodStart = dateRanges.range1.from; // D_start (startOfDay)
+    const periodEnd = dateRanges.range1.to;     // D_end (endOfDay)
     
     return accounts.map(account => {
-      // 1. Calculate Period Initial Balance (balance accumulated up to the start date, inclusive)
-      // If periodStart is defined, we calculate balance up to that date (inclusive).
-      const periodInitialBalance = calculateBalanceUpToDate(account.id, periodStart, transactions, accounts); // CRITICAL CHANGE 1: Use periodStart directly
+      // 1. Calculate Period Initial Balance (balance accumulated up to the day BEFORE the period starts)
+      const initialBalanceTargetDate = periodStart 
+        ? endOfDay(subDays(periodStart, 1)) // Balance up to 23:59:59 of the day before D_start
+        : undefined; // If no period start, calculate from the beginning of time
+        
+      const periodInitialBalance = calculateBalanceUpToDate(account.id, initialBalanceTargetDate, transactions, accounts); 
 
-      // 2. Calculate Period Transactions (transactions strictly AFTER periodStart, up to periodEnd)
+      // 2. Calculate Period Transactions (transactions from D_start up to D_end)
       const accountTxInPeriod = transactions.filter(t => {
         if (t.accountId !== account.id) return false;
         
         // Exclude synthetic initial balance transactions from period flow calculation
-        if (t.operationType === 'initial_balance') return false; // CRITICAL CHANGE 2: Exclude initial_balance from flow
+        if (t.operationType === 'initial_balance') return false; 
         
         const transactionDate = parseISO(t.date);
         
-        // Se não houver data de início, consideramos todas as transações
-        if (!periodStart) return true;
+        // If no period is defined, include all transactions (excluding initial_balance)
+        if (!periodStart || !periodEnd) return true;
         
-        // We only count transactions strictly AFTER periodStart, because transactions ON periodStart are included in periodInitialBalance.
-        // We use the original periodEnd (inclusive).
-        return transactionDate > periodStart && transactionDate <= (periodEnd || new Date()); // CRITICAL CHANGE 3: Check strictly > periodStart
+        // We include transactions from periodStart (startOfDay) up to periodEnd (endOfDay)
+        return isWithinInterval(transactionDate, { start: periodStart, end: periodEnd });
       });
 
       // 3. Calculate Period Totals
@@ -479,7 +482,7 @@ const ReceitasDespesas = () => {
         const parcelaNumero = parseInt(parcelaNumeroStr);
         
         if (!isNaN(seguroId) && !isNaN(parcelaNumero)) {
-            unmarkSeguroParcelPaid(seguroId, parcelaNumero); 
+            unmarkSeguroParcelaid(seguroId, parcelaNumero); 
         }
     }
 

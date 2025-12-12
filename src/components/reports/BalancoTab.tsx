@@ -99,13 +99,14 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
 
   const { range1, range2 } = dateRanges;
 
-  // 1. Filtrar transações para um período específico
+  // 1. Helper para filtrar transações por um range específico (local definition)
   const filterTransactionsByRange = useCallback((range: DateRange) => {
     if (!range.from || !range.to) return transacoesV2;
     
     return transacoesV2.filter(t => {
       try {
         const dataT = parseISO(t.date);
+        // range.from is startOfDay, range.to is endOfDay, so isWithinInterval is inclusive
         return isWithinInterval(dataT, { start: range.from!, end: range.to! });
       } catch {
         return false;
@@ -113,38 +114,19 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
     });
   }, [transacoesV2]);
 
-  const transacoesPeriodo1 = useMemo(() => filterTransactionsByRange(range1), [filterTransactionsByRange, range1]);
-  const transacoesPeriodo2 = useMemo(() => filterTransactionsByRange(range2), [filterTransactionsByRange, range2]);
-
-  // 2. Calcular saldo de cada conta baseado nas transações do período (Saldo Final do Período)
-  const calculateFinalBalances = useCallback((transactions: typeof transacoesV2, periodStart: Date | undefined) => {
-    const saldos: Record<string, number> = {};
-    
-    contasMovimento.forEach(conta => {
-      // O saldo inicial é o saldo acumulado ANTES do período
-      const saldoInicialPeriodo = periodStart 
-        ? calculateBalanceUpToDate(conta.id, periodStart, transacoesV2, contasMovimento)
-        : calculateBalanceUpToDate(conta.id, undefined, transacoesV2, contasMovimento);
-        
-      saldos[conta.id] = saldoInicialPeriodo;
-    });
-
-    transactions.forEach(t => {
-      if (!saldos[t.accountId]) saldos[t.accountId] = 0;
-      
-      if (t.flow === 'in' || t.flow === 'transfer_in') {
-        saldos[t.accountId] += t.amount;
-      } else {
-        saldos[t.accountId] -= t.amount;
-      }
-    });
-
-    return saldos;
-  }, [contasMovimento, transacoesV2, calculateBalanceUpToDate]);
-
   // Cálculos do Balanço Patrimonial para um período
-  const calculateBalanco = useCallback((transactions: typeof transacoesV2, periodStart: Date | undefined) => {
-    const saldosPorConta = calculateFinalBalances(transactions, periodStart);
+  const calculateBalanco = useCallback((range: DateRange) => {
+    const targetDate = range.to; // This is endOfDay(D_end)
+    
+    // 1. Filtrar transações para o período (para calcular Resultado do Período)
+    const transacoesPeriodo = filterTransactionsByRange(range);
+    
+    // 2. Calcular saldos das contas (saldo final do período)
+    const saldosPorConta: Record<string, number> = {};
+    contasMovimento.forEach(conta => {
+        // Saldo final do período (D_end)
+        saldosPorConta[conta.id] = calculateBalanceUpToDate(conta.id, targetDate, transacoesV2, contasMovimento);
+    });
 
     // === ATIVOS CIRCULANTES ===
     const contasCirculantes = contasMovimento.filter(c => 
@@ -177,8 +159,9 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
 
     // Passivo curto prazo (próximos 12 meses)
     const passivoCurtoPrazo = emprestimosAtivos.reduce((acc, e) => {
-      const parcelasRestantes = Math.min(12, e.meses - (e.parcelasPagas || 0));
-      return acc + (e.parcela * parcelasRestantes);
+      const parcelasRestantes = e.meses - (e.parcelasPagas || 0);
+      // Simplificação: Passivo circulante é o valor da parcela * 12 meses ou o restante
+      return acc + (e.parcela * Math.min(12, parcelasRestantes));
     }, 0);
     
     // Passivo longo prazo
@@ -198,7 +181,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
       return entradas - saidas;
     };
 
-    const resultadoPeriodo = calcularResultado(transactions);
+    const resultadoPeriodo = calcularResultado(transacoesPeriodo);
 
     return {
       saldosPorConta,
@@ -216,13 +199,13 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
       patrimonioLiquido,
       resultadoPeriodo,
     };
-  }, [contasMovimento, emprestimos, veiculos, transacoesV2, getPassivosTotal, calculateFinalBalances, calculateBalanceUpToDate]);
+  }, [contasMovimento, emprestimos, veiculos, transacoesV2, getPassivosTotal, calculateBalanceUpToDate, filterTransactionsByRange]);
 
   // Balanço para o Período 1 (Principal)
-  const balanco1 = useMemo(() => calculateBalanco(transacoesPeriodo1, range1.from), [calculateBalanco, transacoesPeriodo1, range1.from]);
+  const balanco1 = useMemo(() => calculateBalanco(range1), [calculateBalanco, range1]);
 
   // Balanço para o Período 2 (Comparação)
-  const balanco2 = useMemo(() => calculateBalanco(transacoesPeriodo2, range2.from), [calculateBalanco, transacoesPeriodo2, range2.from]);
+  const balanco2 = useMemo(() => calculateBalanco(range2), [calculateBalanco, range2]);
 
   // Variação do Patrimônio Líquido (PL) entre P1 e P2
   const variacaoPL = useMemo(() => {
@@ -249,11 +232,8 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
       const fim = endOfMonth(data);
 
       // Calcular o balanço no final deste mês (fim)
-      const transacoesAteFimDoMes = transacoesV2.filter(t => parseISO(t.date) <= fim);
-      
-      // O saldo inicial para o cálculo do balanço do mês é o saldo acumulado ANTES do início do mês
-      const inicioDoMes = startOfMonth(data);
-      const balancoMes = calculateBalanco(transacoesAteFimDoMes, inicioDoMes); 
+      // Passamos o range completo para calculateBalanco, que usa o fim do range como targetDate
+      const balancoMes = calculateBalanco({ from: startOfMonth(data), to: fim }); 
 
       resultado.push({
         mes: mesLabel.charAt(0).toUpperCase() + mesLabel.slice(1),
@@ -264,7 +244,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
     }
 
     return resultado;
-  }, [transacoesV2, calculateBalanco]);
+  }, [calculateBalanco]);
 
   // Composição dos ativos para gráfico pizza (usando P1)
   const composicaoAtivos = useMemo(() => {
@@ -447,10 +427,10 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
                 <TableRow className="border-border bg-muted/20">
                   <TableCell className="font-medium text-foreground pl-4">Subtotal Circulante</TableCell>
                   <TableCell className="text-right font-semibold text-success">{formatCurrency(balanco1.ativos.circulantes.caixa)}</TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    {balanco1.ativos.total > 0 ? formatPercent((balanco1.ativos.circulantes.caixa / balanco1.ativos.total) * 100) : "0%"}
-                  </TableCell>
-                </TableRow>
+                    <TableCell className="text-right text-muted-foreground">
+                      {balanco1.ativos.total > 0 ? formatPercent((balanco1.ativos.circulantes.caixa / balanco1.ativos.total) * 100) : "0%"}
+                    </TableCell>
+                  </TableRow>
 
                 {/* ATIVO NÃO CIRCULANTE */}
                 <TableRow className="border-border bg-primary/5">

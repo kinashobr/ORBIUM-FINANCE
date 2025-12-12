@@ -14,7 +14,7 @@ import {
   Activity,
   LayoutDashboard
 } from "lucide-react";
-import { startOfMonth, endOfMonth, isWithinInterval, format, subMonths, parseISO, subDays } from "date-fns";
+import { startOfMonth, endOfMonth, isWithinInterval, format, subMonths, parseISO, subDays, endOfDay } from "date-fns";
 
 const Index = () => {
   const { 
@@ -40,6 +40,7 @@ const Index = () => {
     
     return transacoesV2.filter(t => {
       const transactionDate = parseISO(t.date);
+      // range.from is startOfDay, range.to is endOfDay, so isWithinInterval is inclusive
       return isWithinInterval(transactionDate, { start: range.from!, end: range.to! });
     });
   }, [transacoesV2]);
@@ -52,7 +53,7 @@ const Index = () => {
 
   // Saldo por conta (usando a data final do período 1 para o saldo atual)
   const saldosPorConta = useMemo(() => {
-    const targetDate = dateRanges.range1.to;
+    const targetDate = dateRanges.range1.to; // D_end (endOfDay)
     
     return contasMovimento.map(conta => {
       // Usamos calculateBalanceUpToDate para obter o saldo acumulado até o final do período
@@ -201,12 +202,13 @@ const Index = () => {
     const now = new Date();
     for (let i = 0; i < 6; i++) {
       const data = subMonths(now, i);
-      const m = data.getMonth();
-      const y = data.getFullYear();
+      const inicio = startOfMonth(data);
+      const fim = endOfMonth(data);
       
+      // Filtra transações para o mês completo (inclusivo)
       const txMes = transacoesV2.filter(t => {
         const d = parseISO(t.date);
-        return d.getMonth() === m && d.getFullYear() === y;
+        return isWithinInterval(d, { start: inicio, end: fim });
       });
       
       const rec = txMes.filter(t => t.operationType === 'receita' || t.operationType === 'rendimento').reduce((a, t) => a + t.amount, 0);

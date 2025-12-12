@@ -37,27 +37,32 @@ export function PeriodSelector({
   const [tempRange, setTempRange] = useState<DateRange>(safeInitialRange1);
   const [selectedPreset, setSelectedPreset] = useState<string>('custom');
 
+  const normalizeRange = useCallback((r: DateRange): DateRange => ({
+    from: r.from ? startOfDay(r.from) : undefined,
+    to: r.to ? endOfDay(r.to) : undefined,
+  }), []);
+
   const calculateRangeFromPreset = useCallback((presetId: string): DateRange => {
     const today = new Date();
     
     switch (presetId) {
       case "thisMonth":
-        return { from: startOfMonth(today), to: endOfMonth(today) };
+        return normalizeRange({ from: startOfMonth(today), to: endOfMonth(today) });
       case "lastMonth":
         const lastMonth = subMonths(today, 1);
-        return { from: startOfMonth(lastMonth), to: endOfMonth(lastMonth) };
+        return normalizeRange({ from: startOfMonth(lastMonth), to: endOfMonth(lastMonth) });
       case "last3Months":
         const last3Months = subMonths(today, 2);
-        return { from: startOfMonth(last3Months), to: endOfMonth(today) };
+        return normalizeRange({ from: startOfMonth(last3Months), to: endOfMonth(today) });
       case "thisYear":
-        return { from: startOfYear(today), to: endOfYear(today) };
+        return normalizeRange({ from: startOfYear(today), to: endOfYear(today) });
       case "all":
         return { from: undefined, to: undefined };
       case "custom":
       default:
         return { from: undefined, to: undefined };
     }
-  }, []);
+  }, [normalizeRange]);
 
   const calculateComparisonRange = useCallback((range1: DateRange): DateRange => {
     if (!range1.from || !range1.to) {
@@ -68,8 +73,9 @@ export function PeriodSelector({
     const prevTo = subDays(range1.from, 1);
     const prevFrom = subDays(prevTo, diffInDays - 1);
     
-    return { from: prevFrom, to: prevTo };
-  }, []);
+    // Normaliza o range de comparação também
+    return normalizeRange({ from: prevFrom, to: prevTo });
+  }, [normalizeRange]);
 
   const getActivePresetId = useCallback((currentRange: DateRange): string => {
     if (!currentRange.from && !currentRange.to) return "all";
@@ -100,12 +106,13 @@ export function PeriodSelector({
   }, [isOpen, range]);
 
   const handleApply = useCallback((newRange: DateRange) => {
+    // Garante que o range aplicado está normalizado
     const finalRange1: DateRange = newRange.from ? normalizeRange(newRange) : { from: undefined, to: undefined };
     const finalRange2 = calculateComparisonRange(finalRange1);
     
     setRange(finalRange1);
     onDateRangeChange({ range1: finalRange1, range2: finalRange2 });
-  }, [onDateRangeChange, calculateComparisonRange]);
+  }, [onDateRangeChange, calculateComparisonRange, normalizeRange]);
   
   const handleSelectPreset = (presetId: string) => {
     setSelectedPreset(presetId);
@@ -136,11 +143,6 @@ export function PeriodSelector({
     setSelectedPreset('all');
     setIsOpen(false);
   };
-
-  const normalizeRange = (r: DateRange): DateRange => ({
-    from: r.from ? startOfDay(r.from) : undefined,
-    to: r.to ? endOfDay(r.to) : undefined,
-  });
 
   const formatDateRange = (r: DateRange | undefined) => {
     if (!r) return "Todo o período";
