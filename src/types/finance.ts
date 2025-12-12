@@ -60,8 +60,8 @@ export interface TransactionLinks {
   investmentId: string | null;
   loanId: string | null;
   transferGroupId: string | null;
-  parcelaId?: string | null;
-  vehicleTransactionId?: string | null;
+  parcelaId: string | null;
+  vehicleTransactionId: string | null;
 }
 
 // Tipos de Fluxo

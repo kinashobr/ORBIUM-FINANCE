@@ -1,4 +1,3 @@
-...).">
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -221,7 +220,7 @@ const ReceitasDespesas = () => {
               date: tx.date,
               description: tx.description,
               flow: newFlow,
-            };
+            } as TransacaoCompleta; // Explicit cast to TransacaoCompleta
           }
           return t;
         }));
@@ -252,7 +251,7 @@ const ReceitasDespesas = () => {
 
       if (isToCreditCard) {
         // Transação original (entrada no CC)
-        const ccTx = {
+        const ccTx: TransacaoCompleta = {
           ...originalTx,
           accountId: tg.toAccountId,
           flow: 'in' as const,
@@ -261,7 +260,7 @@ const ReceitasDespesas = () => {
         };
 
         // Transação de saída da conta corrente
-        const fromTx = {
+        const fromTx: TransacaoCompleta = {
           ...originalTx,
           id: generateTransactionId(),
           accountId: tg.fromAccountId,
@@ -274,7 +273,7 @@ const ReceitasDespesas = () => {
         newTransactions.push(fromTx, ccTx);
       } else {
         // Transferência normal (origem -> destino)
-        const outTx = {
+        const outTx: TransacaoCompleta = {
           ...originalTx,
           id: generateTransactionId(),
           accountId: tg.fromAccountId,
@@ -284,7 +283,7 @@ const ReceitasDespesas = () => {
           links: { ...(originalTx.links || {}), transferGroupId: tg.id },
         };
 
-        const inTx = {
+        const inTx: TransacaoCompleta = {
           ...originalTx,
           id: generateTransactionId(),
           accountId: tg.toAccountId,
@@ -298,7 +297,7 @@ const ReceitasDespesas = () => {
       }
     } else {
       // Sem transferGroup: adiciona apenas a transação original (garantindo id única)
-      const simpleTx = { ...baseTx, id: tx.id || generateTransactionId() };
+      const simpleTx = { ...baseTx, id: tx.id || generateTransactionId() } as TransacaoCompleta;
       newTransactions.push(simpleTx);
     }
 
