@@ -185,7 +185,7 @@ const ReceitasDespesas = () => {
       const linkedGroupId = editingTransaction.links?.transferGroupId;
       if (linkedGroupId) {
         // Update both sides of the transfer
-        setTransacoesV2(transacoesV2.map(t => {
+        setTransacoesV2(prev => prev.map(t => {
           if (t.id === transaction.id) return transaction;
           if (t.links?.transferGroupId === linkedGroupId && t.id !== transaction.id) {
             // Determine flow for the other side based on account type
@@ -437,16 +437,16 @@ const ReceitasDespesas = () => {
       
       if (linkedGroupId) {
         // Delete both sides of the linked transaction (transfer, aplicacao, resgate)
-        setTransacoesV2(transacoesV2.filter(t => t.links?.transferGroupId !== linkedGroupId));
+        setTransacoesV2(prev => prev.filter(t => t.links?.transferGroupId !== linkedGroupId));
         toast.success("Transações vinculadas excluídas");
       } else {
-        setTransacoesV2(transacoesV2.filter(t => t.id !== id));
+        setTransacoesV2(prev => prev.filter(t => t.id !== id));
         toast.success("Transação excluída");
       }
     };
 
     const handleToggleConciliated = (id: string, value: boolean) => {
-      setTransacoesV2(transacoesV2.map(t => t.id === id ? { ...t, conciliated: value } : t));
+      setTransacoesV2(prev => prev.map(t => t.id === id ? { ...t, conciliated: value } : t));
     };
 
     // Transaction count by category
@@ -462,7 +462,7 @@ const ReceitasDespesas = () => {
 
 
     const handleReconcile = (accountId: string) => {
-      setTransacoesV2(transacoesV2.map(t => 
+      setTransacoesV2(prev => prev.map(t => 
         t.accountId === accountId ? { ...t, conciliated: true } : t
       ));
       toast.success("Conta conciliada!");
@@ -542,14 +542,14 @@ const ReceitasDespesas = () => {
             
             if (existingInitialTx) {
                 // Update existing transaction
-                setTransacoesV2((prev: TransacaoCompleta[]) => prev.map(t => t.id === existingInitialTx.id ? newInitialTx : t));
+                setTransacoesV2(prev => prev.map(t => t.id === existingInitialTx.id ? newInitialTx : t));
             } else {
                 // Add new transaction
                 addTransacaoV2(newInitialTx);
             }
         } else if (existingInitialTx) {
             // Delete existing transaction if new balance is 0
-            setTransacoesV2((prev: TransacaoCompleta[]) => prev.filter(t => t.id !== existingInitialTx.id));
+            setTransacoesV2(prev => prev.filter(t => t.id !== existingInitialTx.id));
         }
       }
       setEditingAccount(undefined);

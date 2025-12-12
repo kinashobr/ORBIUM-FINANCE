@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback, Dispatch, SetStateAction } from "react";
 import {
   Categoria, TransacaoCompleta,
   DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES,
@@ -97,21 +97,20 @@ interface FinanceContextType {
 
   // Contas Movimento (new integrated system)
   contasMovimento: ContaCorrente[];
-  setContasMovimento: (accounts: ContaCorrente[]) => void;
+  setContasMovimento: Dispatch<SetStateAction<ContaCorrente[]>>;
   getContasCorrentesTipo: () => ContaCorrente[];
   
   // Categorias V2 (with nature)
   categoriasV2: Categoria[];
-  setCategoriasV2: (categories: Categoria[]) => void;
+  setCategoriasV2: Dispatch<SetStateAction<Categoria[]>>;
   
   // Transações V2 (integrated)
   transacoesV2: TransacaoCompleta[];
-  setTransacoesV2: (transactions: TransacaoCompleta[]) => void;
-  addTransacaoV2: (transaction: TransacaoCompleta) => void;
+  setTransacoesV2: Dispatch<SetStateAction<TransacaoCompleta[]>>;
   
   // Data Filtering (NEW)
   dateRanges: ComparisonDateRanges;
-  setDateRanges: (ranges: ComparisonDateRanges) => void;
+  setDateRanges: Dispatch<SetStateAction<ComparisonDateRanges>>;
   
   // Cálculos principais
   getTotalReceitas: (mes?: string) => number;
@@ -655,7 +654,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setCategoriasV2,
     transacoesV2,
     setTransacoesV2,
-    addTransacaoV2,
     
     // Data Filtering (NEW)
     dateRanges,
