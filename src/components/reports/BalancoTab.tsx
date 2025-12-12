@@ -182,7 +182,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
     }, 0);
     
     // Passivo longo prazo
-    const passivoLongoPrazo = totalPassivos - passivoCurtoPrato;
+    const passivoLongoPrazo = totalPassivos - passivoCurtoPrazo;
 
     // === PATRIMÔNIO LÍQUIDO ===
     const patrimonioLiquido = totalAtivos - totalPassivos;
