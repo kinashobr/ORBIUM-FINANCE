@@ -52,7 +52,7 @@ const Veiculos = () => {
     updateSeguroVeiculo,
     deleteSeguroVeiculo,
     markSeguroParcelPaid,
-    unmarkSeguroParcelPaid, // <-- ADDED
+    unmarkSeguroParcelaid, // <-- ADDED
     setTransacoesV2, // <-- ADDED
     getValorFipeTotal,
     transacoesV2,
@@ -225,7 +225,7 @@ const Veiculos = () => {
   const handleUnmarkSeguroParcelPaid = (seguroId: number, parcelaNumero: number, transactionId: string | undefined) => {
     if (!window.confirm("Tem certeza que deseja estornar este pagamento? A transação será excluída.")) return;
     
-    unmarkSeguroParcelPaid(seguroId, parcelaNumero);
+    unmarkSeguroParcelaid(seguroId, parcelaNumero);
     
     if (transactionId) {
       setTransacoesV2(prev => prev.filter(t => t.id !== transactionId));
@@ -423,8 +423,8 @@ const Veiculos = () => {
               </DialogContent>
             </Dialog>
             
-            {/* Botão Novo Veículo (REMOVIDO) */}
-            {/* <Button 
+            {/* Botão Novo Veículo (RESTAURADO) */}
+            <Button 
               variant="default" 
               className="gap-2 bg-neon-gradient hover:opacity-90"
               onClick={() => {
@@ -435,7 +435,7 @@ const Veiculos = () => {
             >
               <Car className="w-4 h-4" />
               Novo Veículo
-            </Button> */}
+            </Button>
           </div>
         </div>
 

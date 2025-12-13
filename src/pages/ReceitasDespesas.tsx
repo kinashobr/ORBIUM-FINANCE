@@ -42,12 +42,13 @@ const ReceitasDespesas = () => {
     markLoanParcelPaid,
     unmarkLoanParcelPaid,
     veiculos,
-    addVeiculo,
+    addVeiculo, // <-- ADDED
+    deleteVeiculo, // <-- ADDED
     calculateBalanceUpToDate, // Importado do contexto
     dateRanges, // <-- Use context state
     setDateRanges, // <-- Use context setter
     markSeguroParcelPaid,
-    unmarkSeguroParcelPaid, // <-- FIXED: Renamed from unmarkSeguroParcelaid
+    unmarkSeguroParcelaid, // <-- Use correct name
   } = useFinance();
 
   // Local state for transfer groups
@@ -88,29 +89,25 @@ const ReceitasDespesas = () => {
     setDateRanges(ranges);
   }, [setDateRanges]);
 
-  // Filter transactions
-  const filteredTransactions = useMemo(() => {
-    const range = dateRanges.range1; // Use range1 for filtering transactions in this view
+  // Helper para filtrar transações por um range específico
+  const filterTransactionsByRange = useCallback((range: DateRange) => {
+    if (!range.from || !range.to) return transacoesV2;
     
     // Normaliza os limites do período para garantir que o dia inteiro seja incluído
-    const rangeFrom = range.from ? startOfDay(range.from) : undefined;
-    const rangeTo = range.to ? endOfDay(range.to) : undefined;
+    const rangeFrom = startOfDay(range.from);
+    const rangeTo = endOfDay(range.to);
     
-    return transactions.filter(t => {
-      const matchSearch = !searchTerm || t.description.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchAccount = selectedAccountId === 'all' || t.accountId === selectedAccountId;
-      const matchCategory = selectedCategoryId === 'all' || t.categoryId === selectedCategoryId;
-      const matchType = selectedTypes.includes(t.operationType);
-      
-      // Usa parseDateLocal para obter a data da transação no fuso horário local
+    return transacoesV2.filter(t => {
       const transactionDate = parseDateLocal(t.date);
-      
-      // Filtro de período usando dateRange.range1
-      const matchPeriod = (!rangeFrom || isWithinInterval(transactionDate, { start: rangeFrom, end: rangeTo || new Date() }));
-      
-      return matchSearch && matchAccount && matchCategory && matchType && matchPeriod;
-    }).sort((a, b) => parseDateLocal(b.date).getTime() - parseDateLocal(a.date).getTime());
-  }, [transactions, searchTerm, selectedAccountId, selectedCategoryId, selectedTypes, dateRanges]);
+      return isWithinInterval(transactionDate, { start: rangeFrom, end: rangeTo });
+    });
+  }, [transacoesV2]);
+
+  // Transações do Período 1 (Principal)
+  const transacoesPeriodo1 = useMemo(() => filterTransactionsByRange(dateRanges.range1), [filterTransactionsByRange, dateRanges.range1]);
+
+  // Transações do Período 2 (Comparação)
+  const transacoesPeriodo2 = useMemo(() => filterTransactionsByRange(dateRanges.range2), [filterTransactionsByRange, dateRanges.range2]);
 
   // Contas visíveis (agora todas são visíveis, pois a contrapartida foi removida)
   const visibleAccounts = useMemo(() => {
@@ -445,6 +442,24 @@ const ReceitasDespesas = () => {
       }
     }
     
+    // NEW LOGIC: Handle Vehicle Purchase (triggers pending vehicle registration)
+    if (finalTx.operationType === 'veiculo' && finalTx.meta?.vehicleOperation === 'compra') {
+        addVeiculo({
+            modelo: finalTx.description, // Use description as temporary model name
+            marca: '',
+            tipo: finalTx.meta.tipoVeiculo || 'carro', // Default to 'carro' if not specified
+            ano: 0,
+            dataCompra: finalTx.date,
+            valorVeiculo: finalTx.amount,
+            valorSeguro: 0,
+            vencimentoSeguro: '',
+            parcelaSeguro: 0,
+            valorFipe: 0,
+            compraTransactionId: finalTx.id,
+            status: 'pendente_cadastro',
+        });
+    }
+    
     // 4. Handle Seguro Payment (NEW LOGIC)
     if (finalTx.links?.vehicleTransactionId && finalTx.flow === 'out') {
         const [seguroIdStr, parcelaNumeroStr] = finalTx.links.vehicleTransactionId.split('_');
@@ -486,7 +501,20 @@ const ReceitasDespesas = () => {
         const parcelaNumero = parseInt(parcelaNumeroStr);
         
         if (!isNaN(seguroId) && !isNaN(parcelaNumero)) {
-            unmarkSeguroParcelPaid(seguroId, parcelaNumero); 
+            unmarkSeguroParcelaid(seguroId, parcelaNumero); 
+        }
+    }
+    
+    // Reverter criação de veículo pendente (NEW LOGIC)
+    if (transactionToDelete?.operationType === 'veiculo' && transactionToDelete.meta?.vehicleOperation === 'compra') {
+        const vehicleId = veiculos.find(v => v.compraTransactionId === id)?.id;
+        if (vehicleId) {
+            // Assuming we only delete the vehicle if it's still pending registration
+            const vehicle = veiculos.find(v => v.id === vehicleId);
+            if (vehicle?.status === 'pendente_cadastro') {
+                // Only delete if it hasn't been fully configured yet
+                deleteVeiculo(vehicleId);
+            }
         }
     }
 
