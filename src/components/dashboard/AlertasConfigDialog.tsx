@@ -15,7 +15,10 @@ import { Separator } from "@/components/ui/separator";
 import { 
   AlertTriangle, 
   Target,
-  Save
+  Save,
+  CreditCard,
+  Repeat,
+  Shield
 } from "lucide-react";
 
 interface AlertaConfig {
@@ -51,6 +54,21 @@ const ALERTA_INFO: Record<string, { icon: React.ElementType; descricao: string; 
   "emprestimos-pendentes": {
     icon: Target,
     descricao: "Alerta sobre empréstimos aguardando configuração",
+    unidade: ""
+  },
+  "comprometimento-renda": {
+    icon: CreditCard,
+    descricao: "Alerta quando parcelas de empréstimo ultrapassam X% da receita mensal",
+    unidade: "%"
+  },
+  "rigidez-orcamentaria": {
+    icon: Repeat,
+    descricao: "Alerta quando despesas fixas ultrapassam X% das despesas totais",
+    unidade: "%"
+  },
+  "seguro-vencendo": {
+    icon: Shield,
+    descricao: "Alerta quando seguros de veículos estão próximos do vencimento (60 dias)",
     unidade: ""
   },
 };

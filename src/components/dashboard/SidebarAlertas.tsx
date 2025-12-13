@@ -8,7 +8,9 @@ import {
   Target,
   Settings2,
   ChevronRight,
-  X
+  X,
+  Repeat,
+  Shield
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +20,7 @@ import {
   TooltipContent, 
   TooltipTrigger 
 } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+import { cn, parseDateLocal } from "@/lib/utils";
 import { useFinance } from "@/contexts/FinanceContext";
 import { AlertasConfigDialog } from "./AlertasConfigDialog";
 
@@ -37,11 +39,52 @@ interface AlertaConfig {
   tolerancia: number;
 }
 
+const ALERTA_INFO: Record<string, { icon: React.ElementType; descricao: string; unidade: string }> = {
+  "saldo-negativo": {
+    icon: AlertTriangle,
+    descricao: "Alerta quando o saldo total das contas ficar negativo",
+    unidade: ""
+  },
+  "dividas-altas": {
+    icon: Target,
+    descricao: "Alerta quando dívidas ultrapassarem X% do saldo disponível",
+    unidade: "%"
+  },
+  "margem-baixa": {
+    icon: Target,
+    descricao: "Alerta quando a margem de poupança ficar abaixo de X%",
+    unidade: "%"
+  },
+  "emprestimos-pendentes": {
+    icon: Target,
+    descricao: "Alerta sobre empréstimos aguardando configuração",
+    unidade: ""
+  },
+  "comprometimento-renda": {
+    icon: CreditCard,
+    descricao: "Alerta quando parcelas de empréstimo ultrapassam X% da receita mensal",
+    unidade: "%"
+  },
+  "rigidez-orcamentaria": {
+    icon: Repeat,
+    descricao: "Alerta quando despesas fixas ultrapassam X% das despesas totais",
+    unidade: "%"
+  },
+  "seguro-vencendo": {
+    icon: Shield,
+    descricao: "Alerta quando seguros de veículos estão próximos do vencimento (60 dias)",
+    unidade: ""
+  },
+};
+
 const DEFAULT_CONFIG: AlertaConfig[] = [
   { id: "saldo-negativo", nome: "Saldo Negativo", ativo: true, tolerancia: 0 },
   { id: "dividas-altas", nome: "Dívidas Altas", ativo: true, tolerancia: 200 },
   { id: "margem-baixa", nome: "Margem Baixa", ativo: true, tolerancia: 10 },
   { id: "emprestimos-pendentes", nome: "Empréstimos Pendentes", ativo: true, tolerancia: 0 },
+  { id: "comprometimento-renda", nome: "Comprometimento Renda", ativo: true, tolerancia: 30 },
+  { id: "rigidez-orcamentaria", nome: "Rigidez Orçamentária", ativo: true, tolerancia: 60 },
+  { id: "seguro-vencendo", nome: "Seguro Vencendo", ativo: true, tolerancia: 0 },
 ];
 
 interface SidebarAlertasProps {
@@ -50,11 +93,27 @@ interface SidebarAlertasProps {
 
 export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
   const navigate = useNavigate();
-  const { transacoesV2, contasMovimento, emprestimos } = useFinance();
+  const { 
+    transacoesV2, 
+    emprestimos, 
+    segurosVeiculo,
+    categoriasV2,
+    getSaldoAtual,
+    getSaldoDevedor,
+  } = useFinance();
   const [configOpen, setConfigOpen] = useState(false);
   const [alertasConfig, setAlertasConfig] = useState<AlertaConfig[]>(() => {
     const saved = localStorage.getItem("alertas-config");
-    return saved ? JSON.parse(saved) : DEFAULT_CONFIG;
+    const savedConfig = saved ? JSON.parse(saved) : [];
+    const configMap = new Map(savedConfig.map((c: AlertaConfig) => [c.id, c]));
+    
+    // Merge saved config with new defaults
+    return DEFAULT_CONFIG.map(defaultAlert => {
+        if (configMap.has(defaultAlert.id)) {
+            return { ...defaultAlert, ...configMap.get(defaultAlert.id) };
+        }
+        return defaultAlert;
+    });
   });
   const [dismissedAlertas, setDismissedAlertas] = useState<Set<string>>(new Set());
 
@@ -64,18 +123,23 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
     const mesAtual = now.getMonth();
     const anoAtual = now.getFullYear();
 
-    // Saldo total das contas
-    const saldoContas = contasMovimento.reduce((acc, conta) => {
-      const contaTx = transacoesV2.filter(t => t.accountId === conta.id);
-      const totalIn = contaTx.filter(t => t.flow === 'in' || t.flow === 'transfer_in').reduce((s, t) => s + t.amount, 0);
-      const totalOut = contaTx.filter(t => t.flow === 'out' || t.flow === 'transfer_out').reduce((s, t) => s + t.amount, 0);
-      return acc + conta.initialBalance + totalIn - totalOut;
-    }, 0);
+    // 1. Saldo total das contas (Global)
+    const saldoContas = getSaldoAtual(); 
 
-    // Receitas e despesas do mês
+    // 2. Dívidas (Global)
+    const totalDividas = getSaldoDevedor(); 
+    
+    // 3. Empréstimos pendentes (Configuration pending)
+    const emprestimosPendentes = emprestimos.filter(e => e.status === 'pendente_config').length;
+
+    // 4. Transações do mês (Current Month)
     const transacoesMes = transacoesV2.filter(t => {
-      const d = new Date(t.date);
-      return d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
+      try {
+        const d = parseDateLocal(t.date);
+        return d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
+      } catch {
+        return false;
+      }
     });
 
     const receitasMes = transacoesMes
@@ -85,19 +149,37 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
     const despesasMes = transacoesMes
       .filter(t => t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo')
       .reduce((acc, t) => acc + t.amount, 0);
+      
+    // 5. Despesas Fixas do Mês
+    const categoriasMap = new Map(categoriasV2.map(c => [c.id, c]));
+    const despesasFixasMes = transacoesMes
+        .filter(t => {
+            const cat = categoriasMap.get(t.categoryId || '');
+            return cat?.nature === 'despesa_fixa';
+        })
+        .reduce((acc, t) => acc + t.amount, 0);
 
-    // Dívidas
-    const totalDividas = emprestimos
-      .filter(e => e.status !== 'pendente_config' && e.status !== 'quitado')
-      .reduce((acc, e) => {
-        const parcelasPagas = e.parcelasPagas || 0;
-        const saldoDevedor = Math.max(0, e.valorTotal - (parcelasPagas * e.parcela));
-        return acc + saldoDevedor;
-      }, 0);
-
-    const emprestimosPendentes = emprestimos.filter(e => e.status === 'pendente_config').length;
-
+    // 6. Margem de Poupança (Savings Rate)
     const margemPoupanca = receitasMes > 0 ? ((receitasMes - despesasMes) / receitasMes) * 100 : 0;
+    
+    // 7. Total de Parcelas de Empréstimo do Mês (Debt Service)
+    const parcelasEmprestimoMes = transacoesMes
+        .filter(t => t.operationType === 'pagamento_emprestimo')
+        .reduce((acc, t) => acc + t.amount, 0);
+        
+    // 8. Seguros vencendo em 60 dias
+    const dataLimiteSeguro = new Date();
+    dataLimiteSeguro.setDate(dataLimiteSeguro.getDate() + 60);
+    
+    const segurosVencendo = segurosVeiculo.filter(s => {
+        try {
+            const vigenciaFim = parseDateLocal(s.vigenciaFim);
+            return vigenciaFim > now && vigenciaFim <= dataLimiteSeguro;
+        } catch {
+            return false;
+        }
+    }).length;
+
 
     return {
       saldoContas,
@@ -105,16 +187,19 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
       despesasMes,
       totalDividas,
       emprestimosPendentes,
-      margemPoupanca
+      margemPoupanca,
+      despesasFixasMes,
+      parcelasEmprestimoMes,
+      segurosVencendo,
     };
-  }, [transacoesV2, contasMovimento, emprestimos]);
+  }, [transacoesV2, emprestimos, segurosVeiculo, categoriasV2, getSaldoAtual, getSaldoDevedor]);
 
   // Gerar alertas baseados nas configurações
   const alertas = useMemo(() => {
     const alerts: Alerta[] = [];
     const configMap = new Map(alertasConfig.map(c => [c.id, c]));
 
-    // Saldo negativo
+    // 1. Saldo negativo
     if (configMap.get("saldo-negativo")?.ativo && metricas.saldoContas < 0) {
       alerts.push({
         id: "saldo-negativo",
@@ -125,19 +210,19 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
       });
     }
 
-    // Dívidas altas
+    // 2. Dívidas altas (Debt to Asset Ratio - using totalDividas vs saldoContas as proxy)
     const toleranciaDividas = configMap.get("dividas-altas")?.tolerancia || 200;
-    if (configMap.get("dividas-altas")?.ativo && metricas.totalDividas > metricas.saldoContas * (toleranciaDividas / 100)) {
+    if (configMap.get("dividas-altas")?.ativo && metricas.totalDividas > metricas.saldoContas * (toleranciaDividas / 100) && metricas.saldoContas > 0) {
       alerts.push({
         id: "dividas-altas",
         tipo: "warning",
         titulo: "Dívidas Elevadas",
-        descricao: `R$ ${metricas.totalDividas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+        descricao: `Dívida total: R$ ${metricas.totalDividas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
         rota: "/emprestimos"
       });
     }
 
-    // Margem baixa
+    // 3. Margem baixa (Savings Rate)
     const toleranciaMargem = configMap.get("margem-baixa")?.tolerancia || 10;
     if (configMap.get("margem-baixa")?.ativo && metricas.margemPoupanca < toleranciaMargem && metricas.receitasMes > 0) {
       alerts.push({
@@ -149,7 +234,7 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
       });
     }
 
-    // Empréstimos pendentes
+    // 4. Empréstimos pendentes
     if (configMap.get("emprestimos-pendentes")?.ativo && metricas.emprestimosPendentes > 0) {
       alerts.push({
         id: "emprestimos-pendentes",
@@ -158,6 +243,48 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
         descricao: `${metricas.emprestimosPendentes} pendente(s)`,
         rota: "/emprestimos"
       });
+    }
+    
+    // 5. Alto Comprometimento de Renda (Debt Service Ratio)
+    const configComprometimento = configMap.get("comprometimento-renda");
+    const toleranciaComprometimento = configComprometimento?.tolerancia || 30;
+    const comprometimentoRenda = metricas.receitasMes > 0 ? (metricas.parcelasEmprestimoMes / metricas.receitasMes) * 100 : 0;
+    
+    if (configComprometimento?.ativo && comprometimentoRenda > toleranciaComprometimento && metricas.receitasMes > 0) {
+        alerts.push({
+            id: "comprometimento-renda",
+            tipo: "danger",
+            titulo: "Comprometimento Alto",
+            descricao: `${comprometimentoRenda.toFixed(1)}% da renda em parcelas`,
+            rota: "/emprestimos"
+        });
+    }
+    
+    // 6. Rigidez Orçamentária (Fixed Expense Ratio)
+    const configRigidez = configMap.get("rigidez-orcamentaria");
+    const toleranciaRigidez = configRigidez?.tolerancia || 60;
+    const rigidezOrcamentaria = metricas.despesasMes > 0 ? (metricas.despesasFixasMes / metricas.despesasMes) * 100 : 0;
+    
+    if (configRigidez?.ativo && rigidezOrcamentaria > toleranciaRigidez && metricas.despesasMes > 0) {
+        alerts.push({
+            id: "rigidez-orcamentaria",
+            tipo: "warning",
+            titulo: "Rigidez Orçamentária",
+            descricao: `${rigidezOrcamentaria.toFixed(1)}% das despesas são fixas`,
+            rota: "/receitas-despesas"
+        });
+    }
+    
+    // 7. Seguro Vencendo
+    const configSeguro = configMap.get("seguro-vencendo");
+    if (configSeguro?.ativo && metricas.segurosVencendo > 0) {
+        alerts.push({
+            id: "seguro-vencendo",
+            tipo: "warning",
+            titulo: "Seguro Vencendo",
+            descricao: `${metricas.segurosVencendo} seguro(s) vencendo em 60 dias`,
+            rota: "/veiculos"
+        });
     }
 
     return alerts.filter(a => !dismissedAlertas.has(a.id));
@@ -172,13 +299,9 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
     setDismissedAlertas(prev => new Set([...prev, alertaId]));
   };
 
-  const getAlertIcon = (tipo: string) => {
-    switch (tipo) {
-      case "danger": return AlertTriangle;
-      case "warning": return TrendingDown;
-      case "info": return CreditCard;
-      default: return Target;
-    }
+  const getAlertIcon = (alertaId: string) => {
+    const info = ALERTA_INFO[alertaId];
+    return info?.icon || Target;
   };
 
   const getAlertStyles = (tipo: string) => {
@@ -268,7 +391,7 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
         <div className="space-y-2">
           {alertas.length > 0 ? (
             alertas.map((alerta) => {
-              const Icon = getAlertIcon(alerta.tipo);
+              const Icon = getAlertIcon(alerta.id);
               return (
                 <div
                   key={alerta.id}
