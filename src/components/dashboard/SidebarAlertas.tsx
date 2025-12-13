@@ -104,7 +104,7 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
   const [configOpen, setConfigOpen] = useState(false);
   const [alertasConfig, setAlertasConfig] = useState<AlertaConfig[]>(() => {
     const saved = localStorage.getItem("alertas-config");
-    const savedConfig = saved ? JSON.parse(saved) : [];
+    const savedConfig: AlertaConfig[] = saved ? JSON.parse(saved) : [];
     const configMap = new Map(savedConfig.map((c: AlertaConfig) => [c.id, c]));
     
     // Merge saved config with new defaults
