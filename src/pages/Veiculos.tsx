@@ -473,7 +473,7 @@ const Veiculos = () => {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground font-medium">Valor dos Veículos</p>
-                  <p className="text-2xl font-bold text-foreground mt-1">
+                  <p className="text-2xl font-bold text-primary mt-1">
                     R$ {totalVeiculos.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                   </p>
                 </div>
@@ -489,7 +489,7 @@ const Veiculos = () => {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground font-medium">Total Seguros</p>
-                  <p className="text-2xl font-bold text-foreground mt-1">
+                  <p className="text-2xl font-bold text-primary mt-1">
                     R$ {totalSeguros.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                   </p>
                 </div>

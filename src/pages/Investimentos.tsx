@@ -254,7 +254,7 @@ const Investimentos = () => {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground font-medium">Total Investido</p>
-                  <p className="text-2xl font-bold text-foreground mt-1">
+                  <p className="text-2xl font-bold text-primary mt-1">
                     {formatCurrency(calculosPatrimonio.patrimonioInvestimentos)}
                   </p>
                 </div>

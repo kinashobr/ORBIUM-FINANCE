@@ -33,10 +33,11 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit }: Ac
     transactionCount
   } = summary;
 
-  const statusColors = {
-    ok: 'border-l-success bg-success/5',
-    warning: 'border-l-warning bg-warning/5',
-    error: 'border-l-destructive bg-destructive/5'
+  // Mapeamento para as classes CSS customizadas
+  const statusClasses = {
+    ok: 'stat-card-positive',
+    warning: 'stat-card-warning',
+    error: 'stat-card-negative'
   };
 
   const statusBadgeColors = {
@@ -50,8 +51,8 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit }: Ac
 
   return (
     <Card className={cn(
-      "min-w-[280px] max-w-[320px] p-4 border-l-4 transition-all hover:shadow-md",
-      statusColors[reconciliationStatus]
+      "min-w-[280px] max-w-[320px] p-4 transition-all hover:shadow-md",
+      statusClasses[reconciliationStatus] // Aplica a classe customizada que define a borda de 4px
     )}>
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">
