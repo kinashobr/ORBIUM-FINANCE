@@ -62,7 +62,7 @@ export function CockpitCards({ data }: CockpitCardsProps) {
       value: formatCurrency(data.liquidezImediata),
       icon: Wallet,
       color: 'text-info',
-      bgColor: 'bg-info/10',
+      bgColor: 'bg-info/30', // Aumentado para 30% para garantir visibilidade
       status: data.liquidezImediata > 0 ? 'info' : 'danger',
     },
     {
