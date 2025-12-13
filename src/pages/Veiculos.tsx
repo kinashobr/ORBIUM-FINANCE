@@ -423,10 +423,10 @@ const Veiculos = () => {
               </DialogContent>
             </Dialog>
             
-            {/* Botão Novo Veículo (RESTAURADO) */}
+            {/* Botão Novo Veículo (OCULTADO) */}
             <Button 
               variant="default" 
-              className="gap-2 bg-neon-gradient hover:opacity-90"
+              className="gap-2 bg-neon-gradient hover:opacity-90 hidden"
               onClick={() => {
                 setPendingVehicleId(null);
                 setFormData({ modelo: "", marca: "", tipo: "carro", ano: "", dataCompra: "", valorVeiculo: "", valorFipe: "" });
