@@ -97,6 +97,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
     getPatrimonioLiquido,
     calculateBalanceUpToDate, // Importado do contexto
     calculatePaidInstallmentsUpToDate, // Importado do contexto
+    getValorFipeTotal, // <-- ADDED
   } = useFinance();
 
   const { range1, range2 } = dateRanges;

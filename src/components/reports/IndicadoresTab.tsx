@@ -51,7 +51,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+import { cn, parseDateLocal } from "@/lib/utils";
 import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval, subDays, startOfDay, endOfDay } from "date-fns";
 import { toast } from "sonner";
 import { ComparisonDateRanges, DateRange } from "@/types/finance";
@@ -116,6 +116,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
     getSaldoDevedor,
     getJurosTotais,
     calculateBalanceUpToDate, // Importado do contexto
+    getValorFipeTotal, // <-- ADDED
   } = useFinance();
 
   const { range1, range2 } = dateRanges;
@@ -278,7 +279,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
     const transacoesPeriodo = transacoesV2.filter(t => {
       if (!range.from || !range.to) return true;
       try {
-        const dataT = parseISO(t.date);
+        const dataT = parseDateLocal(t.date);
         return isWithinInterval(dataT, { start: startOfDay(range.from!), end: endOfDay(range.to!) });
       } catch {
         return false;
