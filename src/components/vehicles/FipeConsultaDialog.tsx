@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -26,15 +26,16 @@ interface FipeConsultaDialogProps {
   onUpdateFipe?: (veiculoId: number, valorFipe: number) => void;
 }
 
+// Helper para normalizar strings para comparação
+const normalizeString = (str: string) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
 export function FipeConsultaDialog({ open, onOpenChange, veiculo, onUpdateFipe }: FipeConsultaDialogProps) {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<'select' | 'result'>('select');
   const [error, setError] = useState<string | null>(null);
   
   // Selection states
-  const [tipo, setTipo] = useState<'carros' | 'motos' | 'caminhoes'>(
-    veiculo?.tipo ? tipoToFipe(veiculo.tipo) : 'carros'
-  );
+  const [tipo, setTipo] = useState<'carros' | 'motos' | 'caminhoes'>('carros');
   const [marcas, setMarcas] = useState<FipeMarca[]>([]);
   const [modelos, setModelos] = useState<FipeModelo[]>([]);
   const [anos, setAnos] = useState<FipeAno[]>([]);
@@ -45,8 +46,10 @@ export function FipeConsultaDialog({ open, onOpenChange, veiculo, onUpdateFipe }
   
   const [resultado, setResultado] = useState<FipeResult | null>(null);
   const [valorNumerico, setValorNumerico] = useState<number>(0);
-  
-  const loadMarcas = async (tipoVeiculo: 'carros' | 'motos' | 'caminhoes') => {
+
+  // --- Loading Callbacks ---
+
+  const loadMarcas = useCallback(async (tipoVeiculo: 'carros' | 'motos' | 'caminhoes') => {
     setLoading(true);
     setError(null);
     try {
@@ -54,44 +57,153 @@ export function FipeConsultaDialog({ open, onOpenChange, veiculo, onUpdateFipe }
       setMarcas(data);
       setModelos([]);
       setAnos([]);
+      setSelectedModelo('');
+      setSelectedAno('');
+      return data;
+    } catch (err) {
+      setError('Erro ao carregar marcas');
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  
+  const loadModelos = useCallback(async (tipoVeiculo: 'carros' | 'motos' | 'caminhoes', codigoMarca: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await buscarModelos(tipoVeiculo, codigoMarca);
+      setModelos(data.modelos);
+      setAnos([]);
+      setSelectedAno('');
+      return data.modelos;
+    } catch (err) {
+      setError('Erro ao carregar modelos');
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  
+  const loadAnos = useCallback(async (tipoVeiculo: 'carros' | 'motos' | 'caminhoes', codigoMarca: string, codigoModelo: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await buscarAnos(tipoVeiculo, codigoMarca, codigoModelo);
+      setAnos(data);
+      return data;
+    } catch (err) {
+      setError('Erro ao carregar anos');
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // --- Pre-fill Logic ---
+
+  useEffect(() => {
+    if (!open) {
+      // Reset state when closing
+      setStep('select');
+      setError(null);
+      setResultado(null);
+      setValorNumerico(0);
       setSelectedMarca('');
       setSelectedModelo('');
       setSelectedAno('');
-    } catch (err) {
-      setError('Erro ao carregar marcas');
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  const loadModelos = async (codigoMarca: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await buscarModelos(tipo, codigoMarca);
-      setModelos(data.modelos);
+      setMarcas([]);
+      setModelos([]);
       setAnos([]);
-      setSelectedModelo('');
-      setSelectedAno('');
-    } catch (err) {
-      setError('Erro ao carregar modelos');
-    } finally {
-      setLoading(false);
+      setTipo('carros');
+      return;
     }
+
+    if (veiculo && veiculo.marca && veiculo.modelo && veiculo.ano) {
+      const preFill = async () => {
+        setLoading(true);
+        setStep('select');
+        setError(null);
+        
+        try {
+          const fipeTipo = tipoToFipe(veiculo.tipo || 'carro');
+          setTipo(fipeTipo);
+          
+          // 1. Buscar e Selecionar Marca
+          const marcaData = await loadMarcas(fipeTipo);
+          const normalizedMarca = normalizeString(veiculo.marca!);
+          // Tenta encontrar a marca que contenha o nome cadastrado
+          const matchingMarca = marcaData.find(m => normalizeString(m.nome).includes(normalizedMarca));
+          
+          if (!matchingMarca) {
+            setError(`Marca "${veiculo.marca}" não encontrada na FIPE.`);
+            return;
+          }
+          
+          setSelectedMarca(matchingMarca.codigo);
+          
+          // 2. Buscar e Selecionar Modelo
+          const modelosData = await loadModelos(fipeTipo, matchingMarca.codigo);
+          const normalizedModelo = normalizeString(veiculo.modelo!);
+          // Tenta encontrar o modelo que contenha o nome cadastrado
+          const matchingModelo = modelosData.find(m => normalizeString(m.nome).includes(normalizedModelo));
+          
+          if (!matchingModelo) {
+            setError(`Modelo "${veiculo.modelo}" não encontrado na FIPE.`);
+            return;
+          }
+          
+          const modeloCodigo = matchingModelo.codigo.toString();
+          setSelectedModelo(modeloCodigo);
+          
+          // 3. Buscar e Selecionar Ano
+          const anosData = await loadAnos(fipeTipo, matchingMarca.codigo, modeloCodigo);
+          // Tenta encontrar o ano que contenha o ano cadastrado (ex: "2020 Gasolina")
+          const matchingAno = anosData.find(a => a.nome.includes(veiculo.ano.toString()));
+          
+          if (!matchingAno) {
+            setError(`Ano "${veiculo.ano}" não encontrado na FIPE.`);
+            return;
+          }
+          
+          setSelectedAno(matchingAno.codigo);
+          
+        } catch (err) {
+          console.error(err);
+          setError('Erro ao pré-preencher dados FIPE.');
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      preFill();
+    } else if (open) {
+      // If opening without a vehicle or incomplete data, just load initial brands
+      loadMarcas(tipo);
+    }
+  }, [open, veiculo, loadMarcas, loadModelos, loadAnos]);
+
+  // --- Handlers for User Interaction ---
+
+  const handleTipoChange = (novoTipo: 'carros' | 'motos' | 'caminhoes') => {
+    setTipo(novoTipo);
+    setSelectedMarca('');
+    setSelectedModelo('');
+    setSelectedAno('');
+    loadMarcas(novoTipo);
   };
   
-  const loadAnos = async (codigoModelo: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await buscarAnos(tipo, selectedMarca, codigoModelo);
-      setAnos(data);
-      setSelectedAno('');
-    } catch (err) {
-      setError('Erro ao carregar anos');
-    } finally {
-      setLoading(false);
-    }
+  const handleMarcaChange = (codigo: string) => {
+    setSelectedMarca(codigo);
+    setSelectedModelo('');
+    setSelectedAno('');
+    loadModelos(tipo, codigo);
+  };
+  
+  const handleModeloChange = (codigo: string) => {
+    setSelectedModelo(codigo);
+    setSelectedAno('');
+    loadAnos(tipo, selectedMarca, codigo);
   };
   
   const consultarFipe = async () => {
@@ -118,21 +230,6 @@ export function FipeConsultaDialog({ open, onOpenChange, veiculo, onUpdateFipe }
     }
   };
   
-  const handleTipoChange = (novoTipo: 'carros' | 'motos' | 'caminhoes') => {
-    setTipo(novoTipo);
-    loadMarcas(novoTipo);
-  };
-  
-  const handleMarcaChange = (codigo: string) => {
-    setSelectedMarca(codigo);
-    loadModelos(codigo);
-  };
-  
-  const handleModeloChange = (codigo: string) => {
-    setSelectedModelo(codigo);
-    loadAnos(codigo);
-  };
-  
   const handleAplicarValor = () => {
     if (veiculo && onUpdateFipe && valorNumerico > 0) {
       onUpdateFipe(veiculo.id, valorNumerico);
@@ -144,6 +241,8 @@ export function FipeConsultaDialog({ open, onOpenChange, veiculo, onUpdateFipe }
     setStep('select');
     setResultado(null);
     setValorNumerico(0);
+    // Reload marcas to reset selection
+    loadMarcas(tipo);
   };
   
   // Calculate difference with vehicle purchase price
@@ -156,6 +255,8 @@ export function FipeConsultaDialog({ open, onOpenChange, veiculo, onUpdateFipe }
   
   const diferenca = getDiferenca();
   
+  const isConsultable = selectedMarca && selectedModelo && selectedAno;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-card border-border max-w-lg">
@@ -184,7 +285,7 @@ export function FipeConsultaDialog({ open, onOpenChange, veiculo, onUpdateFipe }
             
             <div>
               <Label>Tipo de Veículo</Label>
-              <Select value={tipo} onValueChange={handleTipoChange}>
+              <Select value={tipo} onValueChange={handleTipoChange} disabled={loading}>
                 <SelectTrigger className="mt-1 bg-muted border-border">
                   <SelectValue />
                 </SelectTrigger>
@@ -201,7 +302,7 @@ export function FipeConsultaDialog({ open, onOpenChange, veiculo, onUpdateFipe }
               <Select 
                 value={selectedMarca} 
                 onValueChange={handleMarcaChange}
-                disabled={marcas.length === 0}
+                disabled={marcas.length === 0 || loading}
               >
                 <SelectTrigger className="mt-1 bg-muted border-border">
                   <SelectValue placeholder={loading ? "Carregando..." : "Selecione a marca"} />
@@ -219,7 +320,7 @@ export function FipeConsultaDialog({ open, onOpenChange, veiculo, onUpdateFipe }
               <Select 
                 value={selectedModelo} 
                 onValueChange={handleModeloChange}
-                disabled={modelos.length === 0}
+                disabled={modelos.length === 0 || loading}
               >
                 <SelectTrigger className="mt-1 bg-muted border-border">
                   <SelectValue placeholder={loading ? "Carregando..." : "Selecione o modelo"} />
@@ -237,7 +338,7 @@ export function FipeConsultaDialog({ open, onOpenChange, veiculo, onUpdateFipe }
               <Select 
                 value={selectedAno} 
                 onValueChange={setSelectedAno}
-                disabled={anos.length === 0}
+                disabled={anos.length === 0 || loading}
               >
                 <SelectTrigger className="mt-1 bg-muted border-border">
                   <SelectValue placeholder={loading ? "Carregando..." : "Selecione o ano"} />
@@ -252,7 +353,7 @@ export function FipeConsultaDialog({ open, onOpenChange, veiculo, onUpdateFipe }
             
             <Button 
               onClick={consultarFipe} 
-              disabled={!selectedMarca || !selectedModelo || !selectedAno || loading}
+              disabled={!isConsultable || loading}
               className="w-full bg-neon-gradient hover:opacity-90"
             >
               {loading ? (
@@ -267,16 +368,6 @@ export function FipeConsultaDialog({ open, onOpenChange, veiculo, onUpdateFipe }
                 </>
               )}
             </Button>
-            
-            {marcas.length === 0 && !loading && (
-              <Button 
-                variant="outline" 
-                onClick={() => loadMarcas(tipo)}
-                className="w-full"
-              >
-                Carregar Marcas
-              </Button>
-            )}
           </div>
         )}
         
