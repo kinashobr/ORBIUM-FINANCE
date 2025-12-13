@@ -77,19 +77,15 @@ const Index = () => {
       .reduce((acc, c) => acc + c.saldo, 0);
   }, [saldosPorConta]);
 
-  // Total de todos os ativos (usando saldos calculados na data final do período)
+  // Total de todos os ativos (usando a função period-aware do contexto)
   const totalAtivosPeriodo = useMemo(() => {
-    const saldoContasAtivas = saldosPorConta
-      .filter(c => c.accountType !== 'cartao_credito')
-      .reduce((acc, c) => acc + Math.max(0, c.saldo), 0);
-      
-    const valorVeiculos = getValorFipeTotal();
-                          
-    return saldoContasAtivas + valorVeiculos;
-  }, [saldosPorConta, getValorFipeTotal]);
+    return getAtivosTotal(dateRanges.range1.to);
+  }, [getAtivosTotal, dateRanges.range1.to]);
 
-  // Total dívidas (empréstimos ativos) - Mantemos o cálculo global de passivos, pois dívidas são passivos de longo prazo.
-  const totalDividas = getPassivosTotal();
+  // Total dívidas (empréstimos ativos) - Usando a função period-aware do contexto
+  const totalDividas = useMemo(() => {
+    return getPassivosTotal(dateRanges.range1.to);
+  }, [getPassivosTotal, dateRanges.range1.to]);
 
   // Patrimônio total
   const patrimonioTotal = totalAtivosPeriodo - totalDividas;
@@ -196,7 +192,7 @@ const Index = () => {
     reservaEmergencia > 0,
     poupancaTotal > 0,
     liquidezImediata > 0,
-    getValorFipeTotal() > 0,
+    getValorFipeTotal(dateRanges.range1.to) > 0,
   ].filter(Boolean).length;
   const diversificacaoPercent = (tiposAtivos / 7) * 100;
 

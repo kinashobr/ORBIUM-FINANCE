@@ -31,8 +31,7 @@ export function EvolucaoPatrimonialChart({}: EvolucaoPatrimonialChartProps) {
   const { 
     transacoesV2, 
     contasMovimento,
-    getValorFipeTotal,
-    getSaldoDevedor,
+    getPatrimonioLiquido, // Usando a função period-aware
     calculateBalanceUpToDate,
   } = useFinance();
   
@@ -51,26 +50,11 @@ export function EvolucaoPatrimonialChart({}: EvolucaoPatrimonialChartProps) {
   };
 
   const calculatePLAtDate = useCallback((targetDate: Date) => {
-    // Para o gráfico de evolução, calculamos a evolução dos ATIVOS LÍQUIDOS (Caixa + Investimentos)
-    // A evolução histórica de Passivos e Veículos é complexa e não implementada,
-    // então focamos no que o sistema pode calcular com precisão: o saldo das contas.
-    
-    const saldosPorConta = contasMovimento.map(conta => ({
-      id: conta.id,
-      type: conta.accountType,
-      saldo: calculateBalanceUpToDate(conta.id, targetDate, transacoesV2, contasMovimento),
-    }));
-
-    // Ativos Líquidos = Soma de todos os saldos positivos das contas (exceto CC, que é passivo)
-    const totalAtivosLiquidos = saldosPorConta
-      .filter(c => c.type !== 'cartao_credito')
-      .reduce((acc, c) => acc + Math.max(0, c.saldo), 0);
-      
-    // Usamos o total de ativos líquidos como proxy para o Patrimônio Líquido em evolução.
-    const patrimonioLiquido = totalAtivosLiquidos;
+    // Para o gráfico de evolução, usamos o Patrimônio Líquido calculado na data
+    const patrimonioLiquido = getPatrimonioLiquido(targetDate);
     
     return { patrimonioLiquido };
-  }, [contasMovimento, transacoesV2, calculateBalanceUpToDate]);
+  }, [getPatrimonioLiquido]);
 
 
   const filteredData = useMemo(() => {

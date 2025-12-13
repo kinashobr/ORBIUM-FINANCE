@@ -96,6 +96,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
     getPassivosTotal,
     getPatrimonioLiquido,
     calculateBalanceUpToDate, // Importado do contexto
+    calculatePaidInstallmentsUpToDate, // Importado do contexto
   } = useFinance();
 
   const { range1, range2 } = dateRanges;
@@ -121,40 +122,14 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
   const transacoesPeriodo2 = useMemo(() => filterTransactionsByRange(range2), [filterTransactionsByRange, range2]);
 
   // 2. Calcular saldo de cada conta baseado nas transações do período (Saldo Final do Período)
-  const calculateFinalBalances = useCallback((transactions: typeof transacoesV2, periodStart: Date | undefined) => {
+  const calculateFinalBalances = useCallback((transactions: typeof transacoesV2, periodStart: Date | undefined, periodEnd: Date | undefined) => {
     const saldos: Record<string, number> = {};
     
     contasMovimento.forEach(conta => {
-      // O saldo inicial é o saldo acumulado ANTES do período
-      const saldoInicialPeriodo = periodStart 
-        ? calculateBalanceUpToDate(conta.id, subDays(periodStart, 1), transacoesV2, contasMovimento)
-        : calculateBalanceUpToDate(conta.id, undefined, transacoesV2, contasMovimento);
+      // O saldo final é o saldo acumulado ATÉ o final do período
+      const saldoFinalPeriodo = calculateBalanceUpToDate(conta.id, periodEnd, transacoesV2, contasMovimento);
         
-      saldos[conta.id] = saldoInicialPeriodo;
-    });
-
-    transactions.forEach(t => {
-      if (!saldos[t.accountId]) saldos[t.accountId] = 0;
-      
-      // Lógica de fluxo de caixa (simplificada para o balanço)
-      const account = contasMovimento.find(c => c.id === t.accountId);
-      const isCreditCard = account?.accountType === 'cartao_credito';
-
-      if (isCreditCard) {
-        // CC: Despesa (out) subtrai (aumenta passivo), Transferência (in) soma (diminui passivo)
-        if (t.operationType === 'despesa') {
-          saldos[t.accountId] -= t.amount;
-        } else if (t.operationType === 'transferencia') {
-          saldos[t.accountId] += t.amount;
-        }
-      } else {
-        // Contas normais: in soma, out subtrai
-        if (t.flow === 'in' || t.flow === 'transfer_in') {
-          saldos[t.accountId] += t.amount;
-        } else {
-          saldos[t.accountId] -= t.amount;
-        }
-      }
+      saldos[conta.id] = saldoFinalPeriodo;
     });
 
     return saldos;
@@ -166,11 +141,50 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
     return ((value1 - value2) / Math.abs(value2)) * 100;
   }, []);
 
+  // Função para calcular a soma das parcelas de empréstimo que vencem DENTRO de um range
+  const calculateLoanInstallmentsInPeriod = useCallback((range: DateRange) => {
+    if (!range.from || !range.to) return 0;
+    
+    const start = startOfDay(range.from);
+    const end = endOfDay(range.to);
+    
+    return emprestimos.reduce((acc, e) => {
+      if (!e.dataInicio || e.meses === 0 || e.status === 'quitado') return acc;
+      
+      let totalParcelasNoPeriodo = 0;
+      
+      // Simular parcelas para encontrar as que caem no range
+      for (let i = 1; i <= e.meses; i++) {
+        const startDate = parseDateLocal(e.dataInicio);
+        const dueDate = new Date(startDate);
+        dueDate.setMonth(dueDate.getMonth() + i - 1);
+        
+        if (isWithinInterval(dueDate, { start, end })) {
+          totalParcelasNoPeriodo += e.parcela;
+        }
+      }
+      
+      return acc + totalParcelasNoPeriodo;
+    }, 0);
+  }, [emprestimos]);
+
   // Cálculos do Balanço Patrimonial para um período
-  const calculateBalanco = useCallback((transactions: typeof transacoesV2, periodStart: Date | undefined) => {
-    const saldosPorConta = calculateFinalBalances(transactions, periodStart);
+  const calculateBalanco = useCallback((range: DateRange) => {
+    const targetDate = range.to;
+    const periodStart = range.from;
+    
+    // Se não houver data final, usamos o saldo atual (fim do histórico)
+    const finalDate = targetDate || new Date(9999, 11, 31);
+
+    // 1. Calcular saldos das contas na data final do período
+    const saldosPorConta = calculateFinalBalances(transacoesV2, periodStart, finalDate);
 
     // === ATIVOS ===
+    
+    // Ativo Total (usando a função period-aware do contexto)
+    const totalAtivos = getAtivosTotal(finalDate);
+
+    // Detalhamento dos Ativos (baseado nos saldos na data final)
     
     // Renda Fixa e Equivalentes (Ativo Circulante)
     const contasCirculantes = contasMovimento.filter(c => 
@@ -178,9 +192,6 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
     );
     const caixaEquivalentes = contasCirculantes.reduce((acc, c) => acc + Math.max(0, saldosPorConta[c.id] || 0), 0);
     
-    // Saldo Renda Fixa (para detalhamento)
-    const saldoRendaFixa = contasMovimento.filter(c => c.accountType === 'aplicacao_renda_fixa' || c.accountType === 'poupanca').reduce((acc, c) => acc + Math.max(0, saldosPorConta[c.id] || 0), 0);
-
     // Investimentos (Ativo Não Circulante) - Apenas Cripto e Objetivos
     const contasInvestimentoNaoCirculante = contasMovimento.filter(c => 
       ['criptoativos', 'objetivos_financeiros'].includes(c.accountType)
@@ -192,15 +203,14 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
     
     const investimentosNaoCirculantes = saldoCripto + saldoStable + saldoObjetivos;
 
-    const veiculosAtivos = veiculos.filter(v => v.status !== 'vendido');
-    const valorVeiculos = veiculosAtivos.reduce((acc, v) => acc + (v.valorFipe || v.valorVeiculo || 0), 0);
-
-    const totalAtivos = caixaEquivalentes + investimentosNaoCirculantes + valorVeiculos;
+    const valorVeiculos = getValorFipeTotal(finalDate);
 
     // === PASSIVOS ===
-    const emprestimosAtivos = emprestimos.filter(e => e.status !== 'quitado');
     
-    // Saldo devedor de cartões de crédito (saldos negativos)
+    // Passivo Total (usando a função period-aware do contexto)
+    const totalPassivos = getPassivosTotal(finalDate);
+    
+    // Saldo devedor de cartões de crédito (saldos negativos na data final)
     const saldoDevedorCartoes = contasMovimento
       .filter(c => c.accountType === 'cartao_credito')
       .reduce((acc, c) => {
@@ -208,30 +218,19 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
         return acc + Math.abs(Math.min(0, balance));
       }, 0);
       
-    // Passivo curto prazo (próximos 12 meses de parcelas + saldo CC)
-    const passivoCurtoPrazoEmprestimos = emprestimosAtivos.reduce((acc, e) => {
-      const parcelasRestantes = Math.max(0, e.meses - (e.parcelasPagas || 0));
-      const parcelasCurtoPrazo = Math.min(12, parcelasRestantes);
-      return acc + (e.parcela * parcelasCurtoPrazo);
-    }, 0);
+    // Passivo Curto Prazo (Parcelas de Empréstimo que vencem DENTRO do período selecionado + Saldo CC)
+    const passivoCurtoPrazoEmprestimos = calculateLoanInstallmentsInPeriod(range);
     
     const passivoCurtoPrazo = passivoCurtoPrazoEmprestimos + saldoDevedorCartoes;
     
-    // Saldo Devedor Total de Empréstimos (Principal + Juros restantes)
-    const saldoDevedorEmprestimosTotal = emprestimosAtivos.reduce((acc, e) => {
-        const parcelasRestantes = Math.max(0, e.meses - (e.parcelasPagas || 0));
-        return acc + (e.parcela * parcelasRestantes);
-    }, 0);
-    
-    const totalPassivos = saldoDevedorEmprestimosTotal + saldoDevedorCartoes;
-
-    // Passivo longo prazo
+    // Passivo Longo Prazo (Passivo Total - Passivo Curto Prazo)
     const passivoLongoPrazo = Math.max(0, totalPassivos - passivoCurtoPrazo);
 
     // === PATRIMÔNIO LÍQUIDO ===
     const patrimonioLiquido = totalAtivos - totalPassivos;
 
     // === RESULTADO DO PERÍODO (Fluxo de Caixa) ===
+    const transacoesPeriodo = filterTransactionsByRange(range);
     const calcularResultado = (transacoes: typeof transacoesV2) => {
       const entradas = transacoes
         .filter(t => t.flow === 'in' && t.operationType !== 'transferencia' && t.operationType !== 'liberacao_emprestimo' && t.operationType !== 'resgate')
@@ -242,14 +241,14 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
       return entradas - saidas;
     };
 
-    const resultadoPeriodo = calcularResultado(transactions);
+    const resultadoPeriodo = calcularResultado(transacoesPeriodo);
 
     return {
       saldosPorConta,
       ativos: {
         circulantes: { 
             caixa: caixaEquivalentes, 
-            rendaFixa: saldoRendaFixa, // Detalhe
+            rendaFixa: caixaEquivalentes, // Simplificado
         },
         naoCirculantes: { 
             investimentos: investimentosNaoCirculantes, 
@@ -264,20 +263,20 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
         curtoPrazo: passivoCurtoPrazo,
         longoPrazo: passivoLongoPrazo,
         total: totalPassivos,
-        emprestimos: emprestimosAtivos,
+        emprestimos: emprestimos.filter(e => e.status !== 'quitado'),
         saldoDevedorCartoes, // Detalhe
         passivoCurtoPrazoEmprestimos, // Detalhe
       },
       patrimonioLiquido,
       resultadoPeriodo,
     };
-  }, [contasMovimento, emprestimos, veiculos, transacoesV2, calculateFinalBalances, calculateBalanceUpToDate]);
+  }, [contasMovimento, emprestimos, veiculos, transacoesV2, calculateFinalBalances, getAtivosTotal, getPassivosTotal, getValorFipeTotal, calculateLoanInstallmentsInPeriod, filterTransactionsByRange]);
 
   // Balanço para o Período 1 (Principal)
-  const balanco1 = useMemo(() => calculateBalanco(transacoesPeriodo1, range1.from), [calculateBalanco, transacoesPeriodo1, range1.from]);
+  const balanco1 = useMemo(() => calculateBalanco(range1), [calculateBalanco, range1]);
 
   // Balanço para o Período 2 (Comparação)
-  const balanco2 = useMemo(() => calculateBalanco(transacoesPeriodo2, range2.from), [calculateBalanco, transacoesPeriodo2, range2.from]);
+  const balanco2 = useMemo(() => calculateBalanco(range2), [calculateBalanco, range2]);
 
   // Variações entre P1 e P2
   const variacoes = useMemo(() => {
@@ -595,7 +594,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
                   <TableCell colSpan={3} className="font-semibold text-warning text-sm">
                     <div className="flex items-center gap-2">
                       <AlertTriangle className="w-4 h-4" />
-                      PASSIVO CIRCULANTE (Até 12 meses)
+                      PASSIVO CIRCULANTE (Vencimento no Período)
                     </div>
                   </TableCell>
                 </TableRow>
@@ -621,7 +620,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
                   <TableRow className="border-border hover:bg-muted/20">
                     <TableCell className="pl-6 flex items-center gap-2">
                       <Building2 className="w-3 h-3 text-warning" />
-                      Parcelas Empréstimos (12 meses)
+                      Parcelas Empréstimos (no Período)
                     </TableCell>
                     <TableCell className="text-right font-medium text-warning">
                       {formatCurrency(balanco1.passivos.passivoCurtoPrazoEmprestimos)}

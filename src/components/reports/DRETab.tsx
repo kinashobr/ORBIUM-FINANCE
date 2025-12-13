@@ -52,7 +52,7 @@ const COLORS = {
   danger: "hsl(0, 72%, 51%)",
   primary: "hsl(199, 89%, 48%)",
   accent: "hsl(270, 80%, 60%)",
-  muted: "hsl(215, 20%, 55%)",
+  muted: "hsl(215, 20% 55%)",
   gold: "hsl(45, 93%, 47%)",
   cyan: "hsl(180, 70%, 50%)",
 };

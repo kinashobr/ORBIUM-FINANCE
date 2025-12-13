@@ -47,7 +47,7 @@ const getDueDate = (startDateStr: string, installmentNumber: number): Date => {
 };
 
 export function InstallmentsTable({ emprestimo, className }: InstallmentsTableProps) {
-  const { transacoesV2 } = useFinance();
+  const { transacoesV2, calculatePaidInstallmentsUpToDate } = useFinance();
   
   // Buscar transações de pagamento vinculadas a este empréstimo
   const payments = useMemo(() => {
@@ -66,67 +66,68 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
     let saldoDevedor = emprestimo.valorTotal;
     const result: Parcela[] = [];
 
-    // Mapear pagamentos por número de parcela (se disponível) ou por data
+    // Mapear pagamentos por número de parcela
     const paymentsMap = new Map<number, TransacaoCompleta>();
     payments.forEach(p => {
-      if (p.links?.parcelaId) {
-        paymentsMap.set(parseInt(p.links.parcelaId), p);
-      } else {
-        // Fallback: tentar mapear pelo índice de parcela paga no empréstimo legado
-        // Isso é complexo e impreciso, mas necessário para dados legados sem parcelaId
-        // Para simplificar, vamos confiar no `parcelasPagas` do objeto emprestimo para dados legados
+      // Prioriza o parcelaId do link
+      const parcelaNum = p.links?.parcelaId ? parseInt(p.links.parcelaId) : undefined;
+      if (parcelaNum) {
+        paymentsMap.set(parcelaNum, p);
       }
     });
+
+    // Determinar quantas parcelas foram pagas no sistema legado (se não houver paymentsMap)
+    const paidCountLegacy = paymentsMap.size === 0 ? (emprestimo.parcelasPagas || 0) : 0;
+    
+    // Recalcular o saldo devedor e status
+    let saldoCorrigido = emprestimo.valorTotal;
+    let currentPaidCount = 0;
 
     for (let i = 1; i <= emprestimo.meses; i++) {
       const dataVencimento = getDueDate(emprestimo.dataInicio, i);
       
-      // Simulação de amortização (Método Price simplificado)
-      const juros = saldoDevedor * taxa;
+      const juros = saldoCorrigido * taxa;
       const amortizacao = emprestimo.parcela - juros;
       
-      // Encontrar pagamento real
       const payment = paymentsMap.get(i);
-      
-      // Se não encontrou pelo ID, e se for uma parcela paga no sistema legado
-      const isLegadoPaid = !payment && i <= (emprestimo.parcelasPagas || 0);
+      const isLegadoPaid = paidCountLegacy > 0 && i <= paidCountLegacy;
 
       let status: Parcela["status"] = "pendente";
       let dataPagamento: string | undefined;
       let valorPago: number | undefined;
       let diferencaJuros: number | undefined;
       let diasDiferenca: number | undefined;
-      let amortizacaoEfetiva = amortizacao;
+      let saldoDevedorExibido = saldoCorrigido;
 
       if (payment || isLegadoPaid) {
         status = "pago";
+        currentPaidCount++;
         
         if (payment) {
           dataPagamento = payment.date;
           valorPago = payment.amount;
           
-          // Usa parseDateLocal para garantir que a data de pagamento seja interpretada localmente
           const paymentDate = parseDateLocal(dataPagamento);
           const diffTime = paymentDate.getTime() - dataVencimento.getTime();
           diasDiferenca = Math.round(diffTime / (1000 * 60 * 60 * 24));
           
           diferencaJuros = valorPago - emprestimo.parcela;
-          amortizacaoEfetiva = emprestimo.parcela - juros; // Mantemos a amortização esperada
         } else if (isLegadoPaid) {
-          // Dados legados
           dataPagamento = 'N/A';
           valorPago = emprestimo.parcela;
           diferencaJuros = 0;
         }
         
-        // Atualiza saldo devedor com base na amortização esperada
-        saldoDevedor = Math.max(0, saldoDevedor - amortizacaoEfetiva);
+        // Atualiza saldo devedor para a próxima iteração
+        saldoCorrigido = Math.max(0, saldoCorrigido - amortizacao);
+        saldoDevedorExibido = saldoCorrigido + amortizacao; // Saldo antes da amortização
       } else {
         // Se não foi pago e a data de vencimento já passou
         if (dataVencimento < hoje) {
           status = "atrasado";
         }
-        // O saldo devedor não é atualizado se a parcela não foi paga
+        // Saldo Devedor Exibido é o saldo atual (antes da amortização desta parcela)
+        saldoDevedorExibido = saldoCorrigido;
       }
       
       result.push({
@@ -135,7 +136,7 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
         valorTotal: emprestimo.parcela,
         juros: Math.max(0, juros),
         amortizacao: Math.max(0, amortizacao),
-        saldoDevedor: status === 'pago' ? saldoDevedor : saldoDevedor + amortizacao, // Se não pago, o saldo devedor é o anterior
+        saldoDevedor: saldoDevedorExibido,
         status,
         dataPagamento,
         valorPago,
@@ -143,58 +144,11 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
         diasDiferenca,
       });
     }
-
-    // Recalcular o saldo devedor para as parcelas não pagas
-    let saldoAtual = emprestimo.valorTotal;
-    for (let i = 0; i < result.length; i++) {
-      const parcela = result[i];
-      const juros = saldoAtual * taxa;
-      const amortizacao = emprestimo.parcela - juros;
-
-      if (parcela.status === 'pago') {
-        saldoAtual = Math.max(0, saldoAtual - amortizacao);
-      }
-      
-      parcela.juros = Math.max(0, juros);
-      parcela.amortizacao = Math.max(0, amortizacao);
-      
-      if (parcela.status === 'pago') {
-        saldoAtual = Math.max(0, saldoAtual - amortizacao);
-      }
-      parcela.saldoDevedor = saldoAtual;
-    }
     
-    // Ajustar o saldo devedor para mostrar o saldo ANTES do pagamento da parcela
-    let saldoCorrigido = emprestimo.valorTotal;
-    for (let i = 0; i < result.length; i++) {
-      const parcela = result[i];
-      const juros = saldoCorrigido * taxa;
-      const amortizacao = emprestimo.parcela - juros;
-      
-      parcela.juros = Math.max(0, juros);
-      parcela.amortizacao = Math.max(0, amortizacao);
-      
-      if (parcela.status === 'pago') {
-        saldoCorrigido = Math.max(0, saldoCorrigido - amortizacao);
-      }
-      
-      // Se a parcela foi paga, o saldo devedor exibido deve ser o saldo ANTES da amortização
-      if (parcela.status === 'pago') {
-        parcela.saldoDevedor = saldoCorrigido + amortizacao;
-      } else {
-        // Se não foi paga, o saldo devedor é o saldo atual (antes da amortização desta parcela)
-        parcela.saldoDevedor = saldoCorrigido;
-      }
+    // Ajuste final para garantir que a última parcela paga tenha saldo devedor 0
+    if (currentPaidCount === emprestimo.meses) {
+        result[emprestimo.meses - 1].saldoDevedor = 0;
     }
-    
-    // A última parcela paga deve ter saldo devedor 0
-    if (result.length > 0) {
-      const lastPaidIndex = result.findIndex(p => p.status === 'pago' && p.numero === emprestimo.meses);
-      if (lastPaidIndex !== -1) {
-        result[lastPaidIndex].saldoDevedor = 0;
-      }
-    }
-
 
     return result;
   }, [emprestimo, payments]);
@@ -209,7 +163,6 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
   };
 
   const totalPago = payments.reduce((acc, p) => acc + p.amount, 0);
-  const totalRestante = parcelas.filter(p => p.status !== 'pago').reduce((acc, p) => acc + p.valorTotal, 0);
   const totalParcelasPagas = parcelas.filter(p => p.status === 'pago').length;
 
   return (
