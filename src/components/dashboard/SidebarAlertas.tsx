@@ -23,7 +23,6 @@ import {
 import { cn, parseDateLocal } from "@/lib/utils";
 import { useFinance } from "@/contexts/FinanceContext";
 import { AlertasConfigDialog } from "./AlertasConfigDialog";
-import { formatCurrency } from "@/types/finance"; // Importando formatCurrency
 
 interface Alerta {
   id: string;
@@ -207,7 +206,7 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
         id: "saldo-negativo",
         tipo: "danger",
         titulo: "Saldo Negativo",
-        descricao: formatCurrency(metricas.saldoContas), // Usando formatCurrency
+        descricao: `R$ ${metricas.saldoContas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
         rota: "/receitas-despesas"
       });
     }
@@ -219,7 +218,7 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
         id: "dividas-altas",
         tipo: "warning",
         titulo: "Dívidas Elevadas",
-        descricao: `Dívida total: ${formatCurrency(metricas.totalDividas)}`,
+        descricao: `Dívida total: R$ ${metricas.totalDividas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
         rota: "/emprestimos"
       });
     }
