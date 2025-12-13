@@ -19,7 +19,8 @@ import {
 } from "lucide-react";
 import { Emprestimo } from "@/types/finance";
 import { ContaCorrente } from "@/types/finance";
-import { cn } from "@/lib/utils";
+import { cn, calculateInterestRate } from "@/lib/utils"; // Importado calculateInterestRate
+import { toast } from "sonner"; // Importado toast
 
 interface LoanConfigFormProps {
   emprestimo: Emprestimo;
@@ -56,6 +57,25 @@ export function LoanConfigForm({
     if (valor > 0 && taxa > 0 && n > 0) {
       const parcela = (valor * taxa * Math.pow(1 + taxa, n)) / (Math.pow(1 + taxa, n) - 1);
       setFormData(prev => ({ ...prev, parcela: parcela.toFixed(2) }));
+    }
+  };
+  
+  const calcularTaxa = () => {
+    const principal = Number(formData.valorTotal);
+    const payment = Number(formData.parcela);
+    const periods = Number(formData.meses);
+
+    if (principal > 0 && payment > 0 && periods > 0) {
+      const calculatedRate = calculateInterestRate(principal, payment, periods);
+      
+      if (calculatedRate !== null) {
+        setFormData(prev => ({ ...prev, taxaMensal: calculatedRate.toFixed(2) }));
+        toast.success(`Taxa calculada: ${calculatedRate.toFixed(2)}%`);
+      } else {
+        toast.error("Não foi possível calcular a taxa. Verifique se a parcela é suficiente para cobrir o principal.");
+      }
+    } else {
+      toast.warning("Preencha Valor Total, Parcela e Qtd. Parcelas para calcular a taxa.");
     }
   };
 
@@ -203,14 +223,26 @@ export function LoanConfigForm({
             <Percent className="w-4 h-4 text-muted-foreground" />
             Taxa Mensal (%) *
           </Label>
-          <Input
-            type="number"
-            step="0.01"
-            value={formData.taxaMensal}
-            onChange={(e) => setFormData(prev => ({ ...prev, taxaMensal: e.target.value }))}
-            placeholder="1.89"
-            className="mt-1.5"
-          />
+          <div className="flex gap-2 mt-1.5">
+            <Input
+              type="number"
+              step="0.01"
+              value={formData.taxaMensal}
+              onChange={(e) => setFormData(prev => ({ ...prev, taxaMensal: e.target.value }))}
+              placeholder="1.89"
+              className="flex-1"
+            />
+            <Button 
+              type="button" 
+              variant="outline" 
+              size="icon"
+              onClick={calcularTaxa}
+              title="Calcular taxa (Price)"
+              className="shrink-0"
+            >
+              <Calculator className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
 
         {/* Valor da Parcela */}
@@ -234,6 +266,7 @@ export function LoanConfigForm({
               size="icon"
               onClick={calcularParcelaPrice}
               title="Calcular parcela (Price)"
+              className="shrink-0"
             >
               <Calculator className="w-4 h-4" />
             </Button>
