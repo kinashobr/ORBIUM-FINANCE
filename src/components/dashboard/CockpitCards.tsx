@@ -62,7 +62,6 @@ export function CockpitCards({ data }: CockpitCardsProps) {
       value: formatCurrency(data.liquidezImediata),
       icon: Droplets,
       color: 'text-info',
-      // Usando estilo inline para garantir que a opacidade funcione com a cor customizada --info
       bgColor: 'bg-info/10', 
       status: data.liquidezImediata > 0 ? 'info' : 'danger',
       customBgStyle: { backgroundColor: 'hsl(var(--info) / 0.1)' }
@@ -89,11 +88,11 @@ export function CockpitCards({ data }: CockpitCardsProps) {
   ];
   
   const statusColors = {
-    success: "border-l-success",
-    warning: "border-l-warning",
-    danger: "border-l-destructive",
-    neutral: "border-l-primary",
-    info: "border-l-info",
+    success: "stat-card-positive",
+    warning: "stat-card-warning",
+    danger: "stat-card-negative",
+    neutral: "stat-card-neutral",
+    info: "stat-card-info", // Corrigido para usar a classe customizada
   };
 
   return (
@@ -102,7 +101,7 @@ export function CockpitCards({ data }: CockpitCardsProps) {
         <div
           key={card.id}
           className={cn(
-            "glass-card p-4 flex flex-col gap-2 transition-all hover:scale-[1.02] border-l-4",
+            "glass-card p-4 flex flex-col gap-2 transition-all hover:scale-[1.02]",
             statusColors[card.status as keyof typeof statusColors]
           )}
         >
@@ -112,7 +111,7 @@ export function CockpitCards({ data }: CockpitCardsProps) {
             </span>
             <div 
               className={cn("p-2 rounded-xl", card.bgColor)}
-              style={card.customBgStyle} // Aplica o estilo inline aqui
+              style={card.customBgStyle}
             >
               <card.icon className={cn("h-5 w-5", card.color)} />
             </div>
