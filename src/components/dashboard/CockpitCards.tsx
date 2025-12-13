@@ -42,7 +42,7 @@ export function CockpitCards({ data }: CockpitCardsProps) {
       value: formatCurrency(data.patrimonioTotal),
       icon: Target,
       color: 'text-primary',
-      bgColor: 'bg-primary/10',
+      bgColor: 'bg-primary/10', // Adicionado o fundo aqui
       status: data.patrimonioTotal >= 0 ? 'neutral' : 'danger',
     },
     {
