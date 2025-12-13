@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Building2 } from "lucide-react";
+import { Plus, Building2, Calculator } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,6 +21,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { ContaCorrente } from "@/types/finance";
+import { calculateInterestRate } from "@/lib/utils"; // Importado
 
 interface LoanFormData {
   contrato: string;
@@ -129,6 +130,36 @@ export function LoanForm({ onSubmit, contasCorrentes = [], className }: LoanForm
       setFormData(prev => ({ ...prev, parcela: parcela.toFixed(2) }));
     }
   };
+  
+  const calcularTaxa = () => {
+    const principal = Number(formData.valorTotal);
+    const payment = Number(formData.parcela);
+    const periods = Number(formData.meses);
+
+    if (principal > 0 && payment > 0 && periods > 0) {
+      const calculatedRate = calculateInterestRate(principal, payment, periods);
+      
+      if (calculatedRate !== null) {
+        setFormData(prev => ({ ...prev, taxaMensal: calculatedRate.toFixed(2) }));
+        toast({
+          title: "Taxa calculada",
+          description: `Taxa mensal: ${calculatedRate.toFixed(2)}%`,
+        });
+      } else {
+        toast({
+          title: "Erro no cálculo",
+          description: "Não foi possível calcular a taxa. Verifique se a parcela é suficiente para cobrir o principal.",
+          variant: "destructive",
+        });
+      }
+    } else {
+      toast({
+        title: "Dados insuficientes",
+        description: "Preencha Valor Total, Parcela e Qtd. Parcelas para calcular a taxa.",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -213,7 +244,7 @@ export function LoanForm({ onSubmit, contasCorrentes = [], className }: LoanForm
                   title="Calcular parcela (Price)"
                   className="shrink-0"
                 >
-                  =
+                  <Calculator className="w-4 h-4" />
                 </Button>
               </div>
             </div>
@@ -223,14 +254,26 @@ export function LoanForm({ onSubmit, contasCorrentes = [], className }: LoanForm
           <div className="grid grid-cols-3 gap-4">
             <div>
               <Label>Taxa Mensal (%) *</Label>
-              <Input
-                type="number"
-                step="0.01"
-                value={formData.taxaMensal}
-                onChange={(e) => setFormData(prev => ({ ...prev, taxaMensal: e.target.value }))}
-                placeholder="1.89"
-                className="mt-1.5 bg-muted border-border"
-              />
+              <div className="flex gap-2 mt-1.5">
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={formData.taxaMensal}
+                  onChange={(e) => setFormData(prev => ({ ...prev, taxaMensal: e.target.value }))}
+                  placeholder="1.89"
+                  className="bg-muted border-border"
+                />
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="icon"
+                  onClick={calcularTaxa}
+                  title="Calcular taxa (Price)"
+                  className="shrink-0"
+                >
+                  <Calculator className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
             <div>
               <Label>Qtd. Parcelas *</Label>

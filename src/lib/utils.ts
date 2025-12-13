@@ -21,3 +21,55 @@ export function parseDateLocal(dateString: string): Date {
   // Nota: month - 1 é necessário porque o mês é 0-indexado
   return new Date(year, month - 1, day);
 }
+
+/**
+ * Calcula a taxa de juros mensal (i) usando o método de Newton-Raphson para a fórmula PRICE.
+ * P = PMT * [ (1 - (1 + i)^-n) / i ]
+ * @param principal Valor principal (P)
+ * @param payment Parcela mensal (PMT)
+ * @param periods Número de períodos (n)
+ * @returns Taxa de juros mensal em percentual (ex: 1.5 para 1.5%) ou null se não convergir.
+ */
+export function calculateInterestRate(principal: number, payment: number, periods: number): number | null {
+  if (principal <= 0 || payment <= 0 || periods <= 0) return null;
+  if (payment * periods < principal) return null; // Pagamento total menor que o principal
+
+  // Função para calcular o valor presente líquido (VPL) dado uma taxa 'i'
+  const npv = (i: number) => {
+    if (i === 0) return payment * periods - principal;
+    return payment * ((1 - Math.pow(1 + i, -periods)) / i) - principal;
+  };
+
+  // Derivada da função VPL (para Newton-Raphson)
+  const npvDerivative = (i: number) => {
+    if (i === 0) return 0; // Não deve acontecer na prática
+    const term1 = payment * (periods * Math.pow(1 + i, -periods - 1) * i - (1 - Math.pow(1 + i, -periods))) / (i * i);
+    return term1;
+  };
+
+  let rate = 0.01; // Chute inicial de 1%
+  const maxIterations = 100;
+  const tolerance = 0.0000001;
+
+  for (let i = 0; i < maxIterations; i++) {
+    const npvValue = npv(rate);
+    if (Math.abs(npvValue) < tolerance) {
+      return rate * 100; // Retorna em percentual
+    }
+
+    const derivative = npvDerivative(rate);
+    if (Math.abs(derivative) < tolerance) {
+      // Derivada muito próxima de zero, falha na convergência
+      return null;
+    }
+
+    rate = rate - npvValue / derivative;
+
+    if (rate < 0) {
+      // Se a taxa for negativa, tenta um chute menor
+      rate = 0.001;
+    }
+  }
+
+  return null; // Não convergiu
+}
