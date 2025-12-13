@@ -42,7 +42,7 @@ export function CockpitCards({ data }: CockpitCardsProps) {
       value: formatCurrency(data.patrimonioTotal),
       icon: Target,
       color: 'text-primary',
-      bgColor: 'bg-primary/10', // Adicionado o fundo aqui
+      bgColor: 'bg-primary/10',
       status: data.patrimonioTotal >= 0 ? 'neutral' : 'danger',
     },
     {
@@ -62,7 +62,7 @@ export function CockpitCards({ data }: CockpitCardsProps) {
       value: formatCurrency(data.liquidezImediata),
       icon: Droplets,
       color: 'text-info',
-      bgColor: 'bg-info/20',
+      bgColor: 'bg-info/10', // Alterado de /20 para /10 para melhor contraste em alguns temas
       status: data.liquidezImediata > 0 ? 'info' : 'danger',
     },
     {
