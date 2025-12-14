@@ -288,7 +288,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     loadFromStorage(STORAGE_KEYS.VEICULOS, initialVeiculos)
   );
   const [segurosVeiculo, setSegurosVeiculo] = useState<SeguroVeiculo[]>(() => 
-    loadFromStorage(STORAGE_KEYS.SEGURO_VEICULO, initialSegurosVeiculo)
+    loadFromStorage(STORAGE_KEYS.SEGUROS_VEICULO, initialSegurosVeiculo)
   );
   const [objetivos, setObjetivos] = useState<ObjetivoFinanceiro[]>(() => 
     loadFromStorage(STORAGE_KEYS.OBJETIVOS, initialObjetivos)
@@ -316,12 +316,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { saveToStorage(STORAGE_KEYS.EMPRESTIMOS, emprestimos); }, [emprestimos]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.VEICULOS, veiculos); }, [veiculos]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.SEGURO_VEICULO, segurosVeiculo); }, [segurosVeiculo]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.SEGUROS_VEICULO, segurosVeiculo); }, [segurosVeiculo]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.OBJETIVOS, objetivos); }, [objetivos]);
-  
-  useEffect(() => { saveToStorage(STORAGE_KEYS.CONTAS_MOVIMENTO, contasMovimento); }, [contasMovimento]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.CATEGORIAS_V2, categoriasV2); }, [categoriasV2]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.TRANSACOES_V2, transacoesV2); }, [transacoesV2]);
   
   // NEW EFFECT for dateRanges
   useEffect(() => { saveToStorage(STORAGE_KEYS.DATE_RANGES, dateRanges); }, [dateRanges]);
