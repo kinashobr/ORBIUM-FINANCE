@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Check, Clock, AlertTriangle, Upload, FileText, TrendingUp, TrendingDown } from "lucide-react";
 import { useFinance, AmortizationItem } from "@/contexts/FinanceContext";
 import { Emprestimo, TransacaoCompleta } from "@/types/finance";
-import { cn, parseDateLocal } from "@/lib/utils";
+import { cn, parseDateLocal, getDueDate } from "@/lib/utils";
 
 interface Parcela extends AmortizationItem {
   dataVencimento: Date;
@@ -28,19 +28,6 @@ interface InstallmentsTableProps {
   emprestimo: Emprestimo;
   className?: string;
 }
-
-// Função auxiliar para calcular a data de vencimento
-const getDueDate = (startDateStr: string, installmentNumber: number): Date => {
-  // Usa parseDateLocal para garantir que a data de início seja interpretada localmente
-  const startDate = parseDateLocal(startDateStr);
-  const dueDate = new Date(startDate);
-  
-  // Ajuste: Se installmentNumber = 1, adicionamos 0 meses.
-  // Isso assume que dataInicio é a data de vencimento da primeira parcela.
-  dueDate.setMonth(dueDate.getMonth() + installmentNumber - 1);
-  
-  return dueDate;
-};
 
 export function InstallmentsTable({ emprestimo, className }: InstallmentsTableProps) {
   const { transacoesV2, calculateLoanSchedule, calculatePaidInstallmentsUpToDate } = useFinance();

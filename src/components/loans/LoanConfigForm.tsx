@@ -19,8 +19,8 @@ import {
 } from "lucide-react";
 import { Emprestimo } from "@/types/finance";
 import { ContaCorrente } from "@/types/finance";
-import { cn, calculateInterestRate } from "@/lib/utils"; // Importado calculateInterestRate
-import { toast } from "sonner"; // Importado toast
+import { cn, calculateInterestRate } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface LoanConfigFormProps {
   emprestimo: Emprestimo;
@@ -55,6 +55,7 @@ export function LoanConfigForm({
     const n = Number(formData.meses);
 
     if (valor > 0 && taxa > 0 && n > 0) {
+      // Fórmula PRICE: PMT = P * [ i / (1 - (1 + i)^-n) ]
       const parcela = (valor * taxa * Math.pow(1 + taxa, n)) / (Math.pow(1 + taxa, n) - 1);
       setFormData(prev => ({ ...prev, parcela: parcela.toFixed(2) }));
     }

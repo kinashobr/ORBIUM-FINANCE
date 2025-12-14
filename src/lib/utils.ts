@@ -73,3 +73,20 @@ export function calculateInterestRate(principal: number, payment: number, period
 
   return null; // Não convergiu
 }
+
+/**
+ * Helper function to calculate the due date of an installment.
+ * Assumes the start date is the due date of the first installment.
+ * @param startDateStr The start date string (YYYY-MM-DD).
+ * @param installmentNumber The installment number (1-indexed).
+ * @returns Date object representing the due date.
+ */
+export const getDueDate = (startDateStr: string, installmentNumber: number): Date => {
+  const startDate = parseDateLocal(startDateStr);
+  const dueDate = new Date(startDate);
+  
+  // Adjustment: If installmentNumber = 1, add 0 months.
+  dueDate.setMonth(dueDate.getMonth() + installmentNumber - 1);
+  
+  return dueDate;
+};

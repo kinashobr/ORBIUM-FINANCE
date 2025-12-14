@@ -20,7 +20,7 @@ import {
   StickyNote,
   Settings,
   Edit,
-  Award, // Adicionado Award
+  Award,
 } from "lucide-react";
 import { Emprestimo } from "@/types/finance";
 import { useFinance } from "@/contexts/FinanceContext";
@@ -38,31 +38,22 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { cn } from "@/lib/utils";
+import { cn, parseDateLocal, getDueDate } from "@/lib/utils";
 import { useChartColors } from "@/hooks/useChartColors";
-import { parseDateLocal } from "@/lib/utils"; // Importado para usar getDueDate
 
 interface LoanDetailDialogProps {
   emprestimo: Emprestimo | null;
   open: boolean;
-  onOpenChange: (open: boolean) => void; // CORRIGIDO: Tipagem para (open: boolean) => void
+  onOpenChange: (open: boolean) => void;
 }
-
-// Helper function to calculate the due date of an installment (copied from context for clarity)
-const getDueDate = (startDateStr: string, installmentNumber: number): Date => {
-  const startDate = parseDateLocal(startDateStr);
-  const dueDate = new Date(startDate);
-  dueDate.setMonth(dueDate.getMonth() + installmentNumber - 1);
-  return dueDate;
-};
 
 export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailDialogProps) {
   const { 
     updateEmprestimo, 
     getContasCorrentesTipo, 
     calculateLoanSchedule, 
-    calculatePaidInstallmentsUpToDate, // <-- ADDED
-    dateRanges, // <-- ADDED
+    calculatePaidInstallmentsUpToDate,
+    dateRanges,
   } = useFinance();
   const [isEditing, setIsEditing] = useState(false);
   const contasCorrentes = getContasCorrentesTipo();
@@ -148,7 +139,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
 
 
     return {
-      parcelasPagas, // Calculated based on transactions
+      parcelasPagas,
       parcelasRestantes,
       saldoDevedor,
       custoTotal,

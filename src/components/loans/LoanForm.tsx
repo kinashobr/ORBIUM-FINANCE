@@ -21,7 +21,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { ContaCorrente } from "@/types/finance";
-import { calculateInterestRate } from "@/lib/utils"; // Importado
+import { calculateInterestRate } from "@/lib/utils";
 
 interface LoanFormData {
   contrato: string;
@@ -126,6 +126,7 @@ export function LoanForm({ onSubmit, contasCorrentes = [], className }: LoanForm
     const n = Number(formData.meses);
 
     if (valor > 0 && taxa > 0 && n > 0) {
+      // Fórmula PRICE: PMT = P * [ i / (1 - (1 + i)^-n) ]
       const parcela = (valor * taxa * Math.pow(1 + taxa, n)) / (Math.pow(1 + taxa, n) - 1);
       setFormData(prev => ({ ...prev, parcela: parcela.toFixed(2) }));
     }
