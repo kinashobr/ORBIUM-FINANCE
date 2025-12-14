@@ -62,6 +62,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
     const parcelasRestantes = emprestimo.meses - parcelasPagas;
     
     // 1. Saldo Devedor (Saldo após a última parcela paga)
+    // Se parcelasPagas for 0, o saldo é o valor total. Se for > 0, é o saldoDevedor da última parcela paga.
     const ultimaParcelaPaga = schedule.find(item => item.parcela === parcelasPagas);
     const saldoDevedor = ultimaParcelaPaga ? ultimaParcelaPaga.saldoDevedor : emprestimo.valorTotal;
     
