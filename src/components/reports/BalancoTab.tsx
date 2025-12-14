@@ -264,6 +264,9 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
     
     // Passivo Longo Prazo (Passivo Total - Passivo Curto Prazo)
     const passivoLongoPrazo = Math.max(0, totalPassivos - passivoCurtoPrazo);
+    
+    // Detalhe: Seguros a Pagar de Longo Prazo
+    const segurosAPagarLongoPrazo = Math.max(0, segurosAPagar - passivoCurtoPrazoSeguros);
 
     // === PATRIMÔNIO LÍQUIDO ===
     const patrimonioLiquido = totalAtivos - totalPassivos;
@@ -308,6 +311,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
         passivoCurtoPrazoEmprestimos, // Detalhe
         passivoCurtoPrazoSeguros, // <-- NEW DETAIL
         segurosAPagar, // <-- NEW DETAIL (Prêmio Total Não Pago)
+        segurosAPagarLongoPrazo, // <-- NEW DETAIL
       },
       patrimonioLiquido,
       resultadoPeriodo,
@@ -714,53 +718,51 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
                 </TableRow>
 
                 {/* PASSIVO NÃO CIRCULANTE */}
-                {balanco1.passivos.longoPrazo > 0 && (
-                  <>
-                    <TableRow className="border-border bg-destructive/5">
-                      <TableCell colSpan={3} className="font-semibold text-destructive text-sm">
-                        <div className="flex items-center gap-2">
-                          <CreditCard className="w-4 h-4" />
-                          PASSIVO NÃO CIRCULANTE (Longo Prazo)
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                    <TableRow className="border-border hover:bg-muted/20">
-                      <TableCell className="pl-6">Empréstimos e Financiamentos (Principal)</TableCell>
-                      <TableCell className="text-right font-medium text-destructive">
-                        {formatCurrency(balanco1.passivos.longoPrazo)}
-                      </TableCell>
-                      <TableCell className="text-right text-muted-foreground">
-                        {balanco1.ativos.total > 0 ? formatPercent((balanco1.passivos.longoPrazo / balanco1.ativos.total) * 100) : "0%"}
-                      </TableCell>
-                    </TableRow>
-                  </>
-                )}
+                <TableRow className="border-border bg-destructive/5">
+                  <TableCell colSpan={3} className="font-semibold text-destructive text-sm">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="w-4 h-4" />
+                      PASSIVO NÃO CIRCULANTE (Longo Prazo)
+                    </div>
+                  </TableCell>
+                </TableRow>
                 
-                {/* NOVO: Seguros a Pagar (Prêmio Total Não Pago) - Mantido no Passivo Total */}
-                {balanco1.passivos.segurosAPagar > 0 && (
-                  <TableRow className="border-border bg-destructive/5">
-                    <TableCell colSpan={3} className="font-semibold text-destructive text-sm">
-                      <div className="flex items-center gap-2">
-                        <Shield className="w-4 h-4" />
-                        OUTROS PASSIVOS
-                      </div>
+                {/* Detalhe: Empréstimos Longo Prazo */}
+                {balanco1.passivos.longoPrazo > 0 && (
+                  <TableRow className="border-border hover:bg-muted/20">
+                    <TableCell className="pl-6">Empréstimos e Financiamentos (Principal)</TableCell>
+                    <TableCell className="text-right font-medium text-destructive">
+                      {formatCurrency(balanco1.passivos.longoPrazo - balanco1.passivos.segurosAPagarLongoPrazo)}
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {balanco1.ativos.total > 0 ? formatPercent(((balanco1.passivos.longoPrazo - balanco1.passivos.segurosAPagarLongoPrazo) / balanco1.ativos.total) * 100) : "0%"}
                     </TableCell>
                   </TableRow>
                 )}
-                {balanco1.passivos.segurosAPagar > 0 && (
+                
+                {/* Detalhe: Seguros a Pagar Longo Prazo */}
+                {balanco1.passivos.segurosAPagarLongoPrazo > 0 && (
                   <TableRow className="border-border hover:bg-muted/20">
                     <TableCell className="pl-6 flex items-center gap-2">
                       <Shield className="w-3 h-3 text-destructive" />
-                      Seguros a Pagar (Prêmio Não Pago)
+                      Seguros a Pagar (Longo Prazo)
                     </TableCell>
                     <TableCell className="text-right font-medium text-destructive">
-                      {formatCurrency(balanco1.passivos.segurosAPagar)}
+                      {formatCurrency(balanco1.passivos.segurosAPagarLongoPrazo)}
                     </TableCell>
                     <TableCell className="text-right text-muted-foreground">
-                      {balanco1.ativos.total > 0 ? formatPercent((balanco1.passivos.segurosAPagar / balanco1.ativos.total) * 100) : "0%"}
+                      {balanco1.ativos.total > 0 ? formatPercent((balanco1.passivos.segurosAPagarLongoPrazo / balanco1.ativos.total) * 100) : "0%"}
                     </TableCell>
                   </TableRow>
                 )}
+                
+                <TableRow className="border-border bg-muted/20">
+                  <TableCell className="font-medium text-foreground pl-4">Subtotal Longo Prazo</TableCell>
+                  <TableCell className="text-right font-semibold text-destructive">{formatCurrency(balanco1.passivos.longoPrazo)}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">
+                    {balanco1.ativos.total > 0 ? formatPercent((balanco1.passivos.longoPrazo / balanco1.ativos.total) * 100) : "0%"}
+                  </TableCell>
+                </TableRow>
 
                 {/* TOTAL PASSIVO */}
                 <TableRow className="border-border bg-destructive/10">
