@@ -13,7 +13,7 @@ import {
   ComparisonDateRanges, // Import new types
   generateAccountId,
 } from "@/types/finance";
-import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths } from "date-fns"; // Import date-fns helpers
+import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay } from "date-fns"; // Import date-fns helpers
 import { parseDateLocal } from "@/lib/utils"; // Importando a nova função
 
 // ============================================
@@ -427,7 +427,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }, [emprestimos]);
 
   // ============================================
-  // FUNÇÕES DE CÁLCULO DE SEGUROS (ACCRUAL)
+  // FUNÇÕES DE CÁLCULO DE SEGUROS (ACCRUAL) - REFINADAS
   // ============================================
 
   const getSegurosAApropriar = useCallback((targetDate?: Date) => {
@@ -438,26 +438,26 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             const vigenciaInicio = parseDateLocal(seguro.vigenciaInicio);
             const vigenciaFim = parseDateLocal(seguro.vigenciaFim);
             
-            // Only consider policies that started before the target date
-            if (vigenciaInicio > date) return acc;
+            // Se a vigência ainda não começou, ou já terminou, não há ativo a apropriar
+            if (isAfter(vigenciaInicio, date) || isBefore(vigenciaFim, date)) return acc;
             
-            // Calculate total months of vigency
-            const totalMonths = differenceInMonths(vigenciaFim, vigenciaInicio) + 1;
-            if (totalMonths <= 0) return acc;
+            // 1. Calcular o total de dias de vigência
+            const totalDays = differenceInDays(vigenciaFim, vigenciaInicio) + 1;
+            if (totalDays <= 0) return acc;
             
-            const monthlyAccrual = seguro.valorTotal / totalMonths;
+            const dailyAccrual = seguro.valorTotal / totalDays;
             
-            // Calculate months consumed (from vigenciaInicio up to targetDate)
-            // We use the start of the month for accrual calculation simplicity
-            const monthsConsumed = differenceInMonths(date, vigenciaInicio) + 1;
+            // 2. Calcular os dias consumidos (do início da vigência até a data de referência)
+            // O consumo começa no dia da vigência e termina no dia da data de referência (inclusive)
+            const daysConsumed = differenceInDays(date, vigenciaInicio) + 1;
             
-            // Accrued Expense (Expense recognized)
-            const accruedExpense = Math.min(seguro.valorTotal, monthlyAccrual * monthsConsumed);
+            // 3. Ativo Remanescente = Valor Total - (Dias Consumidos * Custo Diário)
+            const accruedExpense = Math.min(seguro.valorTotal, dailyAccrual * daysConsumed);
             
-            // Prepaid Asset = Total Premium - Accrued Expense
             const segurosAApropriar = Math.max(0, seguro.valorTotal - accruedExpense);
             
-            return acc + segurosAApropriar;
+            // Arredondar para 2 casas decimais
+            return acc + Math.round(segurosAApropriar * 100) / 100;
         } catch (e) {
             console.error("Error calculating Seguros a Apropriar:", e);
             return acc;
@@ -469,34 +469,27 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const date = targetDate || new Date();
     
     return segurosVeiculo.reduce((acc, seguro) => {
-        // Only consider policies that are active or started before the target date
-        try {
-            const vigenciaInicio = parseDateLocal(seguro.vigenciaInicio);
-            if (vigenciaInicio > date) return acc;
-            
-            let totalPaid = 0;
-            
-            seguro.parcelas.forEach(parcela => {
-                if (parcela.paga && parcela.transactionId) {
-                    const paymentTx = transacoesV2.find(t => t.id === parcela.transactionId);
-                    // Use the transaction date if available, otherwise assume due date
-                    const paymentDate = paymentTx ? parseDateLocal(paymentTx.date) : parseDateLocal(parcela.vencimento);
-                    
-                    if (paymentDate <= date) {
-                        // Use the expected parcela.valor for liability tracking
-                        totalPaid += parcela.valor; 
-                    }
+        // 1. Calcular o total pago (em dinheiro/cartão) até a data de referência
+        let totalPaid = 0;
+        
+        seguro.parcelas.forEach(parcela => {
+            if (parcela.paga && parcela.transactionId) {
+                const paymentTx = transacoesV2.find(t => t.id === parcela.transactionId);
+                
+                // Se a transação de pagamento existe e ocorreu na data ou antes da data de referência
+                if (paymentTx && parseDateLocal(paymentTx.date) <= date) {
+                    // Usamos o valor pago na transação (que pode incluir juros/descontos)
+                    totalPaid += paymentTx.amount; 
                 }
-            });
-            
-            // Insurance Payable = Total Contracted - Total Paid (up to date)
-            const segurosAPagar = Math.max(0, seguro.valorTotal - totalPaid);
-            
-            return acc + segurosAPagar;
-        } catch (e) {
-            console.error("Error calculating Seguros a Pagar:", e);
-            return acc;
-        }
+            }
+        });
+        
+        // 2. Seguros a Pagar = Valor Total do Prêmio - Total Pago (em dinheiro/cartão)
+        // Nota: O Passivo a Pagar é o quanto falta pagar do prêmio total.
+        const segurosAPagar = Math.max(0, seguro.valorTotal - totalPaid);
+        
+        // Arredondar para 2 casas decimais
+        return acc + Math.round(segurosAPagar * 100) / 100;
     }, 0);
   }, [segurosVeiculo, transacoesV2]);
 
@@ -811,7 +804,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         // Importa entidades V2 mantidas
         if (data.data.emprestimos) setEmprestimos(data.data.emprestimos);
         if (data.data.veiculos) setVeiculos(data.data.veiculos);
-        if (data.data.segurosVeiculo) setSegurosVeiculo(data.data.segurosVeiculo);
+        if (data.data.segurosVeiculo) setSegurosVeiculo(data.data.segurosSeguro);
         if (data.data.objetivos) setObjetivos(data.data.objetivos);
         
         return { success: true, message: "Dados V2 importados com sucesso!" };
