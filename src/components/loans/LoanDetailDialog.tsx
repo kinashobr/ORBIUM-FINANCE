@@ -50,7 +50,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
   const { updateEmprestimo, getContasCorrentesTipo, calculateLoanSchedule } = useFinance();
   const [isEditing, setIsEditing] = useState(false);
   const contasCorrentes = getContasCorrentesTipo();
-  const colors = useChartColors(); // Use o hook para cores dinâmicas
+  const colors = useChartColors(); // Use o hook para cores dinâmicos
   
   // Hooks must be called unconditionally before any conditional return
   
@@ -143,6 +143,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
   if (!emprestimo || !calculos) return null;
 
   const isPending = emprestimo.status === 'pendente_config';
+  const isQuitado = emprestimo.status === 'quitado' || calculos.saldoDevedor <= 0;
 
   // Auto-open edit mode for pending loans
   const showConfigForm = isPending || isEditing;
@@ -232,9 +233,9 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
                   />
                   <LoanCard
                     title="Saldo Devedor"
-                    value={formatCurrency(calculos.saldoDevedor)}
+                    value={isQuitado ? "Quitado" : formatCurrency(calculos.saldoDevedor)}
                     icon={<TrendingDown className="w-4 h-4" />}
-                    status="danger"
+                    status={isQuitado ? "success" : "danger"}
                     size="sm"
                   />
                   <LoanCard
@@ -293,15 +294,15 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Próxima parcela:</span>
-                        <span className="font-medium">{calculos.proximaParcela.toLocaleDateString("pt-BR")}</span>
+                        <span className="font-medium">{isQuitado ? '—' : calculos.proximaParcela.toLocaleDateString("pt-BR")}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Data final:</span>
-                        <span className="font-medium">{calculos.dataFinal.toLocaleDateString("pt-BR")}</span>
+                        <span className="font-medium">{isQuitado ? '—' : calculos.dataFinal.toLocaleDateString("pt-BR")}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Meses restantes:</span>
-                        <span className="font-medium">{calculos.parcelasRestantes}</span>
+                        <span className="font-medium">{isQuitado ? '0' : calculos.parcelasRestantes}</span>
                       </div>
                     </div>
                   </div>
