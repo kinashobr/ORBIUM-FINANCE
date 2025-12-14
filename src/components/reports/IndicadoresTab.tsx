@@ -52,7 +52,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn, parseDateLocal } from "@/lib/utils";
-import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval, subDays, startOfDay, endOfDay } from "date-fns";
+import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval, subDays, startOfDay, endOfDay, addMonths } from "date-fns";
 import { toast } from "sonner";
 import { ComparisonDateRanges, DateRange } from "@/types/finance";
 import { ContaCorrente, TransacaoCompleta } from "@/types/finance";
@@ -115,8 +115,10 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
     getPatrimonioLiquido,
     getSaldoDevedor,
     getJurosTotais,
-    calculateBalanceUpToDate, // Importado do contexto
-    getValorFipeTotal, // <-- ADDED
+    calculateBalanceUpToDate,
+    getValorFipeTotal,
+    getSegurosAPagar,
+    calculateLoanPrincipalDueInNextMonths,
   } = useFinance();
 
   const { range1, range2 } = dateRanges;
@@ -310,17 +312,45 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
     const totalAtivos = getAtivosTotal(finalDate);
 
     // Passivos
-    const emprestimosAtivos = emprestimos.filter(e => e.status !== 'quitado');
     const saldoDevedor = getSaldoDevedor(finalDate); // Saldo devedor total na data
     const totalPassivos = getPassivosTotal(finalDate); // Total passivo global
-
-    // Passivo curto prazo (Parcelas de Empréstimo que vencem DENTRO do período selecionado + Saldo CC)
-    const passivoCurtoPrazoEmprestimos = calculateLoanInstallmentsInPeriod(range);
-    const saldoDevedorCartoes = saldosPorConta
+    
+    // Saldo devedor de cartões de crédito (saldos negativos na data final)
+    const saldoDevedorCartoes = contasMovimento
       .filter(c => c.accountType === 'cartao_credito')
-      .reduce((acc, c) => acc + Math.abs(Math.min(0, c.saldo)), 0);
-    const passivoCurtoPrazo = passivoCurtoPrazoEmprestimos + saldoDevedorCartoes;
-
+      .reduce((acc, c) => {
+        const balance = saldosPorConta[c.id] || 0;
+        return acc + Math.abs(Math.min(0, balance)); // Only negative balance is liability
+      }, 0);
+      
+    // Total Insurance Payable (from context)
+    const segurosAPagarTotal = getSegurosAPagar(finalDate);
+    
+    // --- PASSIVO CURTO PRAZO (12 meses lookahead from finalDate) ---
+    
+    // Loan Principal Due in Next 12 Months
+    const loanPrincipalShortTerm = calculateLoanPrincipalDueInNextMonths(finalDate, 12);
+    
+    // Insurance Premium Due in Next 12 Months
+    let segurosAPagarShortTerm = 0;
+    const lookaheadDate = addMonths(finalDate, 12);
+    
+    segurosVeiculo.forEach(seguro => {
+        seguro.parcelas.forEach(parcela => {
+            const dueDate = parseDateLocal(parcela.vencimento);
+            
+            // Check if the installment is due within the next 12 months AND is not yet paid AND is after the reporting date
+            if (!parcela.paga && (isBefore(dueDate, lookaheadDate) || isSameDay(dueDate, lookaheadDate)) && isAfter(dueDate, finalDate)) {
+                segurosAPagarShortTerm += parcela.valor;
+            }
+        });
+    });
+    
+    segurosAPagarShortTerm = Math.min(segurosAPagarShortTerm, segurosAPagarTotal);
+    
+    // Passivo Curto Prazo (Total)
+    const passivoCurtoPrazo = saldoDevedorCartoes + loanPrincipalShortTerm + segurosAPagarShortTerm; 
+    
     // Receitas e Despesas do período
     const calcReceitas = (trans: typeof transacoesV2) => trans
       .filter(t => t.operationType === 'receita' || t.operationType === 'rendimento')
@@ -348,6 +378,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
     const jurosTotais = getJurosTotais();
 
     // === INDICADORES DE LIQUIDEZ ===
+    // Use caixaTotal (Ativo Circulante) e passivoCurtoPrazo (Passivo Circulante - 12 meses lookahead)
     const liquidezCorrente = passivoCurtoPrazo > 0 ? caixaTotal / passivoCurtoPrazo : caixaTotal > 0 ? 999 : 0;
     const liquidezSeca = passivoCurtoPrazo > 0 ? (caixaTotal * 0.8) / passivoCurtoPrazo : caixaTotal > 0 ? 999 : 0;
     const liquidezImediata = passivoCurtoPrazo > 0 ? (caixaTotal * 0.5) / passivoCurtoPrazo : caixaTotal > 0 ? 999 : 0;
@@ -357,6 +388,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
     const endividamentoTotal = totalAtivos > 0 ? (totalPassivos / totalAtivos) * 100 : 0;
     const patrimonioLiquido = totalAtivos - totalPassivos;
     const dividaPL = patrimonioLiquido > 0 ? (saldoDevedor / patrimonioLiquido) * 100 : 0;
+    // Composição Endividamento: Passivo Curto Prazo / Passivo Total
     const composicaoEndividamento = totalPassivos > 0 ? (passivoCurtoPrazo / totalPassivos) * 100 : 0;
     const imobilizacaoPL = patrimonioLiquido > 0 ? (valorVeiculos / patrimonioLiquido) * 100 : 0;
 
@@ -436,7 +468,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
       receitasMesAtual,
       despesasMesAtual,
     };
-  }, [transacoesV2, contasMovimento, emprestimos, veiculos, categoriasV2, getSaldoDevedor, getJurosTotais, calculateBalanceUpToDate, getAtivosTotal, getPassivosTotal, getValorFipeTotal, calculateLoanInstallmentsInPeriod]);
+  }, [transacoesV2, contasMovimento, emprestimos, veiculos, categoriasV2, getSaldoDevedor, getJurosTotais, calculateBalanceUpToDate, getAtivosTotal, getPassivosTotal, getValorFipeTotal, getSegurosAPagar, calculateLoanPrincipalDueInNextMonths]);
 
   // Cálculos para Período 1 e Período 2
   const indicadores1 = useMemo(() => calculateIndicatorsForRange(range1), [calculateIndicatorsForRange, range1]);
@@ -659,7 +691,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
           trend={getDisplayTrend('corrente', 'liquidez').trend}
           trendLabel={range2.from ? `${getDisplayTrend('corrente', 'liquidez').percent.toFixed(1)}% vs P2` : undefined}
           descricao="Mede a capacidade de pagar obrigações de curto prazo com ativos circulantes. Valor ideal: acima de 1.5x"
-          formula="Ativo Circulante / Passivo Circulante (no período)"
+          formula="Ativo Circulante / Passivo Circulante (12 meses)"
           sparklineData={generateSparkline(indicadores1.liquidez.corrente.valor, getDisplayTrend('corrente', 'liquidez').trend)}
           icon={<Droplets className="w-4 h-4" />}
         />
@@ -670,7 +702,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
           trend={getDisplayTrend('seca', 'liquidez').trend}
           trendLabel={range2.from ? `${getDisplayTrend('seca', 'liquidez').percent.toFixed(1)}% vs P2` : undefined}
           descricao="Capacidade de pagamento excluindo ativos menos líquidos. Mais conservador que a liquidez corrente. Ideal: acima de 1x"
-          formula="(Ativo Circulante × 0.8) / Passivo Circulante (no período)"
+          formula="(Ativo Circulante × 0.8) / Passivo Circulante (12 meses)"
           sparklineData={generateSparkline(indicadores1.liquidez.seca.valor, getDisplayTrend('seca', 'liquidez').trend)}
           icon={<Droplets className="w-4 h-4" />}
         />
@@ -681,7 +713,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
           trend={getDisplayTrend('imediata', 'liquidez').trend}
           trendLabel={range2.from ? `${getDisplayTrend('imediata', 'liquidez').percent.toFixed(1)}% vs P2` : undefined}
           descricao="Capacidade de pagamento instantâneo apenas com disponibilidades. Ideal: acima de 0.5x"
-          formula="Disponibilidades / Passivo Circulante (no período)"
+          formula="Disponibilidades / Passivo Circulante (12 meses)"
           sparklineData={generateSparkline(indicadores1.liquidez.imediata.valor, getDisplayTrend('imediata', 'liquidez').trend)}
           icon={<Droplets className="w-4 h-4" />}
         />
@@ -733,7 +765,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
           trend={getDisplayTrend('composicao' as EndividamentoKey, 'endividamento').trend}
           trendLabel={range2.from ? `${getDisplayTrend('composicao' as EndividamentoKey, 'endividamento').percent.toFixed(1)}% vs P2` : undefined}
           descricao="Percentual das dívidas que vencem no curto prazo. Menor valor indica menor pressão imediata. Ideal: abaixo de 50%"
-          formula="(Passivo Circulante (no período) / Passivo Total) × 100"
+          formula="(Passivo Circulante (12 meses) / Passivo Total) × 100"
           sparklineData={generateSparkline(indicadores1.endividamento.composicao.valor, getDisplayTrend('composicao' as EndividamentoKey, 'endividamento').trend)}
           icon={<AlertTriangle className="w-4 h-4" />}
         />
