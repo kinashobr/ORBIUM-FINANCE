@@ -34,7 +34,7 @@ import { EditableCell } from "@/components/EditableCell";
 import { cn, parseDateLocal } from "@/lib/utils";
 import { toast } from "sonner";
 import { FipeConsultaDialog } from "@/components/vehicles/FipeConsultaDialog";
-import { TransacaoCompleta, generateTransactionId, OperationType, getFlowTypeFromOperation, getDomainFromOperation } from "@/types/finance";
+import { TransacaoCompleta, generateTransactionId, OperationType, getFlowTypeFromOperation, getDomainFromOperation, formatCurrency } from "@/types/finance";
 import { useNavigate } from "react-router-dom";
 import { differenceInMonths, addMonths, parseISO, format } from "date-fns";
 
@@ -319,7 +319,7 @@ const Veiculos = () => {
                       </SelectTrigger>
                       <SelectContent>
                         {veiculos.filter(v => v.status === 'ativo').map(v => (
-                          <SelectItem key={v.id} value={v.id.toString()}>
+                          <SelectItem key={v.id.toString()} value={v.id.toString()}>
                             {v.modelo} ({v.ano})
                           </SelectItem>
                         ))}
@@ -457,7 +457,7 @@ const Veiculos = () => {
                     className="gap-2 border-warning/50 hover:bg-warning/20"
                   >
                     <Car className="w-4 h-4" />
-                    Compra em {parseDateLocal(vehicle.dataCompra).toLocaleDateString("pt-BR")} - R$ {vehicle.valorVeiculo.toLocaleString("pt-BR")}
+                    Compra em {parseDateLocal(vehicle.dataCompra).toLocaleDateString("pt-BR")} - {formatCurrency(vehicle.valorVeiculo)}
                   </Button>
                 ))}
               </div>
@@ -473,7 +473,7 @@ const Veiculos = () => {
                 <div>
                   <p className="text-sm text-muted-foreground font-medium">Valor dos Veículos</p>
                   <p className="text-2xl font-bold text-primary mt-1">
-                    R$ {totalVeiculos.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    {formatCurrency(totalVeiculos)}
                   </p>
                 </div>
                 <div className="p-3 rounded-xl bg-primary/10 text-primary">
@@ -489,7 +489,7 @@ const Veiculos = () => {
                 <div>
                   <p className="text-sm text-muted-foreground font-medium">Total Seguros</p>
                   <p className="text-2xl font-bold text-primary mt-1">
-                    R$ {totalSeguros.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    {formatCurrency(totalSeguros)}
                   </p>
                 </div>
                 <div className="p-3 rounded-xl bg-primary/10 text-primary">
@@ -505,7 +505,7 @@ const Veiculos = () => {
                 <div>
                   <p className="text-sm text-muted-foreground font-medium">Valor FIPE Atual</p>
                   <p className="text-2xl font-bold text-success mt-1">
-                    R$ {totalFipe.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    {formatCurrency(totalFipe)}
                   </p>
                 </div>
                 <div className="p-3 rounded-xl bg-success/10 text-success">
@@ -524,7 +524,7 @@ const Veiculos = () => {
                 <div>
                   <p className="text-sm text-muted-foreground font-medium">Custo Total</p>
                   <p className="text-2xl font-bold text-foreground mt-1">
-                    R$ {getCustoVeiculos().toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    {formatCurrency(getCustoVeiculos())}
                   </p>
                   {veiculosComSeguroVencendo.length > 0 && (
                     <p className="text-xs text-destructive mt-1">{veiculosComSeguroVencendo.length} seguro(s) vencendo</p>
@@ -565,8 +565,12 @@ const Veiculos = () => {
                         <XAxis dataKey="modelo" axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
                         <YAxis axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
                         <Tooltip
-                          contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "12px" }}
-                          formatter={(value: number) => [`R$ ${value.toLocaleString("pt-BR")}`, ""]}
+                          contentStyle={{
+                            backgroundColor: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "12px"
+                          }}
+                          formatter={(value: number) => [formatCurrency(value), ""]}
                         />
                         <Bar dataKey="valorCompra" fill="hsl(199, 89%, 48%)" radius={[4, 4, 0, 0]} name="Valor Compra" />
                         <Bar dataKey="valorFipe" fill="hsl(142, 76%, 36%)" radius={[4, 4, 0, 0]} name="Valor FIPE" />
@@ -648,7 +652,7 @@ const Veiculos = () => {
                             <EditableCell value={item.valorFipe} type="currency" onSave={(v) => updateVeiculo(item.id, { valorFipe: Number(v) })} className="text-success" />
                           </TableCell>
                           <TableCell className="text-right">
-                            R$ {item.valorSeguro.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                            {formatCurrency(item.valorSeguro)}
                           </TableCell>
                           <TableCell>
                             <Badge 
@@ -740,7 +744,7 @@ const Veiculos = () => {
                             {parseDateLocal(seguro.vigenciaInicio).toLocaleDateString("pt-BR")} - {parseDateLocal(seguro.vigenciaFim).toLocaleDateString("pt-BR")}
                           </TableCell>
                           <TableCell className="text-right">
-                            R$ {seguro.valorTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                            {formatCurrency(seguro.valorTotal)}
                           </TableCell>
                           <TableCell className="text-right">
                             <Badge variant="outline">
@@ -831,7 +835,7 @@ const Veiculos = () => {
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
-                            R$ {item.parcela.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                            {formatCurrency(item.parcela.valor)}
                           </TableCell>
                           <TableCell>
                             <Badge 
@@ -848,7 +852,7 @@ const Veiculos = () => {
                             {item.transaction?.date ? parseDateLocal(item.transaction.date).toLocaleDateString("pt-BR") : '—'}
                           </TableCell>
                           <TableCell className="text-right font-medium text-success">
-                            {item.transaction?.amount ? `R$ ${item.transaction.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : '—'}
+                            {item.transaction?.amount ? formatCurrency(item.transaction.amount) : '—'}
                           </TableCell>
                           <TableCell>
                             {!item.parcela.paga ? (
