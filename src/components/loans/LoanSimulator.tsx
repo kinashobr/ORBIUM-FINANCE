@@ -14,7 +14,7 @@ interface LoanSimulatorProps {
 }
 
 export function LoanSimulator({ emprestimos, className }: LoanSimulatorProps) {
-  const { calculateLoanAmortizationAndInterest } = useFinance(); // Destructure the necessary function
+  const { calculateLoanSchedule } = useFinance(); // Destructure the necessary function
   
   const [aumentoParcela, setAumentoParcela] = useState("");
   const [valorQuitacao, setValorQuitacao] = useState("");
@@ -24,25 +24,21 @@ export function LoanSimulator({ emprestimos, className }: LoanSimulatorProps) {
     return emprestimos.reduce((acc, e) => {
       if (e.status === 'quitado' || e.status === 'pendente_config') return acc;
       
-      // Use the actual paid installments count from the loan object
+      const schedule = calculateLoanSchedule(e.id);
       const parcelasPagas = e.parcelasPagas || 0; 
       
       let saldoDevedor = e.valorTotal;
       
       if (parcelasPagas > 0) {
-          // Calculate the amortization schedule up to the last paid installment
-          const calc = calculateLoanAmortizationAndInterest(e.id, parcelasPagas);
-          if (calc) {
-              saldoDevedor = calc.saldoDevedor;
-          } else {
-              // Fallback (should not happen for configured loans)
-              saldoDevedor = Math.max(0, e.valorTotal - (parcelasPagas * e.parcela));
+          const ultimaParcelaPaga = schedule.find(item => item.parcela === parcelasPagas);
+          if (ultimaParcelaPaga) {
+              saldoDevedor = ultimaParcelaPaga.saldoDevedor;
           }
       }
       
       return acc + saldoDevedor;
     }, 0);
-  }, [emprestimos, calculateLoanAmortizationAndInterest]);
+  }, [emprestimos, calculateLoanSchedule]);
 
   const parcelaTotal = useMemo(() => {
     return emprestimos.reduce((acc, e) => acc + e.parcela, 0);
@@ -50,7 +46,12 @@ export function LoanSimulator({ emprestimos, className }: LoanSimulatorProps) {
 
   const taxaMedia = useMemo(() => {
     if (emprestimos.length === 0) return 0;
-    return emprestimos.reduce((acc, e) => acc + e.taxaMensal, 0) / emprestimos.length;
+    // Calcula a taxa média ponderada pelo saldo devedor (simplificação)
+    const totalPrincipal = emprestimos.reduce((acc, e) => acc + e.valorTotal, 0);
+    if (totalPrincipal === 0) return 0;
+    
+    const taxaPonderada = emprestimos.reduce((acc, e) => acc + (e.taxaMensal * e.valorTotal), 0);
+    return taxaPonderada / totalPrincipal;
   }, [emprestimos]);
 
   // Simulação: Aumentar parcela
@@ -116,20 +117,31 @@ export function LoanSimulator({ emprestimos, className }: LoanSimulatorProps) {
     const percentualQuitacao = Math.min(100, (valor / totalSaldoDevedor) * 100);
     const saldoRestante = Math.max(0, totalSaldoDevedor - valor);
     
-    // Simplificação: Juros economizados é o juros restante do saldo quitado
-    // Juros restantes = (Parcela Total * Meses Restantes) - Saldo Devedor
-    // Se quitamos X do saldo, economizamos os juros que seriam pagos sobre X.
+    // Para calcular a economia de juros, precisamos saber os juros restantes
+    let jurosRestantesTotal = 0;
     
-    // Estimativa de juros restantes sobre o valor quitado (simplificado)
-    const mesesRestantesEstimados = totalSaldoDevedor / parcelaTotal;
-    const jurosEconomizados = valor * (taxaMedia / 100) * mesesRestantesEstimados * 0.5; // Fator de 0.5 para simular a média
+    emprestimos.forEach(e => {
+        if (e.status === 'quitado' || e.status === 'pendente_config') return;
+        
+        const schedule = calculateLoanSchedule(e.id);
+        const parcelasPagas = e.parcelasPagas || 0;
+        
+        const jurosRestantesLoan = schedule
+            .filter(item => item.parcela > parcelasPagas)
+            .reduce((acc, item) => acc + item.juros, 0);
+            
+        jurosRestantesTotal += jurosRestantesLoan;
+    });
+    
+    // Se quitamos X do saldo devedor total, a economia de juros é proporcional ao valor quitado
+    const jurosEconomizados = jurosRestantesTotal * (valor / totalSaldoDevedor);
 
     return {
       percentualQuitacao,
       saldoRestante,
       jurosEconomizados: Math.max(0, jurosEconomizados),
     };
-  }, [valorQuitacao, totalSaldoDevedor, parcelaTotal, taxaMedia]);
+  }, [valorQuitacao, totalSaldoDevedor, calculateLoanSchedule, emprestimos]);
 
   // Simulação: Refinanciar
   const simulacaoRefinanciamento = useMemo(() => {

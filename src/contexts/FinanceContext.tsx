@@ -80,6 +80,14 @@ const getDueDate = (startDateStr: string, installmentNumber: number): Date => {
 // INTERFACE DO CONTEXTO (Atualizada)
 // ============================================
 
+// NEW TYPE: Detailed Amortization Schedule Item
+export interface AmortizationItem {
+    parcela: number;
+    juros: number;
+    amortizacao: number;
+    saldoDevedor: number; // Saldo após o pagamento desta parcela
+}
+
 interface FinanceContextType {
   // Empréstimos
   emprestimos: Emprestimo[];
@@ -89,8 +97,14 @@ interface FinanceContextType {
   getPendingLoans: () => Emprestimo[];
   markLoanParcelPaid: (loanId: number, valorPago: number, dataPagamento: string, parcelaNumero?: number) => void;
   unmarkLoanParcelPaid: (loanId: number) => void;
-  calculateLoanAmortizationAndInterest: (loanId: number, parcelaNumber: number) => { juros: number; amortizacao: number; saldoDevedor: number } | null; // <-- NEW
-  calculateLoanPrincipalDueInNextMonths: (targetDate: Date, months: number) => number; // <-- NEW
+  
+  // NEW: Function to calculate the full amortization schedule (PRICE)
+  calculateLoanSchedule: (loanId: number) => AmortizationItem[];
+  
+  // NEW: Function to get specific installment details
+  calculateLoanAmortizationAndInterest: (loanId: number, parcelaNumber: number) => AmortizationItem | null;
+  
+  calculateLoanPrincipalDueInNextMonths: (targetDate: Date, months: number) => number; 
   
   // Veículos
   veiculos: Veiculo[];
@@ -120,7 +134,7 @@ interface FinanceContextType {
   
   // Categorias V2 (with nature)
   categoriasV2: Categoria[];
-  setCategoriasV2: Dispatch<SetStateAction<Categoria[]>>;
+  setCategoriasV2: Dispatch<SetSetStateAction<Categoria[]>>;
   
   // Transações V2 (integrated)
   transacoesV2: TransacaoCompleta[];
@@ -154,7 +168,7 @@ interface FinanceContextType {
   // Nova função de cálculo de saldo por data
   calculateBalanceUpToDate: (accountId: string, date: Date | undefined, allTransactions: TransacaoCompleta[], accounts: ContaCorrente[]) => number;
   calculateTotalInvestmentBalanceAtDate: (date: Date | undefined) => number;
-  calculatePaidInstallmentsUpToDate: (loanId: number, targetDate: Date) => number; // <-- NEW
+  calculatePaidInstallmentsUpToDate: (loanId: number, targetDate: Date) => number; 
 
   // Exportação e Importação
   exportData: () => void;
@@ -274,7 +288,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     loadFromStorage(STORAGE_KEYS.VEICULOS, initialVeiculos)
   );
   const [segurosVeiculo, setSegurosVeiculo] = useState<SeguroVeiculo[]>(() => 
-    loadFromStorage(STORAGE_KEYS.SEGUROS_VEICULO, initialSegurosVeiculo)
+    loadFromStorage(STORAGE_KEYS.SEGUROS_VEICULOS, initialSegurosVeiculo)
   );
   const [objetivos, setObjetivos] = useState<ObjetivoFinanceiro[]>(() => 
     loadFromStorage(STORAGE_KEYS.OBJETIVOS, initialObjetivos)
@@ -406,38 +420,61 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }, [emprestimos, transacoesV2]);
   
   // ============================================
-  // NOVO: CÁLCULO DE JUROS E AMORTIZAÇÃO (MÉTODO PRICE)
+  // NOVO: CÁLCULO DE CRONOGRAMA DE AMORTIZAÇÃO (MÉTODO PRICE)
   // ============================================
   
-  const calculateLoanAmortizationAndInterest = useCallback((loanId: number, parcelaNumber: number) => {
+  const calculateLoanSchedule = useCallback((loanId: number): AmortizationItem[] => {
     const loan = emprestimos.find(e => e.id === loanId);
-    if (!loan || loan.meses === 0 || loan.taxaMensal === 0) return null;
+    if (!loan || loan.meses === 0 || loan.taxaMensal === 0) return [];
 
     const taxa = loan.taxaMensal / 100;
+    const parcelaFixa = loan.parcela;
     
     // Helper para arredondar para 2 casas decimais
     const round = (num: number) => Math.round(num * 100) / 100;
     
     let saldoDevedor = loan.valorTotal;
-    
-    // Simular o saldo devedor até a parcela anterior
-    for (let i = 1; i < parcelaNumber; i++) {
+    const schedule: AmortizationItem[] = [];
+
+    for (let i = 1; i <= loan.meses; i++) {
+      if (saldoDevedor <= 0) {
+        // Se o saldo já foi quitado, preenche o restante com zeros
+        schedule.push({
+          parcela: i,
+          juros: 0,
+          amortizacao: 0,
+          saldoDevedor: 0,
+        });
+        continue;
+      }
+      
       const juros = saldoDevedor * taxa;
-      const amortizacao = loan.parcela - juros;
-      saldoDevedor = round(Math.max(0, saldoDevedor - amortizacao)); // Apply rounding here
+      let amortizacao = parcelaFixa - juros;
+      
+      // Ajuste para a última parcela (garantir que o saldo feche em zero)
+      if (i === loan.meses) {
+          amortizacao = saldoDevedor;
+      }
+      
+      const novoSaldoDevedor = round(Math.max(0, saldoDevedor - amortizacao));
+      
+      schedule.push({
+        parcela: i,
+        juros: round(Math.max(0, juros)),
+        amortizacao: round(Math.max(0, amortizacao)),
+        saldoDevedor: novoSaldoDevedor,
+      });
+      
+      saldoDevedor = novoSaldoDevedor;
     }
     
-    // Calcular a parcela atual
-    const juros = saldoDevedor * taxa;
-    const amortizacao = loan.parcela - juros;
-    const novoSaldoDevedor = Math.max(0, saldoDevedor - amortizacao);
-
-    return {
-      juros: round(Math.max(0, juros)),
-      amortizacao: round(Math.max(0, amortizacao)),
-      saldoDevedor: round(novoSaldoDevedor),
-    };
+    return schedule;
   }, [emprestimos]);
+  
+  const calculateLoanAmortizationAndInterest = useCallback((loanId: number, parcelaNumber: number): AmortizationItem | null => {
+      const schedule = calculateLoanSchedule(loanId);
+      return schedule.find(item => item.parcela === parcelaNumber) || null;
+  }, [calculateLoanSchedule]);
   
   // NEW FUNCTION: Calculates the total principal amortization due in the next N months from targetDate
   const calculateLoanPrincipalDueInNextMonths = useCallback((targetDate: Date, months: number): number => {
@@ -451,36 +488,27 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         // 1. Determine the number of installments already paid up to targetDate
         const paidUpToDate = calculatePaidInstallmentsUpToDate(e.id, targetDate);
         
-        // 2. Simulate the amortization schedule starting from the first installment
-        let currentSaldo = e.valorTotal;
+        // 2. Get the full schedule
+        const schedule = calculateLoanSchedule(e.id);
         
-        for (let i = 1; i <= e.meses; i++) {
-            const calc = calculateLoanAmortizationAndInterest(e.id, i);
-            if (!calc) continue;
-            
-            const dueDate = getDueDate(e.dataInicio, i);
+        schedule.forEach(item => {
+            const dueDate = getDueDate(e.dataInicio!, item.parcela);
             
             // If the installment is already paid (or considered paid by the system logic up to targetDate), skip it.
-            if (i <= paidUpToDate) {
-                currentSaldo = calc.saldoDevedor; // Saldo after this installment
-                continue;
+            if (item.parcela <= paidUpToDate) {
+                return;
             }
             
             // If the installment is due within the next 'months' (i.e., dueDate is before or on lookaheadDate)
             if (isBefore(dueDate, lookaheadDate) || isSameDay(dueDate, lookaheadDate)) {
                 // The principal due is the amortization component of this installment
-                principalDue += calc.amortizacao;
-                // Update currentSaldo for the next iteration
-                currentSaldo = calc.saldoDevedor;
-            } else if (isAfter(dueDate, lookaheadDate)) {
-                // Stop calculation once we pass the lookahead date
-                break;
+                principalDue += item.amortizacao;
             }
-        }
+        });
         
         return acc + principalDue;
     }, 0);
-  }, [emprestimos, calculatePaidInstallmentsUpToDate, calculateLoanAmortizationAndInterest]);
+  }, [emprestimos, calculatePaidInstallmentsUpToDate, calculateLoanSchedule]);
 
   // ============================================
   // FUNÇÕES DE CÁLCULO DE SEGUROS (ACCRUAL) - REFINADAS
@@ -746,15 +774,20 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
     // 1. Saldo devedor de Empréstimos (Principal restante)
     const saldoEmprestimos = emprestimos.reduce((acc, e) => {
+      if (e.status === 'quitado' || e.status === 'pendente_config') return acc;
+      
       // Calculate paid installments up to the target date
       const paidUpToDate = calculatePaidInstallmentsUpToDate(e.id, date);
       
       // Simular o saldo devedor após a última parcela paga
       let currentSaldo = e.valorTotal;
-      for (let i = 1; i <= paidUpToDate; i++) {
-          const calc = calculateLoanAmortizationAndInterest(e.id, i);
-          if (calc) {
-              currentSaldo = calc.saldoDevedor;
+      
+      if (paidUpToDate > 0) {
+          const schedule = calculateLoanSchedule(e.id);
+          // O saldo devedor é o saldo após a última parcela paga (paidUpToDate)
+          const lastPaidItem = schedule.find(item => item.parcela === paidUpToDate);
+          if (lastPaidItem) {
+              currentSaldo = lastPaidItem.saldoDevedor;
           }
       }
       
@@ -771,7 +804,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       }, 0);
       
     return saldoEmprestimos + saldoCartoes;
-  }, [emprestimos, contasMovimento, transacoesV2, calculateBalanceUpToDate, calculatePaidInstallmentsUpToDate, calculateLoanAmortizationAndInterest]);
+  }, [emprestimos, contasMovimento, transacoesV2, calculateBalanceUpToDate, calculatePaidInstallmentsUpToDate, calculateLoanSchedule]);
 
   const getJurosTotais = () => {
     return emprestimos.reduce((acc, e) => {
@@ -804,19 +837,19 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const valorVeiculos = getValorFipeTotal(date);
     
     // 3. Seguros a Apropriar (Prepaid Insurance Asset)
-    const segurosAApropriar = getSegurosAApropriar(date); // <-- ADDED
+    const segurosAApropriar = getSegurosAApropriar(date); 
                           
-    return saldoContasAtivas + valorVeiculos + segurosAApropriar; // <-- ADDED segurosAApropriar
-  }, [contasMovimento, transacoesV2, getValorFipeTotal, calculateBalanceUpToDate, getSegurosAApropriar]); // <-- ADDED getSegurosAApropriar dependency
+    return saldoContasAtivas + valorVeiculos + segurosAApropriar; 
+  }, [contasMovimento, transacoesV2, getValorFipeTotal, calculateBalanceUpToDate, getSegurosAApropriar]); 
 
   const getPassivosTotal = useCallback((targetDate?: Date) => {
     const saldoDevedor = getSaldoDevedor(targetDate);
     
     // 2. Seguros a Pagar (Insurance Payable Liability)
-    const segurosAPagar = getSegurosAPagar(targetDate); // <-- ADDED
+    const segurosAPagar = getSegurosAPagar(targetDate); 
     
-    return saldoDevedor + segurosAPagar; // <-- ADDED segurosAPagar
-  }, [getSaldoDevedor, getSegurosAPagar]); // <-- ADDED getSegurosAPagar dependency
+    return saldoDevedor + segurosAPagar; 
+  }, [getSaldoDevedor, getSegurosAPagar]); 
 
   const getPatrimonioLiquido = useCallback((targetDate?: Date) => {
     return getAtivosTotal(targetDate) - getPassivosTotal(targetDate);
@@ -893,8 +926,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     getPendingLoans,
     markLoanParcelPaid,
     unmarkLoanParcelPaid,
-    calculateLoanAmortizationAndInterest, // <-- EXPORTED
-    calculateLoanPrincipalDueInNextMonths, // <-- EXPORTED
+    calculateLoanSchedule, // <-- EXPORTED NEW FUNCTION
+    calculateLoanAmortizationAndInterest, 
+    calculateLoanPrincipalDueInNextMonths, 
     veiculos,
     addVeiculo,
     updateVeiculo,
@@ -935,11 +969,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     getPatrimonioLiquido,
     getAtivosTotal,
     getPassivosTotal,
-    getSegurosAApropriar, // <-- NEW
-    getSegurosAPagar, // <-- NEW
-    calculateBalanceUpToDate, // Exportando a função central
+    getSegurosAApropriar, 
+    getSegurosAPagar, 
+    calculateBalanceUpToDate, 
     calculateTotalInvestmentBalanceAtDate,
-    calculatePaidInstallmentsUpToDate, // Exporting the new function
+    calculatePaidInstallmentsUpToDate, 
     exportData,
     importData,
     

@@ -120,7 +120,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
     getValorFipeTotal,
     getSegurosAPagar,
     calculateLoanPrincipalDueInNextMonths,
-    calculateLoanAmortizationAndInterest,
+    calculateLoanSchedule, // <-- NEW
   } = useFinance();
 
   const { range1, range2 } = dateRanges;
@@ -439,12 +439,15 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
             const parcelaNumber = parseInt(parcelaIdStr);
             
             if (!isNaN(loanId) && !isNaN(parcelaNumber)) {
-                const calc = calculateLoanAmortizationAndInterest(loanId, parcelaNumber);
-                
-                if (calc) {
-                    const amortization = calc.amortizacao;
-                    const interestComponent = t.amount - amortization;
-                    jurosEmprestimosPeriodo += interestComponent;
+                // NEW LOGIC: Use calculateLoanSchedule to find the exact interest component
+                const loan = emprestimos.find(e => e.id === loanId);
+                if (loan) {
+                    const schedule = calculateLoanSchedule(loanId);
+                    const item = schedule.find(i => i.parcela === parcelaNumber);
+                    
+                    if (item) {
+                        jurosEmprestimosPeriodo += item.juros;
+                    }
                 }
             }
         }
@@ -549,7 +552,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
       receitasMesAtual,
       despesasMesAtual: totalDespesasOperacionaisAccrual,
     };
-  }, [transacoesV2, contasMovimento, emprestimos, veiculos, categoriasV2, getSaldoDevedor, calculateBalanceUpToDate, getAtivosTotal, getPassivosTotal, getValorFipeTotal, getSegurosAPagar, calculateLoanPrincipalDueInNextMonths, segurosVeiculo, calculateLoanAmortizationAndInterest, calculatePercentChange]);
+  }, [transacoesV2, contasMovimento, emprestimos, veiculos, categoriasV2, getSaldoDevedor, calculateBalanceUpToDate, getAtivosTotal, getPassivosTotal, getValorFipeTotal, getSegurosAPagar, calculateLoanPrincipalDueInNextMonths, segurosVeiculo, calculateLoanSchedule, calculatePercentChange]);
 
   // Cálculos para Período 1 e Período 2
   const indicadores1 = useMemo(() => calculateIndicatorsForRange(range1), [calculateIndicatorsForRange, range1]);

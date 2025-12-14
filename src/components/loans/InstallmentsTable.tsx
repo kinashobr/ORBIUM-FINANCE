@@ -10,17 +10,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Check, Clock, AlertTriangle, Upload, FileText, TrendingUp, TrendingDown } from "lucide-react";
-import { useFinance } from "@/contexts/FinanceContext";
+import { useFinance, AmortizationItem } from "@/contexts/FinanceContext";
 import { Emprestimo, TransacaoCompleta } from "@/types/finance";
 import { cn, parseDateLocal } from "@/lib/utils";
 
-interface Parcela {
-  numero: number;
+interface Parcela extends AmortizationItem {
   dataVencimento: Date;
-  valorTotal: number;
-  juros: number;
-  amortizacao: number;
-  saldoDevedor: number;
+  valorTotal: number; // Valor da Parcela Fixa
   status: "pago" | "pendente" | "atrasado";
   dataPagamento?: string;
   valorPago?: number;
@@ -47,7 +43,7 @@ const getDueDate = (startDateStr: string, installmentNumber: number): Date => {
 };
 
 export function InstallmentsTable({ emprestimo, className }: InstallmentsTableProps) {
-  const { transacoesV2, calculateLoanAmortizationAndInterest } = useFinance();
+  const { transacoesV2, calculateLoanSchedule } = useFinance();
   
   // Buscar transações de pagamento vinculadas a este empréstimo
   const payments = useMemo(() => {
@@ -62,102 +58,61 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
 
     const hoje = new Date();
     
-    let saldoDevedor = emprestimo.valorTotal;
-    const result: Parcela[] = [];
+    // 1. Obter o cronograma de amortização PRICE completo
+    const schedule = calculateLoanSchedule(emprestimo.id);
 
-    // Mapear pagamentos por número de parcela
+    // 2. Mapear pagamentos por número de parcela
     const paymentsMap = new Map<number, TransacaoCompleta>();
     payments.forEach(p => {
-      // Prioriza o parcelaId do link
       const parcelaNum = p.links?.parcelaId ? parseInt(p.links.parcelaId) : undefined;
       if (parcelaNum) {
         paymentsMap.set(parcelaNum, p);
       }
     });
-
-    // Determinar quantas parcelas foram pagas no sistema legado (se não houver paymentsMap)
-    const paidCountLegacy = paymentsMap.size === 0 ? (emprestimo.parcelasPagas || 0) : 0;
     
-    // Recalcular o saldo devedor e status
-    let saldoCorrigido = emprestimo.valorTotal;
-    let currentPaidCount = 0;
-
-    for (let i = 1; i <= emprestimo.meses; i++) {
-      const dataVencimento = getDueDate(emprestimo.dataInicio, i);
+    // 3. Construir a lista de parcelas com status e dados de pagamento
+    const result: Parcela[] = schedule.map((item) => {
+      const dataVencimento = getDueDate(emprestimo.dataInicio!, item.parcela);
+      const payment = paymentsMap.get(item.parcela);
       
-      // Usar a função do contexto para obter juros e amortização
-      const calc = calculateLoanAmortizationAndInterest(emprestimo.id, i);
-      const juros = calc?.juros || 0;
-      const amortizacao = calc?.amortizacao || 0;
-      
-      const payment = paymentsMap.get(i);
-      const isLegadoPaid = paidCountLegacy > 0 && i <= paidCountLegacy;
-
       let status: Parcela["status"] = "pendente";
       let dataPagamento: string | undefined;
       let valorPago: number | undefined;
       let diferencaJuros: number | undefined;
       let diasDiferenca: number | undefined;
-      let saldoDevedorExibido = saldoCorrigido;
 
-      if (payment || isLegadoPaid) {
+      if (payment) {
         status = "pago";
-        currentPaidCount++;
+        dataPagamento = payment.date;
+        valorPago = payment.amount;
         
-        if (payment) {
-          dataPagamento = payment.date;
-          valorPago = payment.amount;
-          
-          const paymentDate = parseDateLocal(dataPagamento);
-          const diffTime = paymentDate.getTime() - dataVencimento.getTime();
-          diasDiferenca = Math.round(diffTime / (1000 * 60 * 60 * 24));
-          
-          diferencaJuros = valorPago - emprestimo.parcela;
-        } else if (isLegadoPaid) {
-          dataPagamento = 'N/A';
-          valorPago = emprestimo.parcela;
-          diferencaJuros = 0;
-        }
+        const paymentDate = parseDateLocal(dataPagamento);
+        const diffTime = paymentDate.getTime() - dataVencimento.getTime();
+        diasDiferenca = Math.round(diffTime / (1000 * 60 * 60 * 24));
         
-        // Atualiza saldo devedor para a próxima iteração
-        saldoCorrigido = Math.max(0, saldoCorrigido - amortizacao);
-        saldoDevedorExibido = saldoCorrigido + amortizacao; // Saldo antes da amortização
+        // Diferença entre o valor pago e o valor da parcela fixa
+        diferencaJuros = valorPago - emprestimo.parcela;
       } else {
         // Se não foi pago e a data de vencimento já passou
         if (dataVencimento < hoje) {
           status = "atrasado";
         }
-        // Saldo Devedor Exibido é o saldo atual (antes da amortização desta parcela)
-        saldoDevedorExibido = saldoCorrigido;
       }
       
-      result.push({
-        numero: i,
+      return {
+        ...item,
         dataVencimento,
         valorTotal: emprestimo.parcela,
-        juros: juros,
-        amortizacao: amortizacao,
-        saldoDevedor: saldoCorrigido, // Saldo após o pagamento desta parcela
         status,
         dataPagamento,
         valorPago,
         diferencaJuros,
         diasDiferenca,
-      });
-      
-      // Se a parcela não foi paga, o saldo corrigido não muda para a próxima iteração
-      if (!payment && !isLegadoPaid) {
-          saldoCorrigido = saldoDevedorExibido;
-      }
-    }
+      } as Parcela;
+    });
     
-    // Ajuste final para garantir que a última parcela paga tenha saldo devedor 0
-    if (currentPaidCount === emprestimo.meses) {
-        result[emprestimo.meses - 1].saldoDevedor = 0;
-    }
-
     return result;
-  }, [emprestimo, payments, calculateLoanAmortizationAndInterest]);
+  }, [emprestimo, payments, calculateLoanSchedule]);
 
   const formatCurrency = (value: number) =>
     `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
@@ -172,7 +127,15 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
   const totalParcelasPagas = parcelas.filter(p => p.status === 'pago').length;
   
   // Saldo Devedor Real (último saldo calculado)
-  const saldoDevedorReal = parcelas.length > 0 ? parcelas[parcelas.length - 1].saldoDevedor : emprestimo.valorTotal;
+  const ultimaParcelaPaga = parcelas.filter(p => p.status === 'pago').pop();
+  const saldoDevedorReal = ultimaParcelaPaga ? ultimaParcelaPaga.saldoDevedor : emprestimo.valorTotal;
+  
+  // Progresso Financeiro (Amortização Acumulada / Valor Total)
+  const amortizacaoAcumulada = parcelas
+    .filter(p => p.status === 'pago')
+    .reduce((acc, p) => acc + p.amortizacao, 0);
+    
+  const progressoFinanceiro = emprestimo.valorTotal > 0 ? (amortizacaoAcumulada / emprestimo.valorTotal) * 100 : 0;
 
   return (
     <div className={cn("glass-card p-5", className)}>
@@ -214,14 +177,14 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
 
                 return (
                   <TableRow
-                    key={parcela.numero}
+                    key={parcela.parcela}
                     className={cn(
                       "border-border transition-colors",
                       isPaid ? "bg-success/5 hover:bg-success/10" : "hover:bg-muted/30",
                       parcela.status === 'atrasado' && "bg-destructive/5 hover:bg-destructive/10"
                     )}
                   >
-                    <TableCell className="font-medium">{parcela.numero}</TableCell>
+                    <TableCell className="font-medium">{parcela.parcela}</TableCell>
                     <TableCell>{parcela.dataVencimento.toLocaleDateString("pt-BR")}</TableCell>
                     <TableCell className={cn(isPaid ? "text-success" : "text-muted-foreground")}>
                       {parcela.dataPagamento ? parseDateLocal(parcela.dataPagamento).toLocaleDateString("pt-BR") : '-'}
@@ -270,9 +233,9 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
           </p>
         </div>
         <div className="text-center">
-          <p className="text-xs text-muted-foreground">Progresso</p>
+          <p className="text-xs text-muted-foreground">Progresso Financeiro</p>
           <p className="text-lg font-bold text-primary">
-            {((totalParcelasPagas / emprestimo.meses) * 100).toFixed(1)}%
+            {progressoFinanceiro.toFixed(1)}%
           </p>
         </div>
       </div>

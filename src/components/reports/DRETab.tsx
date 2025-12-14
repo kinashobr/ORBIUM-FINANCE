@@ -141,9 +141,9 @@ export function DRETab({ dateRanges }: DRETabProps) {
     transacoesV2,
     categoriasV2,
     emprestimos,
-    segurosVeiculo, // <-- ADDED
+    segurosVeiculo, 
     getJurosTotais,
-    calculateLoanAmortizationAndInterest, // <-- NEW
+    calculateLoanSchedule, // <-- NEW
   } = useFinance();
 
   const { range1, range2 } = dateRanges;
@@ -282,19 +282,19 @@ export function DRETab({ dateRanges }: DRETabProps) {
             const parcelaNumber = parseInt(parcelaIdStr);
             
             if (!isNaN(loanId) && !isNaN(parcelaNumber)) {
-                const calc = calculateLoanAmortizationAndInterest(loanId, parcelaNumber);
-                
-                if (calc) {
-                    // O custo financeiro (juros) é o valor pago menos a amortização do principal.
-                    // A amortização é determinada pelo cronograma (calc.amortizacao).
-                    const amortization = calc.amortizacao; // Corrigido para amortizacao
-                    const interestComponent = t.amount - amortization;
+                // NEW LOGIC: Use calculateLoanSchedule to find the exact interest component
+                const loan = emprestimos.find(e => e.id === loanId);
+                if (loan) {
+                    const schedule = calculateLoanSchedule(loanId);
+                    const item = schedule.find(i => i.parcela === parcelaNumber);
                     
-                    jurosEmprestimos += interestComponent;
-                } else {
-                    // Se não for possível calcular (ex: empréstimo não configurado ou dados inválidos),
-                    // pulamos a transação para evitar distorção no DRE.
-                    console.warn(`Transação de empréstimo ${t.id} não pôde ser calculada para DRE (loanId: ${loanId}, parcela: ${parcelaNumber}).`);
+                    if (item) {
+                        jurosEmprestimos += item.juros;
+                    } else {
+                        // Fallback: If schedule item not found, use the difference (less accurate)
+                        const amortization = loan.parcela - (loan.valorTotal * (loan.taxaMensal / 100)); // Very rough estimate
+                        jurosEmprestimos += Math.max(0, t.amount - amortization);
+                    }
                 }
             }
         }
@@ -333,7 +333,7 @@ export function DRETab({ dateRanges }: DRETabProps) {
       totalDespesasFixas: despesasOperacionaisFixas,
       totalDespesasVariaveis: despesasOperacionaisVariaveis,
     };
-  }, [categoriasV2, calculateLoanAmortizationAndInterest, segurosVeiculo]);
+  }, [categoriasV2, segurosVeiculo, emprestimos, calculateLoanSchedule]);
 
   // DRE para o Período 1 (Principal)
   const dre1 = useMemo(() => calculateDRE(transacoesPeriodo1, range1), [calculateDRE, transacoesPeriodo1, range1]);

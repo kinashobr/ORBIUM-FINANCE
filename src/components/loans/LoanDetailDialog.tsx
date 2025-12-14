@@ -47,7 +47,7 @@ interface LoanDetailDialogProps {
 }
 
 export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailDialogProps) {
-  const { updateEmprestimo, getContasCorrentesTipo, calculateLoanAmortizationAndInterest } = useFinance();
+  const { updateEmprestimo, getContasCorrentesTipo, calculateLoanSchedule } = useFinance();
   const [isEditing, setIsEditing] = useState(false);
   const contasCorrentes = getContasCorrentesTipo();
   const colors = useChartColors(); // Use o hook para cores dinâmicas
@@ -57,30 +57,36 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
   const calculos = useMemo(() => {
     if (!emprestimo) return null;
 
+    const schedule = calculateLoanSchedule(emprestimo.id);
     const parcelasPagas = emprestimo.parcelasPagas || 0;
     const parcelasRestantes = emprestimo.meses - parcelasPagas;
     
-    // --- CORREÇÃO: Calcular Saldo Devedor usando a amortização correta ---
-    let saldoDevedor = emprestimo.valorTotal;
-    if (parcelasPagas > 0) {
-        // O saldo devedor após a última parcela paga é o saldoDevedor daquela parcela
-        // Para obter o saldo após a parcela N, precisamos calcular a parcela N+1 e pegar o saldoDevedor dela.
-        // No entanto, a função calculateLoanAmortizationAndInterest retorna o saldo DEPOIS da parcela 'parcelaNumber'.
-        const calc = calculateLoanAmortizationAndInterest(emprestimo.id, parcelasPagas);
-        
-        if (calc) {
-            saldoDevedor = calc.saldoDevedor;
-        } else {
-            // Fallback (embora o cálculo deva funcionar se o empréstimo estiver configurado)
-            saldoDevedor = Math.max(0, emprestimo.valorTotal - (parcelasPagas * emprestimo.parcela));
-        }
-    }
-    // ---------------------------------------------------------------------
+    // 1. Saldo Devedor (Saldo após a última parcela paga)
+    const ultimaParcelaPaga = schedule.find(item => item.parcela === parcelasPagas);
+    const saldoDevedor = ultimaParcelaPaga ? ultimaParcelaPaga.saldoDevedor : emprestimo.valorTotal;
     
+    // 2. Juros Pagos e Restantes
+    const jurosPagos = schedule
+      .filter(item => item.parcela <= parcelasPagas)
+      .reduce((acc, item) => acc + item.juros, 0);
+      
+    const jurosRestantes = schedule
+      .filter(item => item.parcela > parcelasPagas)
+      .reduce((acc, item) => acc + item.juros, 0);
+      
     const custoTotal = emprestimo.parcela * emprestimo.meses;
-    const jurosTotal = custoTotal - emprestimo.valorTotal;
-    const jurosPagos = emprestimo.meses > 0 ? jurosTotal * (parcelasPagas / emprestimo.meses) : 0;
-    const jurosRestantes = jurosTotal - jurosPagos;
+    const jurosTotalContrato = custoTotal - emprestimo.valorTotal;
+    
+    // 3. Progresso Financeiro (Amortização Acumulada / Valor Total)
+    const amortizacaoAcumulada = schedule
+      .filter(item => item.parcela <= parcelasPagas)
+      .reduce((acc, item) => acc + item.amortizacao, 0);
+      
+    const progressoFinanceiro = emprestimo.valorTotal > 0 ? (amortizacaoAcumulada / emprestimo.valorTotal) * 100 : 0;
+
+    // 4. Economia por Quitação (Juros Restantes)
+    const economiaQuitacao = jurosRestantes;
+
     const percentualQuitado = emprestimo.meses > 0 ? (parcelasPagas / emprestimo.meses) * 100 : 0;
     const cetEfetivo = emprestimo.meses > 0 ? ((custoTotal / emprestimo.valorTotal - 1) / emprestimo.meses) * 12 * 100 : 0;
     
@@ -93,43 +99,44 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
       proximaParcela.setMonth(proximaParcela.getMonth() + 1);
     }
 
-    const economiaQuitacao = jurosRestantes * 0.3;
-
     return {
       parcelasPagas,
       parcelasRestantes,
       saldoDevedor,
       custoTotal,
-      jurosTotal,
+      jurosTotalContrato,
       jurosPagos,
       jurosRestantes,
       percentualQuitado,
+      progressoFinanceiro,
       cetEfetivo,
       dataFinal,
       proximaParcela,
       economiaQuitacao,
     };
-  }, [emprestimo, calculateLoanAmortizationAndInterest]);
+  }, [emprestimo, calculateLoanSchedule]);
 
   const evolucaoData = useMemo(() => {
     if (!emprestimo || emprestimo.meses === 0) return [];
     
-    let saldo = emprestimo.valorTotal;
-    const taxa = emprestimo.taxaMensal / 100;
+    // Usa o cronograma de amortização completo
+    const schedule = calculateLoanSchedule(emprestimo.id);
     
-    return Array.from({ length: emprestimo.meses }, (_, i) => {
-      const juros = saldo * taxa;
-      const amortizacao = emprestimo.parcela - juros;
-      saldo = Math.max(0, saldo - amortizacao);
-      
-      return {
-        parcela: i + 1,
-        saldo,
-        juros: Math.max(0, juros),
-        amortizacao: Math.max(0, amortizacao),
-      };
-    });
-  }, [emprestimo]);
+    // Adiciona o ponto inicial (parcela 0)
+    const initialPoint = {
+        parcela: 0,
+        saldo: emprestimo.valorTotal,
+        juros: 0,
+        amortizacao: 0,
+    };
+    
+    return [initialPoint, ...schedule.map(item => ({
+        parcela: item.parcela,
+        saldo: item.saldoDevedor,
+        juros: item.juros,
+        amortizacao: item.amortizacao,
+    }))];
+  }, [emprestimo, calculateLoanSchedule]);
   
   // Conditional return must be after all hooks
   if (!emprestimo || !calculos) return null;
@@ -159,7 +166,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
               <span className="text-xl">{emprestimo.contrato}</span>
               {!isPending && (
                 <Badge variant="outline" className="ml-3 bg-primary/10 text-primary border-primary/30">
-                  {calculos.percentualQuitado.toFixed(0)}% quitado
+                  {calculos.progressoFinanceiro.toFixed(0)}% amortizado
                 </Badge>
               )}
               {isPending && (
@@ -310,7 +317,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Juros total:</span>
-                        <span className="font-medium text-warning">{formatCurrency(calculos.jurosTotal)}</span>
+                        <span className="font-medium text-warning">{formatCurrency(calculos.jurosTotalContrato)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Economia quitação:</span>
@@ -323,13 +330,13 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
                 {/* Barra de progresso */}
                 <div className="glass-card p-4">
                   <div className="flex justify-between text-sm mb-2">
-                    <span className="text-muted-foreground">Progresso do pagamento</span>
-                    <span className="font-medium">{calculos.percentualQuitado.toFixed(1)}%</span>
+                    <span className="text-muted-foreground">Progresso Financeiro (Amortização)</span>
+                    <span className="font-medium">{calculos.progressoFinanceiro.toFixed(1)}%</span>
                   </div>
                   <div className="h-4 bg-muted rounded-full overflow-hidden">
                     <div
                       className="h-full bg-gradient-to-r from-success to-primary transition-all duration-500"
-                      style={{ width: `${calculos.percentualQuitado}%` }}
+                      style={{ width: `${calculos.progressoFinanceiro}%` }}
                     />
                   </div>
                 </div>
@@ -370,7 +377,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
                   <h4 className="font-medium text-sm mb-4">Composição da Parcela</h4>
                   <div className="h-[250px]">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={evolucaoData.slice(0, 24)}>
+                      <BarChart data={evolucaoData.slice(1, 25)}> {/* Slice from 1 to exclude initial point */}
                         <CartesianGrid strokeDasharray="3 3" stroke={colors.border} vertical={false} />
                         <XAxis dataKey="parcela" axisLine={false} tickLine={false} tick={{ fill: colors.mutedForeground, fontSize: 10 }} />
                         <YAxis axisLine={false} tickLine={false} tick={{ fill: colors.mutedForeground, fontSize: 10 }} tickFormatter={(v) => `${(v/1000).toFixed(1)}k`} />
