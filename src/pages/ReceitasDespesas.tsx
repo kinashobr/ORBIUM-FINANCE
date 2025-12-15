@@ -50,7 +50,7 @@ const ReceitasDespesas = () => {
     dateRanges, // <-- Use context state
     setDateRanges, // <-- Use context setter
     markSeguroParcelPaid,
-    unmarkSeguroParcelaid, // CORRIGIDO: Nome da função
+    unmarkSeguroParcelPaid, // CORRIGIDO: Nome da função
   } = useFinance();
 
   // Local state for transfer groups
@@ -519,7 +519,7 @@ const ReceitasDespesas = () => {
         const parcelaNumero = parseInt(parcelaNumeroStr);
         
         if (!isNaN(seguroId) && !isNaN(parcelaNumero)) {
-            unmarkSeguroParcelaid(seguroId, parcelaNumero);
+            unmarkSeguroParcelPaid(seguroId, parcelaNumero);
         }
     }
     
