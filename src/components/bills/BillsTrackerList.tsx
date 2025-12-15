@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, Check, Clock, AlertTriangle, DollarSign, Building2, Shield, Repeat, Info, X } from "lucide-react";
+import { Plus, Trash2, Check, Clock, AlertTriangle, DollarSign, Building2, Shield, Repeat, Info, X, TrendingDown } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { BillTracker, BillSourceType, formatCurrency, TransacaoCompleta, getDomainFromOperation, generateTransactionId } from "@/types/finance";
 import { cn, parseDateLocal } from "@/lib/utils";
@@ -52,7 +52,8 @@ export function BillsTrackerList({
     dueDate: format(currentDate, 'yyyy-MM-dd'),
   });
   
-  // Removido showAdHocForm, pois será sempre visível
+  // NEW STATE: Tipo de despesa para contas avulsas
+  const [adHocType, setAdHocType] = useState<'fixed_expense' | 'variable_expense'>('variable_expense');
 
   const formatAmount = (value: string) => {
     const cleaned = value.replace(/[^\d,]/g, '');
@@ -72,14 +73,19 @@ export function BillsTrackerList({
       toast.error("Preencha a descrição, valor e data de vencimento.");
       return;
     }
+    
+    const suggestedCategoryId = categoriasV2.find(c => 
+        (adHocType === 'fixed_expense' && c.nature === 'despesa_fixa') ||
+        (adHocType === 'variable_expense' && c.nature === 'despesa_variavel')
+    )?.id;
 
     onAddBill({
       description: newBillData.description,
       dueDate: newBillData.dueDate,
       expectedAmount: amount,
-      sourceType: 'ad_hoc',
+      sourceType: adHocType, // Use o tipo selecionado
       suggestedAccountId: contasMovimento.find(c => c.accountType === 'conta_corrente')?.id,
-      suggestedCategoryId: categoriasV2.find(c => c.nature === 'despesa_variavel')?.id,
+      suggestedCategoryId: suggestedCategoryId,
     });
 
     setNewBillData({ description: '', amount: '', dueDate: format(currentDate, 'yyyy-MM-dd') });
@@ -111,13 +117,18 @@ export function BillsTrackerList({
     onUpdateBill(bill.id, { expectedAmount: newAmount });
     toast.success("Valor atualizado!");
   };
+  
+  const handleUpdateSuggestedAccount = (bill: BillTracker, newAccountId: string) => {
+    onUpdateBill(bill.id, { suggestedAccountId: newAccountId });
+    toast.success("Conta de pagamento sugerida atualizada!");
+  };
 
   const handleMarkAsPaid = useCallback((bill: BillTracker, isChecked: boolean) => {
     if (!isChecked) {
       // Reverter pagamento
       if (bill.transactionId) {
         // 1. Reverter marcação de empréstimo/seguro (se aplicável)
-        if (bill.sourceType === 'loan_installment' && bill.sourceRef) {
+        if (bill.sourceType === 'loan_installment' && bill.sourceRef && bill.parcelaNumber) {
             const loanId = parseInt(bill.sourceRef);
             if (!isNaN(loanId)) {
                 unmarkLoanParcelPaid(loanId);
@@ -202,11 +213,13 @@ export function BillsTrackerList({
     if (bill.sourceType === 'loan_installment' && bill.sourceRef && bill.parcelaNumber) {
         const loanId = parseInt(bill.sourceRef);
         if (!isNaN(loanId)) {
+            // Mark loan installment as paid
             markLoanParcelPaid(loanId, bill.expectedAmount, paymentDate, bill.parcelaNumber);
         }
     } else if (bill.sourceType === 'insurance_installment' && bill.sourceRef && bill.parcelaNumber) {
         const seguroId = parseInt(bill.sourceRef);
         if (!isNaN(seguroId)) {
+            // Mark insurance installment as paid
             markSeguroParcelPaid(seguroId, bill.parcelaNumber, transactionId);
         }
     }
@@ -227,22 +240,26 @@ export function BillsTrackerList({
     return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
   };
   
-  const getCategoryLabel = (categoryId: string | undefined) => {
-    if (!categoryId) return 'N/A';
-    const cat = categoriasV2.find(c => c.id === categoryId);
-    return cat ? `${cat.icon} ${cat.label}` : 'N/A';
-  };
-  
   const getAccountName = (accountId: string | undefined) => {
     if (!accountId) return 'N/A';
     return contasMovimento.find(c => c.id === accountId)?.name || 'N/A';
   };
+  
+  const availableAccounts = useMemo(() => 
+    contasMovimento.filter(c => c.accountType === 'conta_corrente' || c.accountType === 'cartao_credito'),
+    [contasMovimento]
+  );
+  
+  const accountOptions = useMemo(() => 
+    availableAccounts.map(a => ({ value: a.id, label: a.name })),
+    [availableAccounts]
+  );
 
   return (
     <div className="space-y-4 h-full flex flex-col">
       {/* Adição Rápida (Ad-Hoc) - SEMPRE VISÍVEL E MINIMALISTA */}
       <div className="glass-card p-3 shrink-0">
-        <div className="grid grid-cols-[1fr_100px_100px_40px] gap-2 items-end">
+        <div className="grid grid-cols-[1fr_100px_100px_40px] gap-2 items-end mb-2">
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Descrição</Label>
             <Input
@@ -281,6 +298,27 @@ export function BillsTrackerList({
             <Plus className="w-4 h-4" />
           </Button>
         </div>
+        
+        {/* Seleção de Tipo para Ad-Hoc */}
+        <div className="flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground">Tipo de Despesa:</Label>
+            <Button
+                variant={adHocType === 'fixed_expense' ? "default" : "outline"}
+                size="sm"
+                className="h-6 text-xs px-2 gap-1"
+                onClick={() => setAdHocType('fixed_expense')}
+            >
+                <Repeat className="w-3 h-3" /> Fixa
+            </Button>
+            <Button
+                variant={adHocType === 'variable_expense' ? "default" : "outline"}
+                size="sm"
+                className="h-6 text-xs px-2 gap-1"
+                onClick={() => setAdHocType('variable_expense')}
+            >
+                <TrendingDown className="w-3 h-3" /> Variável
+            </Button>
+        </div>
       </div>
 
       {/* Tabela de Contas Pendentes */}
@@ -293,14 +331,15 @@ export function BillsTrackerList({
         </div>
         
         <div className="rounded-lg border border-border overflow-y-auto flex-1 min-h-[100px]">
-          <Table className="min-w-[600px]">
+          <Table className="min-w-[750px]"> {/* Aumentado min-width */}
             <TableHeader className="sticky top-0 bg-card z-10">
               <TableRow className="border-border hover:bg-transparent h-8">
                 <TableHead className="text-muted-foreground w-10 text-center p-1 text-xs">Pagar</TableHead>
                 <TableHead className="text-muted-foreground w-20 p-1 text-xs">Vencimento</TableHead>
                 <TableHead className="text-muted-foreground p-1 text-xs">Descrição</TableHead>
-                <TableHead className="text-muted-foreground w-20 text-right p-1 text-xs">Valor</TableHead>
                 <TableHead className="text-muted-foreground w-16 p-1 text-xs">Tipo</TableHead>
+                <TableHead className="text-muted-foreground w-20 p-1 text-xs">Conta Pgto</TableHead> {/* NEW COLUMN */}
+                <TableHead className="text-muted-foreground w-20 text-right p-1 text-xs">Valor</TableHead>
                 <TableHead className="text-muted-foreground w-10 text-center p-1 text-xs">Exc.</TableHead>
               </TableRow>
             </TableHeader>
@@ -337,6 +376,29 @@ export function BillsTrackerList({
                     <TableCell className="text-xs max-w-[200px] truncate p-1">
                       {bill.description}
                     </TableCell>
+                    <TableCell className="p-1">
+                      <Badge variant="outline" className={cn("gap-1 text-[10px] px-1 py-0", config.color)}>
+                        <Icon className="w-3 h-3" />
+                        {config.label}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs p-1">
+                      <Select 
+                        value={bill.suggestedAccountId || ''} 
+                        onValueChange={(v) => handleUpdateSuggestedAccount(bill, v)}
+                      >
+                        <SelectTrigger className="h-6 text-xs p-1">
+                          <SelectValue placeholder="Conta..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {accountOptions.map(opt => (
+                            <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
                     <TableCell className="text-right font-semibold text-destructive whitespace-nowrap p-1">
                       {isEditable ? (
                         <EditableCell 
@@ -348,12 +410,6 @@ export function BillsTrackerList({
                       ) : (
                         formatCurrency(bill.expectedAmount)
                       )}
-                    </TableCell>
-                    <TableCell className="p-1">
-                      <Badge variant="outline" className={cn("gap-1 text-[10px] px-1 py-0", config.color)}>
-                        <Icon className="w-3 h-3" />
-                        {config.label}
-                      </Badge>
                     </TableCell>
                     <TableCell className="text-center p-1">
                       {isEditable && (
@@ -373,7 +429,7 @@ export function BillsTrackerList({
               })}
               {pendingBills.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                     <Check className="w-6 h-6 mx-auto mb-2 text-success" />
                     Todas as contas pendentes foram pagas!
                   </TableCell>
@@ -389,14 +445,15 @@ export function BillsTrackerList({
         <div className="glass-card p-3 shrink-0">
           <h3 className="text-sm font-semibold text-foreground mb-2">Contas Pagas ({paidBills.length})</h3>
           <div className="rounded-lg border border-border overflow-x-auto">
-            <Table className="min-w-[600px]">
+            <Table className="min-w-[750px]">
               <TableHeader>
                 <TableRow className="border-border hover:bg-transparent h-8">
                   <TableHead className="text-muted-foreground w-10 text-center p-1 text-xs">Pago</TableHead>
                   <TableHead className="text-muted-foreground w-20 p-1 text-xs">Pagamento</TableHead>
                   <TableHead className="text-muted-foreground p-1 text-xs">Descrição</TableHead>
-                  <TableHead className="text-muted-foreground w-20 text-right p-1 text-xs">Valor</TableHead>
                   <TableHead className="text-muted-foreground w-16 p-1 text-xs">Tipo</TableHead>
+                  <TableHead className="text-muted-foreground w-20 p-1 text-xs">Conta Pgto</TableHead>
+                  <TableHead className="text-muted-foreground w-20 text-right p-1 text-xs">Valor</TableHead>
                   <TableHead className="text-muted-foreground w-10 text-center p-1 text-xs">Info</TableHead>
                 </TableRow>
               </TableHeader>
@@ -420,14 +477,17 @@ export function BillsTrackerList({
                       <TableCell className="text-xs max-w-[250px] truncate p-1">
                         {bill.description}
                       </TableCell>
-                      <TableCell className="text-right font-semibold text-success whitespace-nowrap text-xs p-1">
-                        {formatCurrency(bill.expectedAmount)}
-                      </TableCell>
                       <TableCell className="p-1">
                         <Badge variant="outline" className={cn("gap-1 text-[10px] px-1 py-0", config.color)}>
                           <Icon className="w-3 h-3" />
                           {config.label}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs p-1">
+                        {getAccountName(bill.suggestedAccountId)}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold text-success whitespace-nowrap text-xs p-1">
+                        {formatCurrency(bill.expectedAmount)}
                       </TableCell>
                       <TableCell className="text-center p-1">
                         {/* Botão para ver transação no extrato */}

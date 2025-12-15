@@ -99,12 +99,18 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
       totalPaid={totalPaid}
       pendingCount={pendingCount}
       netForecast={netForecast}
+      onSaveAndClose={handleSaveAndClose} // Passando o handler de fechar
     />
   );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+      <DialogContent 
+        className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col p-0"
+        // Removendo o botão de fechar 'X'
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         
         {/* Header Principal - Ultra Compacto */}
         <DialogHeader className="border-b pb-2 pt-3 px-4 shrink-0">
@@ -134,6 +140,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                       pendingCount={pendingCount}
                       netForecast={netForecast}
                       isMobile={true}
+                      onSaveAndClose={handleSaveAndClose}
                     />
                   </div>
                 </DrawerContent>
@@ -174,11 +181,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
           </div>
         </div>
         
-        <DialogFooter className="px-6 py-3 border-t shrink-0">
-            <Button onClick={handleSaveAndClose} className="w-full">
-                Salvar e Fechar
-            </Button>
-        </DialogFooter>
+        {/* DialogFooter removido */}
       </DialogContent>
     </Dialog>
   );
