@@ -99,10 +99,12 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
     emprestimos, 
     segurosVeiculo,
     categoriasV2,
+    contasMovimento, // ADDED
     getSaldoAtual,
     getSaldoDevedor,
-    alertStartDate, // NEW
-    setAlertStartDate, // NEW
+    alertStartDate, 
+    setAlertStartDate, 
+    calculateBalanceUpToDate, // ADDED
   } = useFinance();
   const [configOpen, setConfigOpen] = useState(false);
   const [alertasConfig, setAlertasConfig] = useState<AlertaConfig[]>(() => {
@@ -132,30 +134,24 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
     const mesAtual = now.getMonth();
     const anoAtual = now.getFullYear();
 
-    // 1. Saldo total das contas (Global)
-    // Nota: getSaldoAtual já calcula o saldo final global, mas precisamos filtrar
-    // as transações que contribuem para o saldo a partir da data de corte.
-    // Para simplificar, vamos usar o saldo global, mas filtrar as transações de fluxo.
-    const saldoContas = getSaldoAtual(); 
-
+    // 1. Saldo de Liquidez Imediata (Contas Correntes, Poupança, Reserva, Renda Fixa)
+    const contasLiquidez = contasMovimento.filter(c => 
+        ['conta_corrente', 'poupanca', 'reserva_emergencia', 'aplicacao_renda_fixa'].includes(c.accountType)
+    );
+    
+    // O saldo de liquidez imediata é o saldo acumulado até a data atual (now)
+    const saldoLiquidezImediata = contasLiquidez.reduce((acc, c) => {
+        const balance = calculateBalanceUpToDate(c.id, now, transacoesV2, contasMovimento);
+        return acc + balance;
+    }, 0);
+    
     // 2. Dívidas (Global)
     const totalDividas = getSaldoDevedor(); 
     
     // 3. Empréstimos pendentes (Configuration pending)
     const emprestimosPendentes = emprestimos.filter(e => e.status === 'pendente_config').length;
 
-    // 4. Transações do mês (Current Month) - Filtradas pela data de corte
-    const transacoesMes = transacoesV2.filter(t => {
-      try {
-        const d = parseDateLocal(t.date);
-        // Filtra transações que ocorreram no mês atual E após a data de corte
-        return d.getMonth() === mesAtual && d.getFullYear() === anoAtual && (isAfter(d, parsedAlertStartDate) || isSameDay(d, parsedAlertStartDate));
-      } catch {
-        return false;
-      }
-    });
-    
-    // 5. Transações de Fluxo (Receitas/Despesas) - Filtradas pela data de corte
+    // 4. Transações de Fluxo (Receitas/Despesas) - Filtradas pela data de corte
     const transacoesFluxo = transacoesV2.filter(t => {
         try {
             const d = parseDateLocal(t.date);
@@ -174,7 +170,7 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
       .filter(t => t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo')
       .reduce((acc, t) => acc + t.amount, 0);
       
-    // 6. Despesas Fixas do Mês (Filtradas pela data de corte)
+    // 5. Despesas Fixas do Mês (Filtradas pela data de corte)
     const categoriasMap = new Map(categoriasV2.map(c => [c.id, c]));
     const despesasFixasMes = transacoesFluxo
         .filter(t => {
@@ -183,15 +179,15 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
         })
         .reduce((acc, t) => acc + t.amount, 0);
 
-    // 7. Margem de Poupança (Savings Rate)
+    // 6. Margem de Poupança (Savings Rate)
     const margemPoupanca = receitasMes > 0 ? ((receitasMes - despesasMes) / receitasMes) * 100 : 0;
     
-    // 8. Total de Parcelas de Empréstimo do Mês (Debt Service)
+    // 7. Total de Parcelas de Empréstimo do Mês (Debt Service)
     const parcelasEmprestimoMes = transacoesFluxo
         .filter(t => t.operationType === 'pagamento_emprestimo')
         .reduce((acc, t) => acc + t.amount, 0);
         
-    // 9. Seguros vencendo em 60 dias (Não depende da data de corte)
+    // 8. Seguros vencendo em 60 dias (Não depende da data de corte)
     const dataLimiteSeguro = new Date();
     dataLimiteSeguro.setDate(dataLimiteSeguro.getDate() + 60);
     
@@ -206,7 +202,7 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
 
 
     return {
-      saldoContas,
+      saldoLiquidezImediata, // NEW METRIC
       receitasMes,
       despesasMes,
       totalDividas,
@@ -216,27 +212,28 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
       parcelasEmprestimoMes,
       segurosVencendo,
     };
-  }, [transacoesV2, emprestimos, segurosVeiculo, categoriasV2, getSaldoAtual, getSaldoDevedor, parsedAlertStartDate]);
+  }, [transacoesV2, emprestimos, segurosVeiculos, categoriasV2, contasMovimento, getSaldoDevedor, parsedAlertStartDate, calculateBalanceUpToDate]);
 
   // Gerar alertas baseados nas configurações
   const alertas = useMemo(() => {
     const alerts: Alerta[] = [];
     const configMap = new Map(alertasConfig.map(c => [c.id, c]));
 
-    // 1. Saldo negativo
-    if (configMap.get("saldo-negativo")?.ativo && metricas.saldoContas < 0) {
+    // 1. Saldo negativo (USANDO SALDO DE LIQUIDEZ IMEDIATA)
+    if (configMap.get("saldo-negativo")?.ativo && metricas.saldoLiquidezImediata < 0) {
       alerts.push({
         id: "saldo-negativo",
         tipo: "danger",
         titulo: "Saldo Negativo",
-        descricao: `R$ ${metricas.saldoContas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+        descricao: `R$ ${metricas.saldoLiquidezImediata.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
         rota: "/receitas-despesas"
       });
     }
 
-    // 2. Dívidas altas (Debt to Asset Ratio - using totalDividas vs saldoContas as proxy)
+    // 2. Dívidas altas (Debt to Asset Ratio - usando totalDividas vs saldoLiquidezImediata como proxy)
     const toleranciaDividas = configMap.get("dividas-altas")?.tolerancia || 200;
-    if (configMap.get("dividas-altas")?.ativo && metricas.totalDividas > metricas.saldoContas * (toleranciaDividas / 100) && metricas.saldoContas > 0) {
+    // Alerta se a dívida total for maior que X% da liquidez imediata (se a liquidez for positiva)
+    if (configMap.get("dividas-altas")?.ativo && metricas.saldoLiquidezImediata > 0 && metricas.totalDividas > metricas.saldoLiquidezImediata * (toleranciaDividas / 100)) {
       alerts.push({
         id: "dividas-altas",
         tipo: "warning",
