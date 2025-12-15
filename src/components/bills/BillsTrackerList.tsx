@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } "react";
+import { useState, useMemo, useCallback } from "react";
 import {
   Table,
   TableBody,
