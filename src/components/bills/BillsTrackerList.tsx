@@ -20,7 +20,7 @@ import { cn, parseDateLocal } from "@/lib/utils";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { EditableCell } from "../EditableCell"; // Import EditableCell
-import { ResizablePanel, ResizablePanelGroup, ResizableHandle } from "react-resizable-panels"; // NEW IMPORTS
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels"; // NEW IMPORTS
 
 interface BillsTrackerListProps {
   bills: BillTracker[];
@@ -229,7 +229,7 @@ export function BillsTrackerList({
     onUpdateBill(bill.id, { isPaid: true, paymentDate, transactionId });
     toast.success(`Conta "${bill.description}" paga e registrada!`);
 
-  }, [addTransacaoV2, onUpdateBill, categoriasV2, contasMovimento, currentDate, markLoanParcelPaid, markSeguroParcelPaid, unmarkLoanParcelPaid, unmarkSeguroParcelaid, setTransacoesV2]);
+  }, [addTransacaoV2, onUpdateBill, categoriasV2, contasMovimento, currentDate, markLoanParcelPaid, markSeguroParcelPaid, unmarkLoanParcelPaid, unmarkSeguroParcelPaid, setTransacoesV2]);
 
   // --- Lógica de Ordenação e Filtro ---
   const sortedBills = useMemo(() => {
@@ -343,43 +343,43 @@ export function BillsTrackerList({
         </div>
         
         <div className="rounded-lg border border-border overflow-y-auto flex-1 min-h-[100px]">
-          <ResizablePanelGroup direction="horizontal" className="min-w-[800px]">
+          <PanelGroup direction="horizontal" className="min-w-[800px]">
             <Table>
               <TableHeader className="sticky top-0 bg-card z-10">
                 <TableRow className="border-border hover:bg-transparent h-8">
-                  <ResizablePanel defaultSize={5} minSize={5} className="p-0">
+                  <Panel defaultSize={5} minSize={5} className="p-0">
                     <TableHead className="text-muted-foreground w-10 text-center p-1 text-xs">Pagar</TableHead>
-                  </ResizablePanel>
-                  <ResizableHandle withHandle className="w-1 bg-border/50 hover:bg-border" />
+                  </Panel>
+                  <PanelResizeHandle withHandle className="w-1 bg-border/50 hover:bg-border" />
                   
-                  <ResizablePanel defaultSize={10} minSize={8} className="p-0">
+                  <Panel defaultSize={10} minSize={8} className="p-0">
                     <TableHead className="text-muted-foreground w-20 p-1 text-xs">Vencimento</TableHead>
-                  </ResizablePanel>
-                  <ResizableHandle withHandle className="w-1 bg-border/50 hover:bg-border" />
+                  </Panel>
+                  <PanelResizeHandle withHandle className="w-1 bg-border/50 hover:bg-border" />
                   
-                  <ResizablePanel defaultSize={35} minSize={20} className="p-0">
+                  <Panel defaultSize={30} minSize={20} className="p-0">
                     <TableHead className="text-muted-foreground p-1 text-xs">Descrição</TableHead>
-                  </ResizablePanel>
-                  <ResizableHandle withHandle className="w-1 bg-border/50 hover:bg-border" />
+                  </Panel>
+                  <PanelResizeHandle withHandle className="w-1 bg-border/50 hover:bg-border" />
                   
-                  <ResizablePanel defaultSize={15} minSize={10} className="p-0">
+                  <Panel defaultSize={15} minSize={10} className="p-0">
                     <TableHead className="text-muted-foreground w-20 p-1 text-xs">Conta Pgto</TableHead>
-                  </ResizablePanel>
-                  <ResizableHandle withHandle className="w-1 bg-border/50 hover:bg-border" />
+                  </Panel>
+                  <PanelResizeHandle withHandle className="w-1 bg-border/50 hover:bg-border" />
                   
-                  <ResizablePanel defaultSize={10} minSize={8} className="p-0">
+                  <Panel defaultSize={10} minSize={8} className="p-0">
                     <TableHead className="text-muted-foreground w-16 p-1 text-xs">Tipo</TableHead>
-                  </ResizablePanel>
-                  <ResizableHandle withHandle className="w-1 bg-border/50 hover:bg-border" />
+                  </Panel>
+                  <PanelResizeHandle withHandle className="w-1 bg-border/50 hover:bg-border" />
                   
-                  <ResizablePanel defaultSize={15} minSize={10} className="p-0">
+                  <Panel defaultSize={15} minSize={10} className="p-0">
                     <TableHead className="text-muted-foreground w-20 text-right p-1 text-xs">Valor</TableHead>
-                  </ResizablePanel>
-                  <ResizableHandle withHandle className="w-1 bg-border/50 hover:bg-border" />
+                  </Panel>
+                  <PanelResizeHandle withHandle className="w-1 bg-border/50 hover:bg-border" />
                   
-                  <ResizablePanel defaultSize={10} minSize={5} className="p-0">
+                  <Panel defaultSize={10} minSize={5} className="p-0">
                     <TableHead className="text-muted-foreground w-10 text-center p-1 text-xs">Ações</TableHead>
-                  </ResizablePanel>
+                  </Panel>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -401,8 +401,8 @@ export function BillsTrackerList({
                         isPaid && "bg-success/5 hover:bg-success/10 border-l-4 border-success/50" // Highlight paid rows
                       )}
                     >
-                      <ResizablePanelGroup direction="horizontal" className="min-w-[800px]">
-                        <ResizablePanel defaultSize={5} minSize={5} className="p-0">
+                      <PanelGroup direction="horizontal" className="min-w-[800px]">
+                        <Panel defaultSize={5} minSize={5} className="p-0">
                           <TableCell className="text-center p-1">
                             <Checkbox
                               checked={isPaid}
@@ -410,27 +410,27 @@ export function BillsTrackerList({
                               className={cn("w-4 h-4", isPaid && "border-success data-[state=checked]:bg-success")}
                             />
                           </TableCell>
-                        </ResizablePanel>
-                        <ResizableHandle withHandle className="w-1 bg-border/50 hover:bg-border" />
+                        </Panel>
+                        <PanelResizeHandle withHandle className="w-1 bg-border/50 hover:bg-border" />
                         
-                        <ResizablePanel defaultSize={10} minSize={8} className="p-0">
+                        <Panel defaultSize={10} minSize={8} className="p-0">
                           <TableCell className={cn("font-medium whitespace-nowrap text-xs p-1", isOverdue && "text-destructive")}>
                             <div className="flex items-center gap-1">
                               {isOverdue && <AlertTriangle className="w-3 h-3 text-destructive" />}
                               {isPaid ? formatDate(bill.paymentDate!) : formatDate(bill.dueDate)}
                             </div>
                           </TableCell>
-                        </ResizablePanel>
-                        <ResizableHandle withHandle className="w-1 bg-border/50 hover:bg-border" />
+                        </Panel>
+                        <PanelResizeHandle withHandle className="w-1 bg-border/50 hover:bg-border" />
                         
-                        <ResizablePanel defaultSize={35} minSize={20} className="p-0">
+                        <Panel defaultSize={30} minSize={20} className="p-0">
                           <TableCell className="text-xs max-w-[200px] truncate p-1">
                             {bill.description}
                           </TableCell>
-                        </ResizablePanel>
-                        <ResizableHandle withHandle className="w-1 bg-border/50 hover:bg-border" />
+                        </Panel>
+                        <PanelResizeHandle withHandle className="w-1 bg-border/50 hover:bg-border" />
                         
-                        <ResizablePanel defaultSize={15} minSize={10} className="p-0">
+                        <Panel defaultSize={15} minSize={10} className="p-0">
                           <TableCell className="text-xs p-1">
                             <Select 
                               value={bill.suggestedAccountId || ''} 
@@ -449,20 +449,20 @@ export function BillsTrackerList({
                               </SelectContent>
                             </Select>
                           </TableCell>
-                        </ResizablePanel>
-                        <ResizableHandle withHandle className="w-1 bg-border/50 hover:bg-border" />
+                        </Panel>
+                        <PanelResizeHandle withHandle className="w-1 bg-border/50 hover:bg-border" />
                         
-                        <ResizablePanel defaultSize={10} minSize={8} className="p-0">
+                        <Panel defaultSize={10} minSize={8} className="p-0">
                           <TableCell className="p-1">
                             <Badge variant="outline" className={cn("gap-1 text-[10px] px-1 py-0", config.color)}>
                               <Icon className="w-3 h-3" />
                               {config.label}
                             </Badge>
                           </TableCell>
-                        </ResizablePanel>
-                        <ResizableHandle withHandle className="w-1 bg-border/50 hover:bg-border" />
+                        </Panel>
+                        <PanelResizeHandle withHandle className="w-1 bg-border/50 hover:bg-border" />
                         
-                        <ResizablePanel defaultSize={15} minSize={10} className="p-0">
+                        <Panel defaultSize={15} minSize={10} className="p-0">
                           <TableCell className={cn("text-right font-semibold whitespace-nowrap p-1", isPaid ? "text-success" : "text-destructive")}>
                             {isEditable && !isPaid ? (
                               <EditableCell 
@@ -475,10 +475,10 @@ export function BillsTrackerList({
                               formatCurrency(bill.expectedAmount)
                             )}
                           </TableCell>
-                        </ResizablePanel>
-                        <ResizableHandle withHandle className="w-1 bg-border/50 hover:bg-border" />
+                        </Panel>
+                        <PanelResizeHandle withHandle className="w-1 bg-border/50 hover:bg-border" />
                         
-                        <ResizablePanel defaultSize={10} minSize={5} className="p-0">
+                        <Panel defaultSize={10} minSize={5} className="p-0">
                           <TableCell className="text-center p-1">
                             {isEditable && !isPaid && (
                               <Button 
@@ -502,8 +502,8 @@ export function BillsTrackerList({
                                 </Button>
                             )}
                           </TableCell>
-                        </ResizablePanel>
-                      </ResizablePanelGroup>
+                        </Panel>
+                      </PanelGroup>
                     </TableRow>
                   );
                 })}
@@ -517,7 +517,7 @@ export function BillsTrackerList({
                 )}
               </TableBody>
             </Table>
-          </ResizablePanelGroup>
+          </PanelGroup>
         </div>
       </div>
     </div>
