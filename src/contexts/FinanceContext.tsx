@@ -217,7 +217,7 @@ const STORAGE_KEYS = {
 };
 
 // ============================================
-// DADOS INICIAIS
+// DADOS INICIAIS (Vazios)
 // ============================================
 
 const initialEmprestimos: Emprestimo[] = [];
@@ -240,7 +240,7 @@ function loadFromStorage<T>(key: string, defaultValue: T): T {
           return parseDateRanges(parsed) as unknown as T;
       }
       
-      // No special handling needed for accounts anymore
+      // Retorna o valor parseado, que pode ser um array vazio se o usuário limpou
       return parsed;
     }
   } catch (error) {
@@ -321,6 +321,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   
   // NEW EFFECT for dateRanges
   useEffect(() => { saveToStorage(STORAGE_KEYS.DATE_RANGES, dateRanges); }, [dateRanges]);
+  
+  // Core V2 persistence
+  useEffect(() => { saveToStorage(STORAGE_KEYS.CONTAS_MOVIMENTO, contasMovimento); }, [contasMovimento]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.CATEGORIAS_V2, categoriasV2); }, [categoriasV2]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.TRANSACOES_V2, transacoesV2); }, [transacoesV2]);
+
 
   // ============================================
   // FUNÇÃO CENTRAL DE CÁLCULO DE SALDO POR DATA
