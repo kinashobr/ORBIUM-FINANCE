@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2, Check, Clock, AlertTriangle, DollarSign, Building2, Shield, Repeat, Info, X, TrendingDown } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
-import { BillTracker, BillSourceType, formatCurrency, TransacaoCompleta, getDomainFromOperation, generateTransactionId } from "@/types/finance";
+import { BillTracker, BillSourceType, formatCurrency } from "@/types/finance";
 import { cn, parseDateLocal } from "@/lib/utils";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -26,7 +26,7 @@ interface BillsTrackerListProps {
   onUpdateBill: (id: string, updates: Partial<BillTracker>) => void;
   onDeleteBill: (id: string) => void;
   onAddBill: (bill: Omit<BillTracker, "id" | "isPaid">) => void;
-  onTogglePaid: (bill: BillTracker, isChecked: boolean) => void; // NOVO HANDLER
+  onTogglePaid: (bill: BillTracker, isChecked: boolean) => void;
   currentDate: Date;
 }
 
@@ -67,7 +67,7 @@ export function BillsTrackerList({
   onUpdateBill,
   onDeleteBill,
   onAddBill,
-  onTogglePaid, // NOVO HANDLER
+  onTogglePaid,
   currentDate,
 }: BillsTrackerListProps) {
   const { categoriasV2, contasMovimento } = useFinance();
@@ -211,11 +211,6 @@ export function BillsTrackerList({
     toast.success("Conta de pagamento sugerida atualizada!");
   };
 
-  // NOVO HANDLER: Apenas atualiza o estado local (BillsTrackerModal)
-  const handleTogglePaid = (bill: BillTracker, isChecked: boolean) => {
-    onTogglePaid(bill, isChecked);
-  };
-
   const sortedBills = useMemo(() => {
     const filtered = bills.filter(b => !b.isExcluded);
     
@@ -323,12 +318,12 @@ export function BillsTrackerList({
         <div className="rounded-lg border border-border overflow-y-auto flex-1 min-h-[100px]">
           <Table style={{ minWidth: `${totalWidth}px` }}>
             <TableHeader className="sticky top-0 bg-card z-10">
-              <TableRow className="border-border hover:bg-transparent h-8">
+              <TableRow className="border-border hover:bg-transparent h-10">
                 {columnHeaders.map((header) => (
                   <TableHead 
                     key={header.key} 
                     className={cn(
-                      "text-muted-foreground p-1 text-xs relative",
+                      "text-muted-foreground p-2 text-sm relative",
                       header.align === 'center' && 'text-center',
                       header.align === 'right' && 'text-right'
                     )}
@@ -338,7 +333,7 @@ export function BillsTrackerList({
                     {/* Resizer Handle - Ocupa toda a altura do cabeçalho */}
                     {header.key !== 'actions' && (
                       <div
-                        className="absolute right-0 top-0 h-full w-2 cursor-col-resize hover:bg-primary/30 transition-colors"
+                        className="absolute right-0 top-0 h-full w-2 cursor-col-resize"
                         onMouseDown={(e) => handleMouseDown(e, header.key)}
                       />
                     )}
@@ -360,42 +355,42 @@ export function BillsTrackerList({
                   <TableRow 
                     key={bill.id} 
                     className={cn(
-                      "hover:bg-muted/30 transition-colors h-10", // Aumentado h-8 para h-10
+                      "hover:bg-muted/30 transition-colors h-12",
                       isOverdue && "bg-destructive/5 hover:bg-destructive/10",
                       isPaid && "bg-success/5 hover:bg-success/10 border-l-4 border-success/50"
                     )}
                   >
-                    <TableCell className="text-center p-1 text-sm" style={{ width: columnWidths.pay }}>
+                    <TableCell className="text-center p-2 text-base" style={{ width: columnWidths.pay }}>
                       <Checkbox
                         checked={isPaid}
-                        onCheckedChange={(checked) => handleTogglePaid(bill, checked as boolean)} // Usa novo handler
-                        className={cn("w-4 h-4", isPaid && "border-success data-[state=checked]:bg-success")}
+                        onCheckedChange={(checked) => onTogglePaid(bill, checked as boolean)}
+                        className={cn("w-5 h-5", isPaid && "border-success data-[state=checked]:bg-success")}
                       />
                     </TableCell>
                     
-                    <TableCell className={cn("font-medium whitespace-nowrap text-sm p-1", isOverdue && "text-destructive")} style={{ width: columnWidths.due }}>
+                    <TableCell className={cn("font-medium whitespace-nowrap text-base p-2", isOverdue && "text-destructive")} style={{ width: columnWidths.due }}>
                       <div className="flex items-center gap-1">
-                        {isOverdue && <AlertTriangle className="w-3 h-3 text-destructive" />}
+                        {isOverdue && <AlertTriangle className="w-4 h-4 text-destructive" />}
                         {isPaid ? formatDate(bill.paymentDate!) : formatDate(bill.dueDate)}
                       </div>
                     </TableCell>
                     
-                    <TableCell className="text-sm max-w-[200px] truncate p-1" style={{ width: columnWidths.description }}>
+                    <TableCell className="text-base max-w-[200px] truncate p-2" style={{ width: columnWidths.description }}>
                       {bill.description}
                     </TableCell>
                     
-                    <TableCell className="text-sm p-1" style={{ width: columnWidths.account }}>
+                    <TableCell className="text-base p-2" style={{ width: columnWidths.account }}>
                       <Select 
                         value={bill.suggestedAccountId || ''} 
                         onValueChange={(v) => handleUpdateSuggestedAccount(bill, v)}
                         disabled={isPaid}
                       >
-                        <SelectTrigger className="h-8 text-sm p-1 w-full"> {/* Aumentado h-6 para h-8 e text-xs para text-sm */}
+                        <SelectTrigger className="h-9 text-base p-2 w-full">
                           <SelectValue placeholder="Conta..." />
                         </SelectTrigger>
                         <SelectContent>
                           {accountOptions.map(opt => (
-                            <SelectItem key={opt.value} value={opt.value} className="text-sm">
+                            <SelectItem key={opt.value} value={opt.value} className="text-base">
                               {opt.label}
                             </SelectItem>
                           ))}
@@ -403,46 +398,46 @@ export function BillsTrackerList({
                       </Select>
                     </TableCell>
                     
-                    <TableCell className="p-1 text-sm" style={{ width: columnWidths.type }}>
-                      <Badge variant="outline" className={cn("gap-1 text-xs px-1 py-0", config.color)}>
-                        <Icon className="w-3 h-3" />
+                    <TableCell className="p-2 text-base" style={{ width: columnWidths.type }}>
+                      <Badge variant="outline" className={cn("gap-1 text-sm px-2 py-0.5", config.color)}>
+                        <Icon className="w-4 h-4" />
                         {config.label}
                       </Badge>
                     </TableCell>
                     
-                    <TableCell className={cn("text-right font-semibold whitespace-nowrap p-1", isPaid ? "text-success" : "text-destructive")} style={{ width: columnWidths.amount }}>
+                    <TableCell className={cn("text-right font-semibold whitespace-nowrap p-2", isPaid ? "text-success" : "text-destructive")} style={{ width: columnWidths.amount }}>
                       {isEditable && !isPaid ? (
                         <EditableCell 
                           value={bill.expectedAmount} 
                           type="currency" 
                           onSave={(v) => handleUpdateExpectedAmount(bill, Number(v))}
-                          className={cn("text-right text-sm", isPaid ? "text-success" : "text-destructive")} // Aumentado text-xs para text-sm
+                          className={cn("text-right text-base", isPaid ? "text-success" : "text-destructive")}
                         />
                       ) : (
-                        <span className="text-sm">{formatCurrency(bill.expectedAmount)}</span> // Aumentado text-xs para text-sm
+                        <span className="text-base">{formatCurrency(bill.expectedAmount)}</span>
                       )}
                     </TableCell>
                     
-                    <TableCell className="text-center p-1 text-sm" style={{ width: columnWidths.actions }}>
+                    <TableCell className="text-center p-2 text-base" style={{ width: columnWidths.actions }}>
                       {isEditable && !isPaid && (
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
                           onClick={() => handleExcludeBill(bill)}
                           title="Excluir da lista deste mês"
                         >
-                          <X className="w-3 h-3" />
+                          <X className="w-4 h-4" />
                         </Button>
                       )}
                       {isPaid && (
                           <Button 
                             variant="ghost" 
                             size="icon" 
-                            className="h-6 w-6 text-muted-foreground"
+                            className="h-8 w-8 text-muted-foreground"
                             onClick={() => toast.info(`Transação ID: ${bill.transactionId}`)}
                           >
-                            <Info className="w-3 h-3" />
+                            <Info className="w-4 h-4" />
                           </Button>
                       )}
                     </TableCell>

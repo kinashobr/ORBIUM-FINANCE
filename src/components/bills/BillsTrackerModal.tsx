@@ -33,6 +33,8 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     markSeguroParcelPaid,
     unmarkSeguroParcelPaid,
     setTransacoesV2,
+    contasMovimento, // ADDED
+    categoriasV2, // ADDED
   } = useFinance();
   
   const referenceDate = dateRanges.range1.to || new Date();
@@ -63,7 +65,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
 
   // Totais baseados no estado local
   const totalExpectedExpense = useMemo(() => 
-    localBills.filter(b => !b.isPaid).reduce((acc, b) => acc + b.expectedAmount, 0),
+    localBills.filter(b => !b.isExcluded).reduce((acc, b) => acc + b.expectedAmount, 0),
     [localBills]
   );
   
@@ -249,42 +251,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     newTransactions.forEach(t => addTransacaoV2(t));
     
     // 5. Atualiza o BillsTracker no contexto (apenas para Bills Ad-Hoc e atualizações de suggestedAccountId/expectedAmount)
-    // Bills gerados por SourceType (loan, insurance, fixed/variable) são recriados/atualizados na próxima chamada de getBillsForPeriod.
-    // Apenas persistimos as alterações feitas em Ad-Hoc ou as alterações de suggestedAccountId/expectedAmount/isExcluded.
-    
-    // Filtra as bills originais que não são geradas automaticamente (ad_hoc)
-    const existingAdHoc = billsTracker.filter(b => b.sourceType === 'ad_hoc');
-    
-    // Adiciona as bills Ad-Hoc que foram criadas localmente
-    const newAdHoc = localBills.filter(b => b.sourceType === 'ad_hoc' && !originalBillsMap.has(b.id));
-    
-    // Atualiza as bills existentes (incluindo as geradas automaticamente, para persistir suggestedAccountId/expectedAmount/isPaid)
-    const updatedExisting = billsTracker.map(b => {
-        const local = localBills.find(lb => lb.id === b.id);
-        if (local) {
-            // Persiste as alterações locais (isPaid, expectedAmount, suggestedAccountId, isExcluded)
-            return { ...b, ...local };
-        }
-        return b;
-    }).filter(b => !b.isExcluded); // Remove as que foram excluídas localmente
-    
-    // Combina as bills atualizadas e as novas Ad-Hoc
-    const finalBills = [...updatedExisting.filter(b => b.sourceType !== 'ad_hoc'), ...newAdHoc];
-    
-    // Garante que as bills geradas automaticamente (loan, insurance, fixed/variable) sejam atualizadas com o status de pagamento
-    // Isso é feito implicitamente na próxima chamada de getBillsForPeriod, mas precisamos garantir que as alterações de suggestedAccountId/expectedAmount sejam salvas.
-    
-    // Para simplificar, vamos apenas atualizar o estado global com todas as bills que não foram excluídas localmente.
-    // Isso inclui as bills geradas automaticamente (que serão sobrescritas na próxima chamada de getBillsForPeriod, mas manterão o status isPaid/suggestedAccountId)
-    
-    // Bills que devem ser mantidas no contexto (Ad-Hoc + as geradas automaticamente com status atualizado)
-    const billsToSave = localBills.filter(b => !b.isExcluded);
-    
-    // Atualiza o BillsTracker no contexto
-    // Nota: Isso pode ser um pouco redundante para bills geradas automaticamente, mas garante que o status isPaid e as sugestões sejam salvas.
-    // A próxima chamada de getBillsForPeriod irá regenerar as bills automáticas, mas o status isPaid será mantido se o transactionId existir.
-    
-    // Para evitar duplicação e garantir que apenas as bills Ad-Hoc sejam salvas diretamente, vamos usar a lógica de `updateBill` para as alterações.
     
     // Bills que precisam de update/delete no contexto
     const billsToUpdateOrDelete = localBills.filter(b => originalBillsMap.has(b.id) && (b.isPaid !== originalBillsMap.get(b.id)?.isPaid || b.isExcluded || b.suggestedAccountId !== originalBillsMap.get(b.id)?.suggestedAccountId || b.expectedAmount !== originalBillsMap.get(b.id)?.expectedAmount));
