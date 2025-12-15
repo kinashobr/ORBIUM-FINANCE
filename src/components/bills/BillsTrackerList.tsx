@@ -26,6 +26,7 @@ interface BillsTrackerListProps {
   onUpdateBill: (id: string, updates: Partial<BillTracker>) => void;
   onDeleteBill: (id: string) => void;
   onAddBill: (bill: Omit<BillTracker, "id" | "isPaid">) => void;
+  onTogglePaid: (bill: BillTracker, isChecked: boolean) => void; // NOVO HANDLER
   currentDate: Date;
 }
 
@@ -66,9 +67,10 @@ export function BillsTrackerList({
   onUpdateBill,
   onDeleteBill,
   onAddBill,
+  onTogglePaid, // NOVO HANDLER
   currentDate,
 }: BillsTrackerListProps) {
-  const { addTransacaoV2, categoriasV2, contasMovimento, markLoanParcelPaid, unmarkLoanParcelPaid, markSeguroParcelPaid, unmarkSeguroParcelPaid, setTransacoesV2 } = useFinance();
+  const { categoriasV2, contasMovimento } = useFinance();
   
   const [newBillData, setNewBillData] = useState({
     description: '',
@@ -209,104 +211,10 @@ export function BillsTrackerList({
     toast.success("Conta de pagamento sugerida atualizada!");
   };
 
-  const handleMarkAsPaid = useCallback((bill: BillTracker, isChecked: boolean) => {
-    if (!isChecked) {
-      // Reverter pagamento
-      if (bill.transactionId) {
-        if (bill.sourceType === 'loan_installment' && bill.sourceRef && bill.parcelaNumber) {
-            const loanId = parseInt(bill.sourceRef);
-            if (!isNaN(loanId)) {
-                unmarkLoanParcelPaid(loanId);
-            }
-        } else if (bill.sourceType === 'insurance_installment' && bill.sourceRef && bill.parcelaNumber) {
-            const seguroId = parseInt(bill.sourceRef);
-            if (!isNaN(seguroId)) {
-                unmarkSeguroParcelPaid(seguroId, bill.parcelaNumber);
-            }
-        }
-        
-        setTransacoesV2(prev => prev.filter(t => t.id !== bill.transactionId));
-        
-        onUpdateBill(bill.id, { isPaid: false, paymentDate: undefined, transactionId: undefined });
-        toast.warning("Pagamento estornado e transação excluída.");
-      }
-      return;
-    }
-
-    // Marcar como pago
-    const suggestedAccount = contasMovimento.find(c => c.id === bill.suggestedAccountId);
-    const suggestedCategory = categoriasV2.find(c => c.id === bill.suggestedCategoryId);
-    
-    if (!suggestedAccount) {
-      toast.error("Conta de débito sugerida não encontrada. Configure uma conta corrente.");
-      return;
-    }
-    if (!suggestedCategory && bill.sourceType !== 'loan_installment' && bill.sourceType !== 'insurance_installment') {
-      toast.error("Categoria sugerida não encontrada.");
-      return;
-    }
-
-    const transactionId = generateTransactionId();
-    const paymentDate = format(currentDate, 'yyyy-MM-dd');
-    
-    let operationType: TransacaoCompleta['operationType'] = 'despesa';
-    let loanIdLink: string | null = null;
-    let parcelaIdLink: string | null = null;
-    let vehicleTransactionIdLink: string | null = null;
-    
-    if (bill.sourceType === 'loan_installment' && bill.sourceRef && bill.parcelaNumber) {
-      operationType = 'pagamento_emprestimo';
-      loanIdLink = `loan_${bill.sourceRef}`;
-      parcelaIdLink = bill.parcelaNumber.toString();
-    } else if (bill.sourceType === 'insurance_installment' && bill.sourceRef && bill.parcelaNumber) {
-      operationType = 'despesa';
-      vehicleTransactionIdLink = `${bill.sourceRef}_${bill.parcelaNumber}`;
-    }
-
-    const newTransaction: TransacaoCompleta = {
-      id: transactionId,
-      date: paymentDate,
-      accountId: suggestedAccount.id,
-      flow: 'out',
-      operationType,
-      domain: getDomainFromOperation(operationType),
-      amount: bill.expectedAmount,
-      categoryId: bill.suggestedCategoryId || null,
-      description: bill.description,
-      links: {
-        investmentId: null,
-        loanId: loanIdLink,
-        transferGroupId: null,
-        parcelaId: parcelaIdLink,
-        vehicleTransactionId: vehicleTransactionIdLink,
-      },
-      conciliated: false,
-      attachments: [],
-      meta: {
-        createdBy: 'system',
-        source: 'bill_tracker',
-        createdAt: format(currentDate, 'yyyy-MM-dd'),
-      }
-    };
-
-    addTransacaoV2(newTransaction);
-    
-    if (bill.sourceType === 'loan_installment' && bill.sourceRef && bill.parcelaNumber) {
-        const loanId = parseInt(bill.sourceRef);
-        if (!isNaN(loanId)) {
-            markLoanParcelPaid(loanId, bill.expectedAmount, paymentDate, bill.parcelaNumber);
-        }
-    } else if (bill.sourceType === 'insurance_installment' && bill.sourceRef && bill.parcelaNumber) {
-        const seguroId = parseInt(bill.sourceRef);
-        if (!isNaN(seguroId)) {
-            markSeguroParcelPaid(seguroId, bill.parcelaNumber, transactionId);
-        }
-    }
-
-    onUpdateBill(bill.id, { isPaid: true, paymentDate, transactionId });
-    toast.success(`Conta "${bill.description}" paga e registrada!`);
-
-  }, [addTransacaoV2, onUpdateBill, categoriasV2, contasMovimento, currentDate, markLoanParcelPaid, markSeguroParcelPaid, unmarkLoanParcelPaid, unmarkSeguroParcelPaid, setTransacoesV2]);
+  // NOVO HANDLER: Apenas atualiza o estado local (BillsTrackerModal)
+  const handleTogglePaid = (bill: BillTracker, isChecked: boolean) => {
+    onTogglePaid(bill, isChecked);
+  };
 
   const sortedBills = useMemo(() => {
     const filtered = bills.filter(b => !b.isExcluded);
@@ -427,10 +335,10 @@ export function BillsTrackerList({
                     style={{ width: columnWidths[header.key] }}
                   >
                     {header.label}
-                    {/* Resizer Handle */}
+                    {/* Resizer Handle - Ocupa toda a altura do cabeçalho */}
                     {header.key !== 'actions' && (
                       <div
-                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-primary/30 transition-colors"
+                        className="absolute right-0 top-0 h-full w-2 cursor-col-resize hover:bg-primary/30 transition-colors"
                         onMouseDown={(e) => handleMouseDown(e, header.key)}
                       />
                     )}
@@ -452,42 +360,42 @@ export function BillsTrackerList({
                   <TableRow 
                     key={bill.id} 
                     className={cn(
-                      "hover:bg-muted/30 transition-colors h-8",
+                      "hover:bg-muted/30 transition-colors h-10", // Aumentado h-8 para h-10
                       isOverdue && "bg-destructive/5 hover:bg-destructive/10",
                       isPaid && "bg-success/5 hover:bg-success/10 border-l-4 border-success/50"
                     )}
                   >
-                    <TableCell className="text-center p-1" style={{ width: columnWidths.pay }}>
+                    <TableCell className="text-center p-1 text-sm" style={{ width: columnWidths.pay }}>
                       <Checkbox
                         checked={isPaid}
-                        onCheckedChange={(checked) => handleMarkAsPaid(bill, checked as boolean)}
+                        onCheckedChange={(checked) => handleTogglePaid(bill, checked as boolean)} // Usa novo handler
                         className={cn("w-4 h-4", isPaid && "border-success data-[state=checked]:bg-success")}
                       />
                     </TableCell>
                     
-                    <TableCell className={cn("font-medium whitespace-nowrap text-xs p-1", isOverdue && "text-destructive")} style={{ width: columnWidths.due }}>
+                    <TableCell className={cn("font-medium whitespace-nowrap text-sm p-1", isOverdue && "text-destructive")} style={{ width: columnWidths.due }}>
                       <div className="flex items-center gap-1">
                         {isOverdue && <AlertTriangle className="w-3 h-3 text-destructive" />}
                         {isPaid ? formatDate(bill.paymentDate!) : formatDate(bill.dueDate)}
                       </div>
                     </TableCell>
                     
-                    <TableCell className="text-xs max-w-[200px] truncate p-1" style={{ width: columnWidths.description }}>
+                    <TableCell className="text-sm max-w-[200px] truncate p-1" style={{ width: columnWidths.description }}>
                       {bill.description}
                     </TableCell>
                     
-                    <TableCell className="text-xs p-1" style={{ width: columnWidths.account }}>
+                    <TableCell className="text-sm p-1" style={{ width: columnWidths.account }}>
                       <Select 
                         value={bill.suggestedAccountId || ''} 
                         onValueChange={(v) => handleUpdateSuggestedAccount(bill, v)}
                         disabled={isPaid}
                       >
-                        <SelectTrigger className="h-6 text-xs p-1 w-full">
+                        <SelectTrigger className="h-8 text-sm p-1 w-full"> {/* Aumentado h-6 para h-8 e text-xs para text-sm */}
                           <SelectValue placeholder="Conta..." />
                         </SelectTrigger>
                         <SelectContent>
                           {accountOptions.map(opt => (
-                            <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                            <SelectItem key={opt.value} value={opt.value} className="text-sm">
                               {opt.label}
                             </SelectItem>
                           ))}
@@ -495,8 +403,8 @@ export function BillsTrackerList({
                       </Select>
                     </TableCell>
                     
-                    <TableCell className="p-1" style={{ width: columnWidths.type }}>
-                      <Badge variant="outline" className={cn("gap-1 text-[10px] px-1 py-0", config.color)}>
+                    <TableCell className="p-1 text-sm" style={{ width: columnWidths.type }}>
+                      <Badge variant="outline" className={cn("gap-1 text-xs px-1 py-0", config.color)}>
                         <Icon className="w-3 h-3" />
                         {config.label}
                       </Badge>
@@ -508,14 +416,14 @@ export function BillsTrackerList({
                           value={bill.expectedAmount} 
                           type="currency" 
                           onSave={(v) => handleUpdateExpectedAmount(bill, Number(v))}
-                          className={cn("text-right text-xs", isPaid ? "text-success" : "text-destructive")}
+                          className={cn("text-right text-sm", isPaid ? "text-success" : "text-destructive")} // Aumentado text-xs para text-sm
                         />
                       ) : (
-                        formatCurrency(bill.expectedAmount)
+                        <span className="text-sm">{formatCurrency(bill.expectedAmount)}</span> // Aumentado text-xs para text-sm
                       )}
                     </TableCell>
                     
-                    <TableCell className="text-center p-1" style={{ width: columnWidths.actions }}>
+                    <TableCell className="text-center p-1 text-sm" style={{ width: columnWidths.actions }}>
                       {isEditable && !isPaid && (
                         <Button 
                           variant="ghost" 
