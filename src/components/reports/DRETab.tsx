@@ -227,9 +227,9 @@ export function DRETab({ dateRanges }: DRETabProps) {
         });
     }
     
-    // --- 2b. Filter transactions (Exclude cash insurance payments) ---
+    // --- 2b. Filter transactions (Exclude cash insurance payments and asset purchases) ---
     const transacoesDespesaOperacional = transactions.filter(t => 
-      (t.operationType === 'despesa' || t.operationType === 'veiculo') &&
+      (t.operationType === 'despesa') && // FIXED: Exclude 'veiculo' operation type
       t.flow === 'out' &&
       // EXCLUDE cash payments for insurance if they are linked to the 'Seguro' category
       (t.categoryId !== seguroCategory?.id)
@@ -377,6 +377,7 @@ export function DRETab({ dateRanges }: DRETabProps) {
         .reduce((acc, t) => acc + t.amount, 0);
       
       // Despesas aqui incluem despesas operacionais e pagamentos de empréstimo (valor total da parcela)
+      // NOTE: This evolution chart uses CASH basis for simplicity (total outflow)
       const despesasMes = transacoesMes
         .filter(t => t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo' || t.operationType === 'veiculo')
         .reduce((acc, t) => acc + t.amount, 0);
