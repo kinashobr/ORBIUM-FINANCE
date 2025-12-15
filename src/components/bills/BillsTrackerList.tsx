@@ -305,7 +305,8 @@ export function BillsTrackerList({
           </Badge>
         </div>
         
-        <div className="rounded-lg border border-border overflow-y-auto flex-1 min-h-[100px]">
+        {/* Removida a rolagem interna da tabela */}
+        <div className="rounded-lg border border-border flex-1 min-h-[100px] overflow-y-auto">
           <Table className="min-w-[800px]">
             <TableHeader className="sticky top-0 bg-card z-10">
               <TableRow className="border-border hover:bg-transparent">

@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Calendar, CheckCircle2, Clock, TrendingUp, TrendingDown, DollarSign, Calculator } from "lucide-react";
+import { Calendar, CheckCircle2, Clock, TrendingUp, TrendingDown, DollarSign, Calculator, Menu } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { BillsTrackerList } from "./BillsTrackerList";
+import { BillsContextSidebar } from "./BillsContextSidebar"; // NEW IMPORT
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { BillTracker, formatCurrency } from "@/types/finance";
@@ -11,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { EditableCell } from "../EditableCell";
 import { Separator } from "@/components/ui/separator";
+import { Drawer, DrawerContent, DrawerTrigger } from "@/components/ui/drawer"; // NEW IMPORT
 
 interface BillsTrackerModalProps {
   open: boolean;
@@ -86,10 +88,25 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     setMonthlyRevenueForecast(localRevenueForecast);
     onOpenChange(false);
   };
+  
+  // Componente Sidebar para reutilização
+  const SidebarContent = (
+    <BillsContextSidebar
+      localRevenueForecast={localRevenueForecast}
+      setLocalRevenueForecast={setLocalRevenueForecast}
+      previousMonthRevenue={previousMonthRevenue}
+      totalExpectedExpense={totalExpectedExpense}
+      totalPaid={totalPaid}
+      pendingCount={pendingCount}
+      netForecast={netForecast}
+    />
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+        
+        {/* Header Principal */}
         <DialogHeader className="border-b pb-3 pt-4 px-6 shrink-0">
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-3 text-xl">
@@ -98,78 +115,63 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             </DialogTitle>
             
             <div className="flex items-center gap-4 text-sm">
-              <div className="flex items-center gap-1 text-destructive">
-                <Clock className="w-4 h-4" />
-                <span>{pendingCount} Pendentes</span>
-              </div>
-              <div className="flex items-center gap-1 text-success">
-                <CheckCircle2 className="w-4 h-4" />
-                <span>{paidCount} Pagas</span>
+              {/* Botão de Menu (Apenas em telas pequenas) */}
+              <Drawer>
+                <DrawerTrigger asChild className="lg:hidden">
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Menu className="w-4 h-4" />
+                    Contexto
+                  </Button>
+                </DrawerTrigger>
+                <DrawerContent>
+                  <div className="mx-auto w-full max-w-md">
+                    <BillsContextSidebar
+                      localRevenueForecast={localRevenueForecast}
+                      setLocalRevenueForecast={setLocalRevenueForecast}
+                      previousMonthRevenue={previousMonthRevenue}
+                      totalExpectedExpense={totalExpectedExpense}
+                      totalPaid={totalPaid}
+                      pendingCount={pendingCount}
+                      netForecast={netForecast}
+                      isMobile={true}
+                    />
+                  </div>
+                </DrawerContent>
+              </Drawer>
+              
+              {/* Contagem de Status (Visível em todas as telas) */}
+              <div className="hidden sm:flex items-center gap-4">
+                <div className="flex items-center gap-1 text-destructive">
+                  <Clock className="w-4 h-4" />
+                  <span>{pendingCount} Pendentes</span>
+                </div>
+                <div className="flex items-center gap-1 text-success">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>{paidCount} Pagas</span>
+                </div>
               </div>
             </div>
           </div>
         </DialogHeader>
 
-        {/* Forecast Panel - Compacted */}
-        <div className="grid grid-cols-3 gap-4 px-6 py-3 border-b border-border/50 shrink-0">
-          {/* Receita Prevista */}
-          <div className="space-y-1 p-2 rounded-lg bg-muted/30">
-            <Label className="text-xs text-muted-foreground flex items-center gap-1">
-              <TrendingUp className="w-3 h-3 text-success" />
-              Receita Prevista
-            </Label>
-            <EditableCell 
-              value={localRevenueForecast} 
-              type="currency" 
-              onSave={(v) => setLocalRevenueForecast(Number(v))}
-              className="text-sm font-bold text-success"
-            />
-            <p className="text-[10px] text-muted-foreground">
-              Sugestão: {formatCurrency(previousMonthRevenue)}
-            </p>
-          </div>
+        {/* Conteúdo Principal (2 Colunas) */}
+        <div className="flex flex-1 overflow-hidden">
           
-          {/* Despesa Prevista */}
-          <div className="space-y-1 p-2 rounded-lg bg-muted/30">
-            <Label className="text-xs text-muted-foreground flex items-center gap-1">
-              <TrendingDown className="w-3 h-3 text-destructive" />
-              Despesa Prevista
-            </Label>
-            <p className="text-sm font-bold text-destructive">
-              {formatCurrency(totalExpectedExpense)}
-            </p>
-            <p className="text-[10px] text-muted-foreground">
-              Contas pendentes
-            </p>
+          {/* Coluna 1: Sidebar de Contexto (Fixo em telas grandes) */}
+          <div className="hidden lg:block w-[260px] shrink-0 overflow-y-auto scrollbar-thin">
+            {SidebarContent}
           </div>
-          
-          {/* Saldo Previsto */}
-          <div className="space-y-1 p-2 rounded-lg bg-muted/30">
-            <Label className="text-xs text-muted-foreground flex items-center gap-1">
-              <Calculator className="w-3 h-3 text-primary" />
-              Saldo Previsto
-            </Label>
-            <p className={cn(
-              "text-lg font-bold",
-              netForecast >= 0 ? "text-primary" : "text-destructive"
-            )}>
-              {formatCurrency(netForecast)}
-            </p>
-            <p className="text-[10px] text-muted-foreground">
-              Total Pago: <span className="font-bold text-success">{formatCurrency(totalPaid)}</span>
-            </p>
-          </div>
-        </div>
 
-        {/* Bills Tracker List - Flex-1 para ocupar o espaço restante */}
-        <div className="flex-1 overflow-y-auto px-6 pt-4 pb-2">
-          <BillsTrackerList
-            bills={billsForPeriod}
-            onUpdateBill={handleUpdateBill}
-            onDeleteBill={handleDeleteBill}
-            onAddBill={handleAddBill}
-            currentDate={referenceDate}
-          />
+          {/* Coluna 2: Lista de Transações (Ocupa o espaço restante) */}
+          <div className="flex-1 overflow-y-auto px-6 pt-4 pb-2">
+            <BillsTrackerList
+              bills={billsForPeriod}
+              onUpdateBill={handleUpdateBill}
+              onDeleteBill={handleDeleteBill}
+              onAddBill={handleAddBill}
+              currentDate={referenceDate}
+            />
+          </div>
         </div>
         
         <DialogFooter className="px-6 py-4 border-t shrink-0">
