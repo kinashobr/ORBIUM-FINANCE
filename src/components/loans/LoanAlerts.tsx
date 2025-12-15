@@ -7,10 +7,13 @@ import {
   TrendingDown,
   CheckCircle2,
   Clock,
-  Sparkles
+  Sparkles,
+  Settings
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, parseDateLocal, getDueDate } from "@/lib/utils";
 import { Emprestimo } from "@/types/finance";
+import { useFinance } from "@/contexts/FinanceContext";
+import { differenceInDays, isBefore, isToday, isPast } from "date-fns";
 
 interface AlertItem {
   id: string;
@@ -26,97 +29,153 @@ interface LoanAlertsProps {
 }
 
 export function LoanAlerts({ emprestimos, className }: LoanAlertsProps) {
+  const { calculateLoanSchedule, calculatePaidInstallmentsUpToDate } = useFinance();
+  const hoje = new Date();
+  const activeLoans = useMemo(() => emprestimos.filter(e => e.status === 'ativo' || e.status === 'pendente_config'), [emprestimos]);
+
   const alerts = useMemo<AlertItem[]>(() => {
     const items: AlertItem[] = [];
     
-    // Próxima parcela (simulação - próximo dia 10)
-    const hoje = new Date();
-    const proximoDia = new Date(hoje.getFullYear(), hoje.getMonth(), 10);
-    if (proximoDia <= hoje) {
-      proximoDia.setMonth(proximoDia.getMonth() + 1);
-    }
-    const diasRestantes = Math.ceil((proximoDia.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
-    
-    if (diasRestantes <= 5) {
-      items.push({
-        id: "proxima-parcela",
-        type: "warning",
-        icon: Calendar,
-        title: "Próxima Parcela",
-        description: `Vencimento em ${diasRestantes} dia${diasRestantes !== 1 ? 's' : ''} (${proximoDia.toLocaleDateString("pt-BR")})`,
-      });
-    }
+    // --- 1. Calculate Consolidated Metrics ---
+    let totalJurosRestantes = 0;
+    let totalAmortizacaoAcumulada = 0;
+    let totalPrincipalContratado = 0;
+    let nextDueDate: Date | null = null;
+    let hasOverdueInstallments = false;
+    let totalMonths = 0;
+    let paidMonths = 0;
 
-    // Parcelas atrasadas (simulação)
-    const emprestimosAtrasados = emprestimos.filter(e => {
-      const parcelasPagas = e.parcelasPagas || 0;
-      const mesAtual = hoje.getMonth() + 1;
-      // Simplificação: verifica se o número de parcelas pagas está muito abaixo do esperado pelo tempo
-      return parcelasPagas < mesAtual - 1;
+    const configuredLoans = activeLoans.filter(e => e.status === 'ativo');
+
+    configuredLoans.forEach(loan => {
+        if (!loan.dataInicio || loan.meses === 0) return;
+        
+        const schedule = calculateLoanSchedule(loan.id);
+        // Calculate paid count up to today
+        const paidCount = calculatePaidInstallmentsUpToDate(loan.id, hoje);
+        
+        totalPrincipalContratado += loan.valorTotal;
+        totalMonths += loan.meses;
+        paidMonths += paidCount;
+
+        // Calculate remaining interest and accumulated amortization
+        schedule.forEach(item => {
+            if (item.parcela > paidCount) {
+                totalJurosRestantes += item.juros;
+            } else {
+                totalAmortizacaoAcumulada += item.amortizacao;
+            }
+        });
+        
+        // Find next due date and check for overdue installments
+        for (let i = 1; i <= loan.meses; i++) {
+            const dueDate = getDueDate(loan.dataInicio, i);
+            
+            if (i > paidCount) {
+                // Found the next unpaid installment
+                if (!nextDueDate || isBefore(dueDate, nextDueDate)) {
+                    nextDueDate = dueDate;
+                }
+                
+                // Check for overdue status (due date passed and not paid)
+                if (isPast(dueDate) && !isToday(dueDate)) {
+                    hasOverdueInstallments = true;
+                }
+                break; // Stop checking installments for this loan once the next unpaid is found
+            }
+        }
     });
+    
+    const totalLoanPrincipal = totalPrincipalContratado;
+    const progressoFinanceiro = totalLoanPrincipal > 0 ? (totalAmortizacaoAcumulada / totalLoanPrincipal) * 100 : 0;
+    
+    // --- 2. Generate Alerts ---
 
-    if (emprestimosAtrasados.length > 0) {
-      items.push({
-        id: "parcelas-atrasadas",
-        type: "danger",
-        icon: AlertTriangle,
-        title: "Parcelas Atrasadas",
-        description: `${emprestimosAtrasados.length} empréstimo(s) com parcela(s) em atraso`,
-      });
+    // A. Empréstimos Pendentes de Configuração
+    const pendingLoans = emprestimos.filter(e => e.status === 'pendente_config');
+    if (pendingLoans.length > 0) {
+        items.push({
+            id: "emprestimos-pendentes",
+            type: "info",
+            icon: Settings,
+            title: "Configurar Empréstimos",
+            description: `${pendingLoans.length} empréstimo(s) aguardando configuração de parcelas.`,
+        });
     }
 
-    // Sugestão de quitação
-    const emprestimosCaros = emprestimos.filter(e => e.taxaMensal > 2);
-    if (emprestimosCaros.length > 0) {
-      const economia = emprestimosCaros.reduce((acc, e) => {
-        const jurosRestantes = (e.parcela * e.meses * 0.7) - (e.valorTotal * 0.7);
-        return acc + Math.max(0, jurosRestantes * 0.3);
-      }, 0);
-      
-      items.push({
-        id: "sugestao-quitacao",
-        type: "info",
-        icon: TrendingDown,
-        title: "Sugestão de Quitação",
-        description: `Quitando antecipadamente, você pode economizar até R$ ${economia.toLocaleString("pt-BR", { minimumFractionDigits: 0 })}`,
-      });
+    // B. Parcelas Atrasadas
+    if (hasOverdueInstallments) {
+        items.push({
+            id: "parcelas-atrasadas",
+            type: "danger",
+            icon: AlertTriangle,
+            title: "Parcelas Atrasadas",
+            description: `Pelo menos uma parcela de empréstimo está vencida.`,
+        });
     }
 
-    // Conquistas
-    const totalPago = emprestimos.reduce((acc, e) => {
-      const parcelasPagas = e.parcelasPagas || 0;
-      return acc + (parcelasPagas * e.parcela);
-    }, 0);
-    const totalContratado = emprestimos.reduce((acc, e) => acc + e.valorTotal, 0);
-    const percentualQuitado = totalContratado > 0 ? (totalPago / totalContratado) * 100 : 0;
+    // C. Próxima Parcela
+    if (nextDueDate) {
+        const diasRestantes = differenceInDays(nextDueDate, hoje);
+        
+        if (diasRestantes >= 0 && diasRestantes <= 7) {
+            items.push({
+                id: "proxima-parcela",
+                type: "warning",
+                icon: Calendar,
+                title: "Próxima Parcela",
+                description: `Vencimento em ${diasRestantes} dia${diasRestantes !== 1 ? 's' : ''} (${nextDueDate.toLocaleDateString("pt-BR")})`,
+            });
+        }
+    }
 
-    if (percentualQuitado >= 25 && percentualQuitado < 50) {
+    // D. Sugestão de Quitação (Baseado em Juros Restantes)
+    if (totalJurosRestantes > 1000) { // Threshold for relevance
+        items.push({
+            id: "sugestao-quitacao",
+            type: "info",
+            icon: TrendingDown,
+            title: "Sugestão de Quitação",
+            description: `Quitando antecipadamente, você pode economizar até R$ ${totalJurosRestantes.toLocaleString("pt-BR", { minimumFractionDigits: 0 })} em juros.`,
+        });
+    }
+
+    // E. Conquistas (Progresso de Amortização)
+    if (progressoFinanceiro >= 25 && progressoFinanceiro < 50) {
       items.push({
         id: "conquista-25",
         type: "success",
         icon: Trophy,
-        title: "Conquista: 25% Quitado!",
-        description: "Você já pagou 1/4 das suas dívidas. Continue assim!",
+        title: "Conquista: 25% Amortizado!",
+        description: `Você já amortizou ${progressoFinanceiro.toFixed(0)}% do principal. Continue assim!`,
       });
-    } else if (percentualQuitado >= 50 && percentualQuitado < 75) {
+    } else if (progressoFinanceiro >= 50 && progressoFinanceiro < 75) {
       items.push({
         id: "conquista-50",
         type: "success",
         icon: Sparkles,
         title: "Conquista: Metade do Caminho!",
-        description: "Você já quitou 50% das suas dívidas. Incrível!",
+        description: `Você já amortizou ${progressoFinanceiro.toFixed(0)}% do principal. Incrível!`,
       });
-    } else if (percentualQuitado >= 75) {
+    } else if (progressoFinanceiro >= 75 && progressoFinanceiro < 100) {
       items.push({
         id: "conquista-75",
         type: "success",
         icon: CheckCircle2,
         title: "Conquista: Reta Final!",
-        description: "Você já pagou 75% das suas dívidas. Quase lá!",
+        description: `Você já amortizou ${progressoFinanceiro.toFixed(0)}% do principal. Quase lá!`,
       });
+    } else if (progressoFinanceiro >= 100 && configuredLoans.length > 0) {
+        items.push({
+            id: "conquista-100",
+            type: "success",
+            icon: CheckCircle2,
+            title: "Parabéns: Empréstimos Quitado!",
+            description: `Todos os empréstimos ativos foram totalmente amortizados.`,
+        });
     }
 
-    // Se não houver alertas, mostra mensagem positiva
+    // F. Mensagem padrão se não houver alertas críticos/informativos
     if (items.length === 0) {
       items.push({
         id: "tudo-ok",
@@ -128,7 +187,7 @@ export function LoanAlerts({ emprestimos, className }: LoanAlertsProps) {
     }
 
     return items;
-  }, [emprestimos]);
+  }, [activeLoans, emprestimos, calculateLoanSchedule, calculatePaidInstallmentsUpToDate]);
 
   const typeStyles = {
     warning: "bg-warning/10 border-warning/30 text-warning",
