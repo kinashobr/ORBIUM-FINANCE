@@ -13,7 +13,7 @@ import {
   ComparisonDateRanges, // Import new types
   generateAccountId,
 } from "@/types/finance";
-import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay } from "date-fns"; // Import date-fns helpers
+import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths } from "date-fns"; // Import date-fns helpers
 import { parseDateLocal } from "@/lib/utils"; // Importando a nova função
 
 // ============================================
