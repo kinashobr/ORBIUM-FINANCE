@@ -414,7 +414,7 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
   }
 
   return (
-    <div>
+    <div className="w-full">
       <div className="flex items-center justify-between mb-2 px-2">
         <div className="flex items-center gap-2">
           <Bell className="w-3.5 h-3.5 text-muted-foreground" />
@@ -455,7 +455,7 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
                   onClick={() => alerta.rota && navigate(alerta.rota)}
                 >
                   <Icon className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                  <div className="flex-1 min-w-0 overflow-hidden"> {/* Adicionado overflow-hidden */}
+                  <div className="flex-1 min-w-0 overflow-hidden">
                     <p className="font-medium truncate">{alerta.titulo}</p>
                     <p className="text-[10px] opacity-80 truncate">{alerta.descricao}</p>
                   </div>

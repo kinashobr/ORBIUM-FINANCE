@@ -392,7 +392,7 @@ export function Sidebar() {
         <div className="my-4 mx-2 h-px sidebar-divider" />
 
         {/* Alertas Inteligentes */}
-        <div className="px-2">
+        <div className="w-full"> {/* Removido px-2 aqui */}
           <SidebarAlertas collapsed={collapsed} />
         </div>
       </div>
