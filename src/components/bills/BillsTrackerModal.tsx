@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Calendar, CheckCircle2, Clock, TrendingUp, TrendingDown, DollarSign, Calculator, Menu } from "lucide-react";
+import { Calendar, CheckCircle2, Clock, TrendingUp, TrendingDown, DollarSign, Calculator, Menu, LogOut } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { BillsTrackerList } from "./BillsTrackerList";
 import { BillsContextSidebar } from "./BillsContextSidebar"; // NEW IMPORT
