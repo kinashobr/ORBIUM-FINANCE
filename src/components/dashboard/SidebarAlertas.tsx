@@ -31,6 +31,7 @@ interface Alerta {
   titulo: string;
   descricao: string;
   rota?: string;
+  state?: any; // Adicionado para passar estado de navegação
 }
 
 interface AlertaConfig {
@@ -262,7 +263,8 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
         tipo: "info",
         titulo: "Configurar Empréstimos",
         descricao: `${metricas.emprestimosPendentes} pendente(s)`,
-        rota: "/emprestimos"
+        rota: "/emprestimos",
+        state: { openLoanConfig: true } // <-- NOVO ESTADO DE NAVEGAÇÃO
       });
     }
     
@@ -337,6 +339,12 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
       default: return "bg-success/10 border-success/30 text-success";
     }
   };
+  
+  const handleAlertClick = (alerta: Alerta) => {
+    if (alerta.rota) {
+      navigate(alerta.rota, { state: alerta.state });
+    }
+  };
 
   if (collapsed) {
     return (
@@ -366,7 +374,7 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
             <div className="space-y-1">
               {alertas.length > 0 ? (
                 alertas.map(a => (
-                  <div key={a.id} className="text-xs">{a.titulo}</div>
+                  <div key={a.id} className="text-xs cursor-pointer" onClick={() => handleAlertClick(a)}>{a.titulo}</div>
                 ))
               ) : (
                 <div className="text-xs">Sem alertas</div>
@@ -426,7 +434,7 @@ export function SidebarAlertas({ collapsed = false }: SidebarAlertasProps) {
                     "flex items-start gap-2 p-2 rounded-lg text-xs border cursor-pointer group",
                     getAlertStyles(alerta.tipo)
                   )}
-                  onClick={() => alerta.rota && navigate(alerta.rota)}
+                  onClick={() => handleAlertClick(alerta)} // <-- USANDO NOVO HANDLER
                 >
                   <Icon className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                   <div className="flex-1 min-w-0">

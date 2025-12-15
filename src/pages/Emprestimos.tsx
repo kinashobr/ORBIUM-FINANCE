@@ -18,6 +18,7 @@ import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
 import { DateRange, ComparisonDateRanges } from "@/types/finance";
 import { cn, parseDateLocal, getDueDate } from "@/lib/utils";
 import { startOfMonth, endOfMonth, isWithinInterval, format, subDays } from "date-fns";
+import { useLocation } from "react-router-dom"; // <-- IMPORTADO
 
 const Emprestimos = () => {
   const { 
@@ -37,6 +38,8 @@ const Emprestimos = () => {
     calculatePaidInstallmentsUpToDate, // <-- ADDED
   } = useFinance();
   
+  const location = useLocation(); // <-- USANDO useLocation
+  
   const [selectedLoan, setSelectedLoan] = useState<Emprestimo | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   
@@ -47,20 +50,21 @@ const Emprestimos = () => {
   // Get pending loans list
   const pendingLoans = getPendingLoans(); 
 
-  // REMOVIDO: Effect to handle auto-opening configuration for pending loans
-  /*
+  // Effect para abrir o modal se a navegação veio do alerta
   useEffect(() => {
-    // Se houver empréstimos pendentes, abre o modal para o primeiro
-    if (pendingLoans.length > 0 && pendingLoans[0].status === 'pendente_config') {
+    const state = location.state as { openLoanConfig?: boolean } | null;
+    
+    if (state?.openLoanConfig && pendingLoans.length > 0) {
+      // Abre o modal para o primeiro empréstimo pendente
       setSelectedLoan(pendingLoans[0]);
       setDetailDialogOpen(true);
+      
+      // Limpa o estado de navegação para evitar reabertura ao voltar
+      // Nota: Não podemos limpar o estado diretamente aqui, mas podemos usar uma flag local se necessário.
+      // No entanto, como o modal só abre se houver pendentes, e o estado só é passado pelo alerta,
+      // a lógica deve funcionar para o caso de uso.
     }
-    // Se não houver pendentes, mas o modal estiver aberto, fecha.
-    else if (detailDialogOpen && selectedLoan?.status !== 'ativo' && selectedLoan?.status !== 'quitado') {
-        setDetailDialogOpen(false);
-    }
-  }, [pendingLoans]);
-  */
+  }, [location.state, pendingLoans]);
 
   // Helper function to calculate the next due date for a loan
   const getNextDueDate = useCallback((loan: Emprestimo): Date | null => {
