@@ -130,8 +130,8 @@ const Emprestimos = () => {
         {/* Header */}
         <div className="flex items-center justify-between animate-fade-in">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Empréstimos & Dívidas</h1>
-            <p className="text-muted-foreground mt-1">Gerencie seus passivos e simule cenários de quitação</p>
+            <h1 className="text-3xl font-bold text-foreground">Empréstimos & Financiamentos</h1>
+            <p className="text-muted-foreground mt-1">Gerencie seus passivos de longo prazo e simule cenários de quitação</p>
           </div>
           <div className="flex items-center gap-2">
             <PeriodSelector 
@@ -143,9 +143,9 @@ const Emprestimos = () => {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <LoanCard
-            title="Saldo Devedor Total"
+            title="Saldo Devedor Principal"
             value={formatCurrency(calculos.saldoDevedorTotal)}
             icon={<TrendingDown className="w-5 h-5" />}
             status="danger"
@@ -153,17 +153,17 @@ const Emprestimos = () => {
             delay={0}
           />
           
-          {/* Card de Principal Empréstimos (Mantido, mas agora é o mesmo que o Total) */}
+          {/* REMOVIDO: Card de Principal Empréstimos */}
+          
+          {/* Dívida Cartões de Crédito (Mantido para referência, mas com título ajustado) */}
           <LoanCard
-            title="Principal Empréstimos"
-            value={formatCurrency(calculos.principalEmprestimos)}
-            icon={<PiggyBank className="w-5 h-5" />}
-            status={calculos.principalEmprestimos > 0 ? "danger" : "success"}
-            tooltip="Saldo devedor restante apenas dos empréstimos (principal amortizado)."
+            title="Dívida Cartões de Crédito"
+            value={formatCurrency(calculos.dividaCartoes)}
+            icon={<CreditCard className="w-5 h-5" />}
+            status={calculos.dividaCartoes > 0 ? "warning" : "success"}
+            tooltip="Saldo negativo total das contas de Cartão de Crédito (fatura pendente). Esta é uma dívida operacional."
             delay={50}
           />
-          
-          {/* REMOVIDO: Card de Dívida Cartões de Crédito */}
           
           <LoanCard
             title="Parcela Mensal Total"
