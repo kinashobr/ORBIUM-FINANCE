@@ -44,7 +44,7 @@ export function BillsTrackerList({
   onAddBill,
   currentDate,
 }: BillsTrackerListProps) {
-  const { addTransacaoV2, categoriasV2, contasMovimento, markLoanParcelPaid, unmarkLoanParcelPaid, markSeguroParcelPaid, unmarkSeguroParcelPaid, setTransacoesV2 } = useFinance();
+  const { addTransacaoV2, categoriasV2, contasMovimento, markLoanParcelPaid, unmarkLoanParcelPaid, markSeguroParcelPaid, unmarkSeguroParcelaid, setTransacoesV2 } = useFinance();
   
   const [newBillData, setNewBillData] = useState({
     description: '',
@@ -52,7 +52,7 @@ export function BillsTrackerList({
     dueDate: format(currentDate, 'yyyy-MM-dd'),
   });
   
-  const [showAdHocForm, setShowAdHocForm] = useState(false);
+  // Removido showAdHocForm, pois será sempre visível
 
   const formatAmount = (value: string) => {
     const cleaned = value.replace(/[^\d,]/g, '');
@@ -83,7 +83,6 @@ export function BillsTrackerList({
     });
 
     setNewBillData({ description: '', amount: '', dueDate: format(currentDate, 'yyyy-MM-dd') });
-    setShowAdHocForm(false);
     toast.success("Conta avulsa adicionada!");
   };
   
@@ -126,7 +125,7 @@ export function BillsTrackerList({
         } else if (bill.sourceType === 'insurance_installment' && bill.sourceRef && bill.parcelaNumber) {
             const seguroId = parseInt(bill.sourceRef);
             if (!isNaN(seguroId)) {
-                unmarkSeguroParcelPaid(seguroId, bill.parcelaNumber);
+                unmarkSeguroParcelaid(seguroId, bill.parcelaNumber);
             }
         }
         
@@ -216,7 +215,7 @@ export function BillsTrackerList({
     onUpdateBill(bill.id, { isPaid: true, paymentDate, transactionId });
     toast.success(`Conta "${bill.description}" paga e registrada!`);
 
-  }, [addTransacaoV2, onUpdateBill, categoriasV2, contasMovimento, currentDate, markLoanParcelPaid, markSeguroParcelPaid, unmarkLoanParcelPaid, unmarkSeguroParcelPaid, setTransacoesV2]);
+  }, [addTransacaoV2, onUpdateBill, categoriasV2, contasMovimento, currentDate, markLoanParcelPaid, markSeguroParcelPaid, unmarkLoanParcelPaid, unmarkSeguroParcelaid, setTransacoesV2]);
 
   const pendingBills = bills.filter(b => !b.isPaid);
   const paidBills = bills.filter(b => b.isPaid);
@@ -241,82 +240,68 @@ export function BillsTrackerList({
 
   return (
     <div className="space-y-4 h-full flex flex-col">
-      {/* Adição Rápida (Ad-Hoc) */}
-      <div className="glass-card p-4 shrink-0">
-        <Button 
-          variant="outline" 
-          className="w-full gap-2 h-8 text-sm"
-          onClick={() => setShowAdHocForm(prev => !prev)}
-        >
-          {showAdHocForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-          {showAdHocForm ? "Ocultar Adição Rápida" : "Adicionar Conta Avulsa"}
-        </Button>
-        
-        {showAdHocForm && (
-          <div className="mt-3 space-y-2 p-3 border rounded-lg bg-muted/30">
-            <div className="grid grid-cols-4 gap-3">
-              <div className="col-span-2">
-                <Label className="text-xs">Descrição *</Label>
-                <Input
-                  value={newBillData.description}
-                  onChange={(e) => setNewBillData(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Ex: Presente de aniversário"
-                  className="h-7 text-xs"
-                />
-              </div>
-              <div>
-                <Label className="text-xs">Valor (R$) *</Label>
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  value={newBillData.amount}
-                  onChange={(e) => setNewBillData(prev => ({ ...prev, amount: formatAmount(e.target.value) }))}
-                  placeholder="0,00"
-                  className="h-7 text-xs"
-                />
-              </div>
-              <div>
-                <Label className="text-xs">Vencimento *</Label>
-                <Input
-                  type="date"
-                  value={newBillData.dueDate}
-                  onChange={(e) => setNewBillData(prev => ({ ...prev, dueDate: e.target.value }))}
-                  className="h-7 text-xs"
-                />
-              </div>
-              <Button 
-                onClick={handleAddAdHocBill} 
-                className="col-span-4 h-7 text-xs"
-                disabled={!newBillData.description || parseAmount(newBillData.amount) <= 0 || !newBillData.dueDate}
-              >
-                Adicionar Conta Avulsa
-              </Button>
-            </div>
+      {/* Adição Rápida (Ad-Hoc) - SEMPRE VISÍVEL E MINIMALISTA */}
+      <div className="glass-card p-3 shrink-0">
+        <div className="grid grid-cols-[1fr_100px_100px_40px] gap-2 items-end">
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Descrição</Label>
+            <Input
+              value={newBillData.description}
+              onChange={(e) => setNewBillData(prev => ({ ...prev, description: e.target.value }))}
+              placeholder="Conta avulsa"
+              className="h-7 text-xs"
+            />
           </div>
-        )}
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Valor (R$)</Label>
+            <Input
+              type="text"
+              inputMode="decimal"
+              value={newBillData.amount}
+              onChange={(e) => setNewBillData(prev => ({ ...prev, amount: formatAmount(e.target.value) }))}
+              placeholder="0,00"
+              className="h-7 text-xs"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Vencimento</Label>
+            <Input
+              type="date"
+              value={newBillData.dueDate}
+              onChange={(e) => setNewBillData(prev => ({ ...prev, dueDate: e.target.value }))}
+              className="h-7 text-xs"
+            />
+          </div>
+          <Button 
+            onClick={handleAddAdHocBill} 
+            className="h-7 w-full text-xs p-0"
+            disabled={!newBillData.description || parseAmount(newBillData.amount) <= 0 || !newBillData.dueDate}
+            title="Adicionar conta avulsa"
+          >
+            <Plus className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
 
       {/* Tabela de Contas Pendentes */}
-      <div className="glass-card p-5 flex-1 flex flex-col min-h-0">
-        <div className="flex items-center justify-between mb-3 shrink-0">
-          <h3 className="text-base font-semibold text-foreground">Contas Pendentes ({pendingBills.length})</h3>
-          <Badge variant="destructive" className="text-sm">
+      <div className="glass-card p-3 flex-1 flex flex-col min-h-0">
+        <div className="flex items-center justify-between mb-2 shrink-0">
+          <h3 className="text-sm font-semibold text-foreground">Contas Pendentes ({pendingBills.length})</h3>
+          <Badge variant="destructive" className="text-xs">
             Total: {formatCurrency(totalPending)}
           </Badge>
         </div>
         
-        {/* Removida a rolagem interna da tabela */}
-        <div className="rounded-lg border border-border flex-1 min-h-[100px] overflow-y-auto">
-          <Table className="min-w-[800px]">
+        <div className="rounded-lg border border-border overflow-y-auto flex-1 min-h-[100px]">
+          <Table className="min-w-[600px]">
             <TableHeader className="sticky top-0 bg-card z-10">
-              <TableRow className="border-border hover:bg-transparent">
-                <TableHead className="text-muted-foreground w-10 text-center h-9 p-2">Pagar</TableHead>
-                <TableHead className="text-muted-foreground w-24 h-9 p-2">Vencimento</TableHead>
-                <TableHead className="text-muted-foreground h-9 p-2">Descrição</TableHead>
-                <TableHead className="text-muted-foreground w-24 text-right h-9 p-2">Valor</TableHead>
-                <TableHead className="text-muted-foreground w-20 h-9 p-2">Tipo</TableHead>
-                <TableHead className="text-muted-foreground w-32 h-9 p-2">Categoria</TableHead>
-                <TableHead className="text-muted-foreground w-16 text-center h-9 p-2">Excluir</TableHead>
+              <TableRow className="border-border hover:bg-transparent h-8">
+                <TableHead className="text-muted-foreground w-10 text-center p-1 text-xs">Pagar</TableHead>
+                <TableHead className="text-muted-foreground w-20 p-1 text-xs">Vencimento</TableHead>
+                <TableHead className="text-muted-foreground p-1 text-xs">Descrição</TableHead>
+                <TableHead className="text-muted-foreground w-20 text-right p-1 text-xs">Valor</TableHead>
+                <TableHead className="text-muted-foreground w-16 p-1 text-xs">Tipo</TableHead>
+                <TableHead className="text-muted-foreground w-10 text-center p-1 text-xs">Exc.</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -332,53 +317,50 @@ export function BillsTrackerList({
                   <TableRow 
                     key={bill.id} 
                     className={cn(
-                      "hover:bg-muted/30 transition-colors h-10",
+                      "hover:bg-muted/30 transition-colors h-8",
                       isOverdue && "bg-destructive/5 hover:bg-destructive/10"
                     )}
                   >
-                    <TableCell className="text-center p-2">
+                    <TableCell className="text-center p-1">
                       <Checkbox
                         checked={bill.isPaid}
                         onCheckedChange={(checked) => handleMarkAsPaid(bill, checked as boolean)}
                         className="w-4 h-4"
                       />
                     </TableCell>
-                    <TableCell className={cn("font-medium whitespace-nowrap text-sm p-2", isOverdue && "text-destructive")}>
+                    <TableCell className={cn("font-medium whitespace-nowrap text-xs p-1", isOverdue && "text-destructive")}>
                       <div className="flex items-center gap-1">
                         {isOverdue && <AlertTriangle className="w-3 h-3 text-destructive" />}
                         {formatDate(bill.dueDate)}
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm max-w-[250px] truncate p-2">
+                    <TableCell className="text-xs max-w-[200px] truncate p-1">
                       {bill.description}
                     </TableCell>
-                    <TableCell className="text-right font-semibold text-destructive whitespace-nowrap p-2">
+                    <TableCell className="text-right font-semibold text-destructive whitespace-nowrap p-1">
                       {isEditable ? (
                         <EditableCell 
                           value={bill.expectedAmount} 
                           type="currency" 
                           onSave={(v) => handleUpdateExpectedAmount(bill, Number(v))}
-                          className="text-destructive text-right text-sm"
+                          className="text-destructive text-right text-xs"
                         />
                       ) : (
                         formatCurrency(bill.expectedAmount)
                       )}
                     </TableCell>
-                    <TableCell className="p-2">
-                      <Badge variant="outline" className={cn("gap-1 text-xs", config.color)}>
+                    <TableCell className="p-1">
+                      <Badge variant="outline" className={cn("gap-1 text-[10px] px-1 py-0", config.color)}>
                         <Icon className="w-3 h-3" />
                         {config.label}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-sm p-2">
-                      {getCategoryLabel(bill.suggestedCategoryId)}
-                    </TableCell>
-                    <TableCell className="text-center p-2">
+                    <TableCell className="text-center p-1">
                       {isEditable && (
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
                           onClick={() => handleExcludeBill(bill)}
                           title="Excluir da lista deste mês"
                         >
@@ -391,7 +373,7 @@ export function BillsTrackerList({
               })}
               {pendingBills.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                     <Check className="w-6 h-6 mx-auto mb-2 text-success" />
                     Todas as contas pendentes foram pagas!
                   </TableCell>
@@ -404,19 +386,18 @@ export function BillsTrackerList({
       
       {/* Tabela de Contas Pagas (Compacta) */}
       {paidBills.length > 0 && (
-        <div className="glass-card p-5 shrink-0">
-          <h3 className="text-base font-semibold text-foreground mb-3">Contas Pagas ({paidBills.length})</h3>
+        <div className="glass-card p-3 shrink-0">
+          <h3 className="text-sm font-semibold text-foreground mb-2">Contas Pagas ({paidBills.length})</h3>
           <div className="rounded-lg border border-border overflow-x-auto">
-            <Table className="min-w-[800px]">
+            <Table className="min-w-[600px]">
               <TableHeader>
-                <TableRow className="border-border hover:bg-transparent h-9">
-                  <TableHead className="text-muted-foreground w-10 text-center p-2">Pago</TableHead>
-                  <TableHead className="text-muted-foreground w-24 p-2">Pagamento</TableHead>
-                  <TableHead className="text-muted-foreground p-2">Descrição</TableHead>
-                  <TableHead className="text-muted-foreground w-24 text-right p-2">Valor</TableHead>
-                  <TableHead className="text-muted-foreground w-20 p-2">Tipo</TableHead>
-                  <TableHead className="text-muted-foreground w-32 p-2">Categoria</TableHead>
-                  <TableHead className="text-muted-foreground w-16 p-2">Ações</TableHead>
+                <TableRow className="border-border hover:bg-transparent h-8">
+                  <TableHead className="text-muted-foreground w-10 text-center p-1 text-xs">Pago</TableHead>
+                  <TableHead className="text-muted-foreground w-20 p-1 text-xs">Pagamento</TableHead>
+                  <TableHead className="text-muted-foreground p-1 text-xs">Descrição</TableHead>
+                  <TableHead className="text-muted-foreground w-20 text-right p-1 text-xs">Valor</TableHead>
+                  <TableHead className="text-muted-foreground w-16 p-1 text-xs">Tipo</TableHead>
+                  <TableHead className="text-muted-foreground w-10 text-center p-1 text-xs">Info</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -425,38 +406,35 @@ export function BillsTrackerList({
                   const Icon = config.icon;
                   
                   return (
-                    <TableRow key={bill.id} className="bg-success/5 hover:bg-success/10 transition-colors h-10">
-                      <TableCell className="text-center p-2">
+                    <TableRow key={bill.id} className="bg-success/5 hover:bg-success/10 transition-colors h-8">
+                      <TableCell className="text-center p-1">
                         <Checkbox
                           checked={bill.isPaid}
                           onCheckedChange={(checked) => handleMarkAsPaid(bill, checked as boolean)}
                           className="w-4 h-4 border-success data-[state=checked]:bg-success"
                         />
                       </TableCell>
-                      <TableCell className="font-medium text-success whitespace-nowrap text-sm p-2">
+                      <TableCell className="font-medium text-success whitespace-nowrap text-xs p-1">
                         {bill.paymentDate ? formatDate(bill.paymentDate) : '-'}
                       </TableCell>
-                      <TableCell className="text-sm max-w-[250px] truncate p-2">
+                      <TableCell className="text-xs max-w-[250px] truncate p-1">
                         {bill.description}
                       </TableCell>
-                      <TableCell className="text-right font-semibold text-success whitespace-nowrap text-sm p-2">
+                      <TableCell className="text-right font-semibold text-success whitespace-nowrap text-xs p-1">
                         {formatCurrency(bill.expectedAmount)}
                       </TableCell>
-                      <TableCell className="p-2">
-                        <Badge variant="outline" className={cn("gap-1 text-xs", config.color)}>
+                      <TableCell className="p-1">
+                        <Badge variant="outline" className={cn("gap-1 text-[10px] px-1 py-0", config.color)}>
                           <Icon className="w-3 h-3" />
                           {config.label}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-sm p-2">
-                        {getCategoryLabel(bill.suggestedCategoryId)}
-                      </TableCell>
-                      <TableCell className="p-2">
+                      <TableCell className="text-center p-1">
                         {/* Botão para ver transação no extrato */}
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          className="h-7 w-7 text-muted-foreground"
+                          className="h-6 w-6 text-muted-foreground"
                           onClick={() => toast.info(`Transação ID: ${bill.transactionId}`)}
                         >
                           <Info className="w-3 h-3" />

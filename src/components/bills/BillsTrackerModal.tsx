@@ -106,19 +106,19 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col p-0">
         
-        {/* Header Principal */}
-        <DialogHeader className="border-b pb-3 pt-4 px-6 shrink-0">
+        {/* Header Principal - Ultra Compacto */}
+        <DialogHeader className="border-b pb-2 pt-3 px-4 shrink-0">
           <div className="flex items-center justify-between">
-            <DialogTitle className="flex items-center gap-3 text-xl">
-              <Calendar className="w-6 h-6 text-primary" />
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <Calendar className="w-5 h-5 text-primary" />
               Contas a Pagar - {format(referenceDate, 'MMMM/yyyy')}
             </DialogTitle>
             
-            <div className="flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-3 text-sm">
               {/* Botão de Menu (Apenas em telas pequenas) */}
               <Drawer>
                 <DrawerTrigger asChild className="lg:hidden">
-                  <Button variant="outline" size="sm" className="gap-2">
+                  <Button variant="outline" size="sm" className="gap-1 h-8 text-xs">
                     <Menu className="w-4 h-4" />
                     Contexto
                   </Button>
@@ -140,14 +140,14 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
               </Drawer>
               
               {/* Contagem de Status (Visível em todas as telas) */}
-              <div className="hidden sm:flex items-center gap-4">
+              <div className="hidden sm:flex items-center gap-3">
                 <div className="flex items-center gap-1 text-destructive">
-                  <Clock className="w-4 h-4" />
-                  <span>{pendingCount} Pendentes</span>
+                  <Clock className="w-3 h-3" />
+                  <span className="text-xs">{pendingCount} Pendentes</span>
                 </div>
                 <div className="flex items-center gap-1 text-success">
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>{paidCount} Pagas</span>
+                  <CheckCircle2 className="w-3 h-3" />
+                  <span className="text-xs">{paidCount} Pagas</span>
                 </div>
               </div>
             </div>
@@ -163,7 +163,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
           </div>
 
           {/* Coluna 2: Lista de Transações (Ocupa o espaço restante) */}
-          <div className="flex-1 overflow-y-auto px-6 pt-4 pb-2">
+          <div className="flex-1 overflow-y-auto px-4 pt-2 pb-2">
             <BillsTrackerList
               bills={billsForPeriod}
               onUpdateBill={handleUpdateBill}
@@ -174,7 +174,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
           </div>
         </div>
         
-        <DialogFooter className="px-6 py-4 border-t shrink-0">
+        <DialogFooter className="px-6 py-3 border-t shrink-0">
             <Button onClick={handleSaveAndClose} className="w-full">
                 Salvar e Fechar
             </Button>
