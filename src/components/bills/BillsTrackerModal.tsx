@@ -109,9 +109,8 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
-        className="max-w-6xl max-h-[95vh] overflow-hidden flex flex-col p-0" // Aumentado para 95vh
+        className="max-w-6xl max-h-[95vh] overflow-hidden flex flex-col p-0"
         hideCloseButton 
-        // Removidas as propriedades onInteractOutside e onEscapeKeyDown para permitir fechamento externo
       >
         
         {/* Header Principal - Ultra Compacto */}
@@ -167,7 +166,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         <div className="flex flex-1 overflow-hidden">
           
           {/* Coluna 1: Sidebar de Contexto (Fixo em telas grandes) */}
-          <div className="hidden lg:block w-[160px] shrink-0 overflow-y-auto scrollbar-thin">
+          <div className="hidden lg:block w-[200px] shrink-0 overflow-y-auto scrollbar-thin">
             {SidebarContent}
           </div>
 
@@ -183,7 +182,15 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
           </div>
         </div>
         
-        {/* DialogFooter removido */}
+        {/* Botão de fechar no canto superior direito (para desktop) */}
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="absolute top-3 right-3 h-8 w-8 hidden lg:flex"
+          onClick={handleSaveAndClose}
+        >
+          <LogOut className="w-4 h-4" />
+        </Button>
       </DialogContent>
     </Dialog>
   );
