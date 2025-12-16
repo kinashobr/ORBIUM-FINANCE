@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Upload, FileText, Check, X, Loader2, AlertCircle, Pin, Car } from "lucide-react";
 import { 
   ContaCorrente, TransacaoCompleta, Categoria, ImportedTransaction, StandardizationRule, OperationType, 
-  generateTransactionId, generateTransferGroupId, getDomainFromOperation, TransferGroup, TransactionLinks
+  generateTransactionId, generateTransferGroupId, getDomainFromOperation, TransferGroup, TransactionLinks,
+  TransactionMeta // <-- Adicionado TransactionMeta
 } from "@/types/finance";
 import { useFinance } from "@/contexts/FinanceContext";
 import { toast } from "sonner";
@@ -355,10 +356,10 @@ export function ImportTransactionDialog({ open, onOpenChange, account, investmen
         // Pagamento Empréstimo: Requer empréstimo
         if (tx.operationType === 'pagamento_emprestimo' && !tx.tempLoanId) return true;
         
-        // Veículo: Requer tipo de operação (compra/venda)
+        // Veículo: Requer tipo de operação
         if (tx.operationType === 'veiculo' && !tx.tempVehicleOperation) return true;
         
-        // Outros (Receita/Despesa/Rendimento): Requer categoria
+        // Outros: Requer categoria
         if (['receita', 'despesa', 'rendimento', 'liberacao_emprestimo'].includes(tx.operationType) && !tx.categoryId) return true;
         
         return false;
