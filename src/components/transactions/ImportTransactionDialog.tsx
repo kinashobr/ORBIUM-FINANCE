@@ -27,28 +27,41 @@ interface ImportTransactionDialogProps {
 
 // Helper para normalizar valor (R$ 1.234,56 -> 1234.56)
 const normalizeAmount = (amountStr: string): number => {
-    // Remove R$, pontos de milhar e substitui vírgula por ponto decimal
-    // Se o formato for 2407.27 (ponto como decimal), ele será mantido.
-    // Se o formato for 2.407,27 (vírgula como decimal), ele será convertido.
+    let cleaned = amountStr.trim();
+    const isNegative = cleaned.startsWith('-');
     
-    let cleaned = amountStr.trim().replace(/[^\d,-]/g, '');
+    // Remove o sinal negativo para processamento
+    if (isNegative) {
+        cleaned = cleaned.substring(1);
+    }
     
-    // Se houver vírgula, assume-se que é o separador decimal
-    if (cleaned.includes(',')) {
-        // Remove pontos de milhar e substitui vírgula por ponto
+    // Remove caracteres não numéricos, exceto ponto e vírgula
+    cleaned = cleaned.replace(/[^\d.,]/g, '');
+
+    // Lógica de detecção de formato:
+    if (cleaned.includes(',') && cleaned.includes('.')) {
+        // Formato BR (milhar ponto, decimal vírgula): 1.234,56
+        // Remove pontos de milhar e substitui vírgula por ponto decimal
         cleaned = cleaned.replace(/\./g, '').replace(',', '.');
-    } else {
-        // Se não houver vírgula, mas houver ponto, assume-se que o ponto é o decimal (como no seu exemplo)
-        // Não faz nada, apenas garante que o sinal negativo esteja no início
-        if (cleaned.startsWith('-')) {
-            cleaned = '-' + cleaned.substring(1).replace(/-/g, '');
-        } else {
-            cleaned = cleaned.replace(/-/g, '');
+    } else if (cleaned.includes(',')) {
+        // Formato BR simples (apenas vírgula como decimal): 1234,56
+        cleaned = cleaned.replace(',', '.');
+    } else if (cleaned.includes('.')) {
+        // Formato US (ponto como decimal): 1234.56 ou 1,234.56
+        // Se houver mais de um ponto, remove todos exceto o último (que é o decimal)
+        const parts = cleaned.split('.');
+        if (parts.length > 2) {
+            // Remove todos os pontos, exceto o último
+            const lastPart = parts.pop();
+            cleaned = parts.join('') + '.' + lastPart;
         }
     }
     
     const parsed = parseFloat(cleaned);
-    return isNaN(parsed) ? 0 : parsed;
+    
+    if (isNaN(parsed)) return 0;
+    
+    return isNegative ? -parsed : parsed;
 };
 
 // Helper para normalizar data OFX (YYYYMMDD -> YYYY-MM-DD)
