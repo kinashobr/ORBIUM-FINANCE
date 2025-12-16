@@ -66,16 +66,16 @@ export function TransactionReviewTable({
 
   return (
     <div className="overflow-x-auto">
-      <Table className="min-w-[1200px]">
+      <Table className="min-w-[1500px]">
         <TableHeader className="sticky top-0 bg-card z-10">
           <TableRow className="border-border hover:bg-transparent">
             <TableHead className="text-muted-foreground w-[80px]">Data</TableHead>
             <TableHead className="text-muted-foreground w-[100px]">Valor</TableHead>
-            <TableHead className="text-muted-foreground w-[250px]">Descrição Original</TableHead>
-            <TableHead className="text-muted-foreground w-[180px]">Tipo Operação</TableHead>
-            <TableHead className="text-muted-foreground w-[200px]">Categoria</TableHead>
+            <TableHead className="text-muted-foreground w-[350px]">Descrição Original</TableHead>
+            <TableHead className="text-muted-foreground w-[200px]">Tipo Operação</TableHead>
+            <TableHead className="text-muted-foreground w-[250px]">Categoria</TableHead>
             <TableHead className="text-muted-foreground w-[200px]">Conta Destino</TableHead>
-            <TableHead className="text-muted-foreground w-[150px]">Descrição Final</TableHead>
+            <TableHead className="text-muted-foreground w-[250px]">Descrição Final</TableHead>
             <TableHead className="text-muted-foreground w-[80px] text-center">Regra</TableHead>
           </TableRow>
         </TableHeader>
@@ -105,7 +105,7 @@ export function TransactionReviewTable({
                 )}>
                   {isIncome ? '+' : '-'} {formatCurrency(tx.amount)}
                 </TableCell>
-                <TableCell className="text-sm max-w-[250px] truncate" title={tx.originalDescription}>
+                <TableCell className="text-sm max-w-[350px] truncate" title={tx.originalDescription}>
                   {tx.originalDescription}
                 </TableCell>
                 
