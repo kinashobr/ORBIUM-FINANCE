@@ -24,7 +24,8 @@ import { CategoryListModal } from "@/components/transactions/CategoryListModal";
 import { AccountStatementDialog } from "@/components/transactions/AccountStatementDialog";
 import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
 import { BillsTrackerModal } from "@/components/bills/BillsTrackerModal";
-import { ImportTransactionDialog } from "@/components/transactions/ImportTransactionDialog";
+import { StatementManagerModal } from "@/components/transactions/StatementManagerModal"; // NOVO IMPORT
+import { ReviewConsolidationModal } from "@/components/transactions/ReviewConsolidationModal"; // NOVO IMPORT
 
 // Context
 import { useFinance } from "@/contexts/FinanceContext";
@@ -44,13 +45,13 @@ const ReceitasDespesas = () => {
     markLoanParcelPaid,
     unmarkLoanParcelPaid,
     veiculos,
-    addVeiculo, // <-- ADDED
-    deleteVeiculo, // <-- ADDED
-    calculateBalanceUpToDate, // Importado do contexto
-    dateRanges, // <-- Use context state
-    setDateRanges, // <-- Use context setter
+    addVeiculo, 
+    deleteVeiculo, 
+    calculateBalanceUpToDate, 
+    dateRanges, 
+    setDateRanges, 
     markSeguroParcelPaid,
-    unmarkSeguroParcelPaid, // CORRIGIDO: Nome da função
+    unmarkSeguroParcelPaid, 
   } = useFinance();
 
   // Local state for transfer groups
@@ -73,12 +74,13 @@ const ReceitasDespesas = () => {
   const [viewingAccountId, setViewingAccountId] = useState<string | null>(null);
   const [showStatementDialog, setShowStatementDialog] = useState(false);
   
-  // Bills Tracker Modal (NEW STATE)
+  // Bills Tracker Modal
   const [showBillsTrackerModal, setShowBillsTrackerModal] = useState(false);
   
-  // Import Modal State (NEW)
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [accountToImport, setAccountToImport] = useState<ContaCorrente | null>(null);
+  // Import Modals (UPDATED STATE)
+  const [showStatementManagerModal, setShowStatementManagerModal] = useState(false);
+  const [showReviewConsolidationModal, setShowReviewConsolidationModal] = useState(false);
+  const [accountToReview, setAccountToReview] = useState<string | null>(null);
 
   // Filter state (mantido para filtros internos da tabela, mas datas são controladas pelo PeriodSelector)
   const [searchTerm, setSearchTerm] = useState("");
@@ -214,22 +216,18 @@ const ReceitasDespesas = () => {
     setShowStatementDialog(true);
   };
   
-  // NEW HANDLER: Import Extrato
+  // NEW HANDLER: Import Extrato (Abre o Statement Manager)
   const handleImportExtrato = (accountId: string) => {
-    const account = accounts.find(a => a.id === accountId);
-    if (account) {
-      setAccountToImport(account);
-      setShowImportModal(true);
-    }
+    // A conta é passada para o StatementManagerModal para pré-seleção, se necessário
+    // Mas o StatementManagerModal gerencia a seleção de conta internamente
+    setShowStatementManagerModal(true);
   };
   
-  // NEW HANDLER: Close Import Modal
-  const handleCloseImportModal = (open: boolean) => {
-    setShowImportModal(open);
-    if (!open) {
-        // Limpa o estado da conta de importação ao fechar
-        setAccountToImport(null);
-    }
+  // Handler para iniciar a revisão consolidada
+  const handleStartReview = (accountId: string) => {
+    setAccountToReview(accountId);
+    setShowStatementManagerModal(false);
+    setShowReviewConsolidationModal(true);
   };
 
   const handleTransactionSubmit = (transaction: TransacaoCompleta, transferGroup?: TransferGroup) => {
@@ -828,7 +826,7 @@ const ReceitasDespesas = () => {
             onViewHistory={handleViewStatement}
             onAddAccount={() => { setEditingAccount(undefined); setShowAccountModal(true); }}
             onEditAccount={handleEditAccount}
-            onImportAccount={handleImportExtrato} // <-- NOVO HANDLER
+            onImportAccount={handleImportExtrato} 
           />
         </div>
 
@@ -903,21 +901,25 @@ const ReceitasDespesas = () => {
         />
       )}
       
-      {/* Bills Tracker Modal (NEW) */}
+      {/* Bills Tracker Modal */}
       <BillsTrackerModal
         open={showBillsTrackerModal}
         onOpenChange={setShowBillsTrackerModal}
       />
       
-      {/* Import Transaction Dialog (NEW) */}
-      {accountToImport && (
-        <ImportTransactionDialog
-          open={showImportModal}
-          onOpenChange={handleCloseImportModal}
-          account={accountToImport}
-          // PASSANDO DADOS DE VÍNCULO
-          investments={investments}
-          loans={loans}
+      {/* Statement Manager Modal (NEW ENTRY POINT) */}
+      <StatementManagerModal
+        open={showStatementManagerModal}
+        onOpenChange={setShowStatementManagerModal}
+        onReview={handleStartReview}
+      />
+      
+      {/* Review Consolidation Modal (NEW REVIEW SCREEN) */}
+      {accountToReview && (
+        <ReviewConsolidationModal
+          open={showReviewConsolidationModal}
+          onOpenChange={setShowReviewConsolidationModal}
+          accountId={accountToReview}
         />
       )}
     </MainLayout>
