@@ -515,8 +515,8 @@ export function ImportTransactionDialog({ open, onOpenChange, account }: ImportT
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="w-[95vw] max-h-[95vh] overflow-hidden flex flex-col">
-          <DialogHeader className="shrink-0">
+        <DialogContent className="max-w-[90vw] max-h-[95vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="shrink-0 px-6 pt-6 pb-4">
             <DialogTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5 text-primary" />
               Importar Extrato - {account.name}
@@ -529,7 +529,7 @@ export function ImportTransactionDialog({ open, onOpenChange, account }: ImportT
             </DialogDescription>
           </DialogHeader>
           
-          <div className="flex-1 overflow-y-auto pr-1">
+          <div className="flex-1 overflow-y-auto px-6 pb-6 pr-7">
               {renderContent()}
           </div>
         </DialogContent>

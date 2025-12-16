@@ -66,7 +66,7 @@ export function TransactionReviewTable({
 
   return (
     <div className="overflow-x-auto">
-      <Table className="min-w-[1500px]">
+      <Table className="min-w-[1200px]">
         <TableHeader className="sticky top-0 bg-card z-10">
           <TableRow className="border-border hover:bg-transparent">
             <TableHead className="text-muted-foreground w-[80px]">Data</TableHead>
