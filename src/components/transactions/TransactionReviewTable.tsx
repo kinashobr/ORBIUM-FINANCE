@@ -51,7 +51,7 @@ export function TransactionReviewTable({
   const getCategoryOptions = (operationType: OperationType | null) => {
     if (!operationType || operationType === 'transferencia' || operationType === 'initial_balance') return categories;
     
-    const isIncome = operationType === 'receita' || operationType === 'rendimento' || operationType === 'liberacao_emprestimo' || (operationType === 'veiculo' && operationType === 'venda');
+    const isIncome = operationType === 'receita' || operationType === 'rendimento' || operationType === 'liberacao_emprestimo';
     
     return categories.filter(c => 
       (isIncome && c.nature === 'receita') || 
@@ -82,6 +82,7 @@ export function TransactionReviewTable({
         <TableBody>
           {transactions.map((tx) => {
             const isTransfer = tx.operationType === 'transferencia';
+            // CORREÇÃO: Removida a verificação incorreta de 'veiculo'
             const isIncome = tx.operationType === 'receita' || tx.operationType === 'rendimento' || tx.operationType === 'liberacao_emprestimo';
             const currentCategory = tx.categoryId ? categoriesMap.get(tx.categoryId) : null;
             const isCategorized = !!tx.categoryId && tx.operationType !== null;
