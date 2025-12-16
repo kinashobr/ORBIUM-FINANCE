@@ -69,34 +69,20 @@ export function StandardizationRuleFormModal({
   }, [categories, operationType]);
 
   const handleSubmit = () => {
-    if (!pattern.trim() || !operationType || !descriptionTemplate.trim()) {
-      toast.error("Preencha o Padrão, Tipo de Operação e Descrição Padronizada.");
+    if (!pattern.trim() || !categoryId || !operationType || !descriptionTemplate.trim()) {
+      toast.error("Preencha todos os campos obrigatórios.");
       return;
-    }
-    
-    // Categoria é obrigatória, exceto para operações de vínculo (transferencia, aplicacao, etc.)
-    const requiresCategory = ['receita', 'despesa', 'rendimento'].includes(operationType);
-    if (requiresCategory && !categoryId) {
-        toast.error("Selecione uma Categoria para esta operação.");
-        return;
     }
     
     onSave({
       pattern: pattern.trim(),
-      categoryId: categoryId || 'cat_transferencia', // Usa um placeholder se não for necessário
+      categoryId,
       operationType: operationType as OperationType,
       descriptionTemplate: descriptionTemplate.trim(),
     });
     
     onOpenChange(false);
     toast.success("Regra de padronização criada com sucesso!");
-  };
-
-  const handleReset = () => {
-    setPattern(initialTransaction?.originalDescription || "");
-    setCategoryId(initialTransaction?.categoryId || "");
-    setOperationType(initialTransaction?.operationType || "");
-    setDescriptionTemplate(initialTransaction?.description || "");
   };
 
   return (
@@ -133,13 +119,7 @@ export function StandardizationRuleFormModal({
               <Label htmlFor="operationType">Tipo de Operação *</Label>
               <Select
                 value={operationType}
-                onValueChange={(v) => {
-                    setOperationType(v as OperationType);
-                    // Limpa a categoria se o novo tipo for de vínculo
-                    if (['transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo', 'liberacao_emprestimo', 'veiculo'].includes(v)) {
-                        setCategoryId('');
-                    }
-                }}
+                onValueChange={(v) => setOperationType(v as OperationType)}
               >
                 <SelectTrigger className="h-9 text-sm">
                   <SelectValue placeholder="Selecione..." />
@@ -157,11 +137,11 @@ export function StandardizationRuleFormModal({
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="categoryId">Categoria {['receita', 'despesa', 'rendimento'].includes(operationType) ? '*' : ''}</Label>
+              <Label htmlFor="categoryId">Categoria *</Label>
               <Select
                 value={categoryId}
                 onValueChange={setCategoryId}
-                disabled={!['receita', 'despesa', 'rendimento'].includes(operationType)}
+                disabled={operationType === 'transferencia' || operationType === ''}
               >
                 <SelectTrigger className="h-9 text-sm">
                   <SelectValue placeholder="Selecione..." />
@@ -174,11 +154,6 @@ export function StandardizationRuleFormModal({
                   ))}
                 </SelectContent>
               </Select>
-              {operationType === 'transferencia' && (
-                  <p className="text-xs text-muted-foreground">
-                      A categoria não é necessária para transferências.
-                  </p>
-              )}
             </div>
           </div>
 

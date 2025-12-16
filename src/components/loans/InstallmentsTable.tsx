@@ -129,7 +129,22 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
   return (
     <div className={cn("glass-card p-5", className)}>
       <div className="flex items-center justify-between mb-4">
-// ... (omitted logic)
+        <h3 className="text-lg font-semibold text-foreground">Controle de Parcelas</h3>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <Check className="w-4 h-4 text-success" />
+            {totalParcelasPagas} pagas
+          </span>
+          <span className="flex items-center gap-1">
+            <Clock className="w-4 h-4 text-primary" />
+            {emprestimo.meses - totalParcelasPagas} restantes
+          </span>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-border overflow-x-auto">
+        <div className="max-h-[50vh] overflow-y-auto scrollbar-thin">
+          <Table className="min-w-[1000px]"> {/* Aumentado min-width para 1000px */}
             <TableHeader className="sticky top-0 bg-card z-10">
               <TableRow className="border-border hover:bg-transparent">
                 <TableHead className="text-muted-foreground w-16">Nº</TableHead>
@@ -192,4 +207,27 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
         </div>
       </div>
 
-// ... (rest of the file remains the same)
+      {/* Resumo */}
+      <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-border">
+        <div className="text-center">
+          <p className="text-xs text-muted-foreground">Total Pago</p>
+          <p className="text-lg font-bold text-success">
+            {formatCurrency(totalPago)}
+          </p>
+        </div>
+        <div className="text-center">
+          <p className="text-xs text-muted-foreground">Saldo Devedor</p>
+          <p className="text-lg font-bold text-destructive">
+            {formatCurrency(saldoDevedorReal)}
+          </p>
+        </div>
+        <div className="text-center">
+          <p className="text-xs text-muted-foreground">Progresso Financeiro</p>
+          <p className="text-lg font-bold text-primary">
+            {progressoFinanceiro.toFixed(1)}%
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}

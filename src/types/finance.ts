@@ -232,20 +232,8 @@ export interface StandardizationRule {
   descriptionTemplate: string; // Nova descrição padronizada
 }
 
-// NOVO: Estrutura para armazenar transações brutas de um arquivo
-export interface ImportedStatement {
-  id: string;
-  accountId: string;
-  fileName: string;
-  dateFrom: string; // YYYY-MM-DD
-  dateTo: string; // YYYY-MM-DD
-  status: 'pending_review' | 'contabilized';
-  rawTransactions: ImportedTransaction[];
-}
-
 export interface ImportedTransaction {
   id: string; // ID temporário para rastreamento
-  statementId: string; // <-- NOVO: ID do extrato de origem
   date: string; // YYYY-MM-DD
   amount: number;
   originalDescription: string;
@@ -354,10 +342,6 @@ export function generateBillId(): string {
 
 export function generateRuleId(): string {
   return `rule_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-}
-
-export function generateStatementId(): string {
-  return `stmt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
 export function formatCurrency(value: number, currency = 'BRL'): string {
