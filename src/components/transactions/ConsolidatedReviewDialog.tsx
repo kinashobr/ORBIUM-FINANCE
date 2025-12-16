@@ -16,6 +16,7 @@ import { TransactionReviewTable } from "./TransactionReviewTable";
 import { StandardizationRuleFormModal } from "./StandardizationRuleFormModal";
 import { ReviewContextSidebar } from "./ReviewContextSidebar"; // NEW IMPORT
 import { StandardizationRuleManagerModal } from "./StandardizationRuleManagerModal"; // NEW IMPORT
+import { ResizableSidebar } from "./ResizableSidebar"; // NEW IMPORT
 import { startOfMonth, endOfMonth, format, subDays, startOfDay, endOfDay } from "date-fns";
 
 // Interface simplificada para Empréstimo
@@ -401,21 +402,26 @@ export function ConsolidatedReviewDialog({
 
           <div className="flex flex-1 overflow-hidden">
             
-            {/* Coluna Lateral (Controle e Status) */}
-            <div className="w-[224px] shrink-0 overflow-y-auto scrollbar-thin">
-              <ReviewContextSidebar
-                accountId={accountId}
-                statements={importedStatements.filter(s => s.accountId === accountId)}
-                pendingCount={pendingCount}
-                totalCount={totalCount}
-                reviewRange={reviewRange}
-                onPeriodChange={handlePeriodChange}
-                onApplyFilter={handleApplyFilter}
-                onContabilize={handleContabilize}
-                onClose={() => onOpenChange(false)}
-                onManageRules={handleManageRules}
-              />
-            </div>
+            {/* Coluna Lateral (Controle e Status) - AGORA REDIMENSIONÁVEL */}
+            <ResizableSidebar
+                initialWidth={224}
+                minWidth={180}
+                maxWidth={350}
+                storageKey="review_sidebar_width"
+            >
+                <ReviewContextSidebar
+                    accountId={accountId}
+                    statements={importedStatements.filter(s => s.accountId === accountId)}
+                    pendingCount={pendingCount}
+                    totalCount={totalCount}
+                    reviewRange={reviewRange}
+                    onPeriodChange={handlePeriodChange}
+                    onApplyFilter={handleApplyFilter}
+                    onContabilize={handleContabilize}
+                    onClose={() => onOpenChange(false)}
+                    onManageRules={handleManageRules}
+                />
+            </ResizableSidebar>
 
             {/* Coluna Principal (Tabela de Revisão) */}
             <div className="flex-1 overflow-y-auto px-4 pt-2 pb-2">
