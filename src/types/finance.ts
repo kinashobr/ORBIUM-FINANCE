@@ -96,6 +96,7 @@ export interface TransactionMeta {
   numeroContrato?: string;
   pendingLoanConfig?: boolean;
   valorDevido?: number; // ADICIONADO para rastrear o valor original da parcela de seguro
+  originalDescription?: string; // ADICIONADO para rastrear a descrição original da importação
 }
 
 // Transação Completa (atualizada)

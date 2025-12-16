@@ -10,7 +10,7 @@ import {
 } from "@/types/finance";
 import { useFinance } from "@/contexts/FinanceContext";
 import { toast } from "sonner";
-import { parseDateLocal } from "@/lib/utils";
+import { parseDateLocal, cn } from "@/lib/utils"; // <-- IMPORTANDO CN
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TransactionReviewTable } from "./TransactionReviewTable";
 import { StandardizationRuleFormModal } from "./StandardizationRuleFormModal"; // NEW IMPORT
@@ -314,7 +314,7 @@ export function ImportTransactionDialog({ open, onOpenChange, account }: ImportT
                 createdBy: 'system',
                 source: 'import',
                 createdAt: now,
-                originalDescription: tx.originalDescription,
+                originalDescription: tx.originalDescription, // <-- CORRIGIDO
             }
         };
         
