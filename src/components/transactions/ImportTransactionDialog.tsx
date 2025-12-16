@@ -489,7 +489,7 @@ export function ImportTransactionDialog({ open, onOpenChange, account }: ImportT
             </Button>
           </div>
           
-          <ScrollArea className="h-[50vh] max-h-[500px] border rounded-lg">
+          <ScrollArea className="h-[60vh] max-h-[600px] border rounded-lg">
             <TransactionReviewTable
                 transactions={importedTransactions}
                 accounts={contasMovimento}
@@ -515,7 +515,7 @@ export function ImportTransactionDialog({ open, onOpenChange, account }: ImportT
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-7xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-7xl w-[95vw] max-h-[95vh] overflow-hidden flex flex-col">
           <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5 text-primary" />
