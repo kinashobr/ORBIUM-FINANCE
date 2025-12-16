@@ -17,6 +17,9 @@ import {
   BillSourceType, // NEW
   StandardizationRule, // <-- NEW IMPORT
   generateRuleId, // <-- NEW IMPORT
+  ImportedStatement, // <-- NEW IMPORT
+  ImportedTransaction, // <-- NEW IMPORT
+  generateStatementId, // <-- NEW IMPORT
 } from "@/types/finance";
 import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format } from "date-fns"; // Import date-fns helpers
 import { parseDateLocal } from "@/lib/utils"; // Importando a nova função
@@ -171,6 +174,13 @@ interface FinanceContextType {
   setMonthlyRevenueForecast: Dispatch<SetStateAction<number>>;
   getRevenueForPreviousMonth: (date: Date) => number;
   
+  // NEW: Imported Statements Management
+  importedStatements: ImportedStatement[];
+  addStatement: (statement: Omit<ImportedStatement, "id" | "status">) => void;
+  deleteStatement: (statementId: string) => void;
+  markStatementContabilized: (statementIds: string[]) => void;
+  getTransactionsForReview: (accountId: string, range: DateRange) => ImportedTransaction[];
+  
   // Cálculos principais
   getTotalReceitas: (mes?: string) => number;
   getTotalDespesas: (mes?: string) => number;
@@ -251,6 +261,9 @@ const STORAGE_KEYS = {
   
   // NEW: Revenue Forecast
   MONTHLY_REVENUE_FORECAST: "fin_monthly_revenue_forecast_v1",
+  
+  // NEW: Imported Statements
+  IMPORTED_STATEMENTS: "fin_imported_statements_v1",
 };
 
 // ============================================
@@ -263,6 +276,7 @@ const initialSegurosVeiculo: SeguroVeiculo[] = [];
 const initialObjetivos: ObjetivoFinanceiro[] = [];
 const initialBillsTracker: BillTracker[] = []; // NEW INITIAL STATE
 const initialStandardizationRules: StandardizationRule[] = []; // NEW INITIAL STATE
+const initialImportedStatements: ImportedStatement[] = []; // <-- NEW INITIAL STATE
 
 // Default alert start date is 6 months ago
 const defaultAlertStartDate = subMonths(new Date(), 6).toISOString().split('T')[0];
@@ -371,6 +385,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [monthlyRevenueForecast, setMonthlyRevenueForecast] = useState<number>(() => 
     loadFromStorage(STORAGE_KEYS.MONTHLY_REVENUE_FORECAST, 0)
   );
+  
+  // NEW: Imported Statements State
+  const [importedStatements, setImportedStatements] = useState<ImportedStatement[]>(() => 
+    loadFromStorage(STORAGE_KEYS.IMPORTED_STATEMENTS, initialImportedStatements)
+  );
 
   // ============================================
   // EFEITOS PARA PERSISTÊNCIA AUTOMÁTICA
@@ -393,6 +412,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   
   // NEW EFFECT for monthlyRevenueForecast
   useEffect(() => { saveToStorage(STORAGE_KEYS.MONTHLY_REVENUE_FORECAST, monthlyRevenueForecast); }, [monthlyRevenueForecast]);
+  
+  // NEW EFFECT for Imported Statements
+  useEffect(() => { saveToStorage(STORAGE_KEYS.IMPORTED_STATEMENTS, importedStatements); }, [importedStatements]);
   
   // Core V2 persistence
   useEffect(() => { saveToStorage(STORAGE_KEYS.CONTAS_MOVIMENTO, contasMovimento); }, [contasMovimento]);
@@ -893,6 +915,60 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
 
   // ============================================
+  // OPERAÇÕES DE IMPORTED STATEMENTS (NEW)
+  // ============================================
+  
+  const addStatement = useCallback((statement: Omit<ImportedStatement, "id" | "status">) => {
+    const newStatement: ImportedStatement = {
+        ...statement,
+        id: generateStatementId(),
+        status: 'pending_review',
+    };
+    setImportedStatements(prev => [...prev, newStatement]);
+  }, []);
+
+  const deleteStatement = useCallback((statementId: string) => {
+    setImportedStatements(prev => prev.filter(s => s.id !== statementId));
+  }, []);
+  
+  const markStatementContabilized = useCallback((statementIds: string[]) => {
+    setImportedStatements(prev => prev.map(s => 
+        statementIds.includes(s.id) ? { ...s, status: 'contabilized' } : s
+    ));
+  }, []);
+  
+  const getTransactionsForReview = useCallback((accountId: string, range: DateRange): ImportedTransaction[] => {
+    if (!range.from || !range.to) return [];
+    
+    const rangeFrom = startOfDay(range.from);
+    const rangeTo = endOfDay(range.to);
+    
+    const transactions: ImportedTransaction[] = [];
+    
+    importedStatements
+        .filter(s => s.accountId === accountId && s.status === 'pending_review')
+        .forEach(statement => {
+            statement.rawTransactions.forEach(tx => {
+                try {
+                    const txDate = parseDateLocal(tx.date);
+                    // Inclui transações que caem dentro do período de revisão
+                    if (isWithinInterval(txDate, { start: rangeFrom, end: rangeTo })) {
+                        transactions.push(tx);
+                    }
+                } catch (e) {
+                    // Ignora transações com data inválida
+                }
+            });
+        });
+        
+    // Remove duplicatas (se o mesmo ID de transação aparecer em diferentes statements, o que não deveria ocorrer se os IDs forem únicos)
+    const uniqueTransactions = Array.from(new Map(transactions.map(tx => [tx.id, tx])).values());
+    
+    // Ordena por data
+    return uniqueTransactions.sort((a, b) => parseDateLocal(a.date).getTime() - parseDateLocal(b.date).getTime());
+  }, [importedStatements]);
+
+  // ============================================
   // OPERAÇÕES DE ENTIDADES V2 (Empréstimos, Veículos, etc.)
   // ============================================
 
@@ -1208,6 +1284,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     (data.data as any).objetivos = objetivos;
     (data.data as any).billsTracker = billsTracker; // NEW EXPORT
     (data.data as any).standardizationRules = standardizationRules; // NEW EXPORT
+    (data.data as any).importedStatements = importedStatements; // <-- NEW EXPORT
 
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -1238,6 +1315,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (data.data.objetivos) setObjetivos(data.data.objetivos);
         if (data.data.billsTracker) setBillsTracker(data.data.billsTracker); // NEW IMPORT
         if (data.data.standardizationRules) setStandardizationRules(data.data.standardizationRules); // NEW IMPORT
+        if (data.data.importedStatements) setImportedStatements(data.data.importedStatements); // <-- NEW IMPORT
         
         return { success: true, message: "Dados V2 importados com sucesso!" };
       } else {
@@ -1312,6 +1390,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     monthlyRevenueForecast,
     setMonthlyRevenueForecast,
     getRevenueForPreviousMonth,
+    
+    // Imported Statements (NEW)
+    importedStatements,
+    addStatement,
+    deleteStatement,
+    markStatementContabilized,
+    getTransactionsForReview,
     
     getTotalReceitas,
     getTotalDespesas,
