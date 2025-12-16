@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Upload, FileText, Check, X, Loader2, AlertCircle, Pin } from "lucide-react";
+import { Upload, FileText, Check, X, Loader2, AlertCircle, Pin, Car } from "lucide-react";
 import { 
   ContaCorrente, TransacaoCompleta, Categoria, ImportedTransaction, StandardizationRule, OperationType, 
   generateTransactionId, generateTransferGroupId, getDomainFromOperation, TransferGroup, TransactionLinks
@@ -15,10 +15,25 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { TransactionReviewTable } from "./TransactionReviewTable";
 import { StandardizationRuleFormModal } from "./StandardizationRuleFormModal"; // NEW IMPORT
 
+// Interface simplificada para Empréstimo (agora passada via props)
+interface LoanInfo {
+  id: string;
+  institution: string;
+  numeroContrato?: string;
+}
+
+// Interface simplificada para Investimento (agora passada via props)
+interface InvestmentInfo {
+  id: string;
+  name: string;
+}
+
 interface ImportTransactionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   account: ContaCorrente;
+  investments: InvestmentInfo[]; // NEW PROP
+  loans: LoanInfo[]; // NEW PROP
 }
 
 // ============================================
@@ -140,6 +155,9 @@ const parseCSV = (content: string, accountId: string): ImportedTransaction[] => 
                 description: originalDescription,
                 isTransfer: false,
                 destinationAccountId: null,
+                tempInvestmentId: null, // NEW
+                tempLoanId: null, // NEW
+                tempVehicleOperation: null, // NEW
                 sourceType: 'csv',
             });
         }
@@ -184,6 +202,9 @@ const parseOFX = (content: string, accountId: string): ImportedTransaction[] => 
                 description: originalDescription,
                 isTransfer: false,
                 destinationAccountId: null,
+                tempInvestmentId: null, // NEW
+                tempLoanId: null, // NEW
+                tempVehicleOperation: null, // NEW
                 sourceType: 'ofx',
             });
         }
@@ -195,13 +216,17 @@ const parseOFX = (content: string, accountId: string): ImportedTransaction[] => 
 // COMPONENTE PRINCIPAL
 // ============================================
 
-export function ImportTransactionDialog({ open, onOpenChange, account }: ImportTransactionDialogProps) {
+export function ImportTransactionDialog({ open, onOpenChange, account, investments, loans }: ImportTransactionDialogProps) {
   const { 
     categoriasV2, 
     contasMovimento, 
     standardizationRules, 
     addStandardizationRule,
     addTransacaoV2,
+    addEmprestimo, // Para liberação de empréstimo
+    addVeiculo, // Para compra de veículo
+    markLoanParcelPaid, // Para pagamento de empréstimo
+    markSeguroParcelPaid, // Para pagamento de seguro
   } = useFinance();
   
   const [step, setStep] = useState<'upload' | 'review'>('upload');
@@ -230,8 +255,13 @@ export function ImportTransactionDialog({ open, onOpenChange, account }: ImportT
           // Se a regra for de transferência, marca como tal
           if (rule.operationType === 'transferencia') {
               updatedTx.isTransfer = true;
-              // Tenta preencher a conta destino se a regra for muito específica (opcional)
-              // Por enquanto, deixamos null para revisão manual
+              // Limpa outros vínculos
+              updatedTx.tempInvestmentId = null;
+              updatedTx.tempLoanId = null;
+              updatedTx.tempVehicleOperation = null;
+          } else {
+              updatedTx.isTransfer = false;
+              updatedTx.destinationAccountId = null;
           }
           
           // Aplica a primeira regra que corresponder e sai
@@ -313,11 +343,26 @@ export function ImportTransactionDialog({ open, onOpenChange, account }: ImportT
     const transferGroups: TransferGroup[] = [];
     
     // 1. Validação final
-    const incompleteTx = importedTransactions.filter(tx => 
-        !tx.operationType || 
-        (!tx.isTransfer && !tx.categoryId) || 
-        (tx.isTransfer && !tx.destinationAccountId)
-    );
+    const incompleteTx = importedTransactions.filter(tx => {
+        if (!tx.operationType) return true;
+        
+        // Transferência: Requer conta destino
+        if (tx.operationType === 'transferencia' && !tx.destinationAccountId) return true;
+        
+        // Aplicação/Resgate: Requer investimento
+        if ((tx.operationType === 'aplicacao' || tx.operationType === 'resgate') && !tx.tempInvestmentId) return true;
+        
+        // Pagamento Empréstimo: Requer empréstimo
+        if (tx.operationType === 'pagamento_emprestimo' && !tx.tempLoanId) return true;
+        
+        // Veículo: Requer tipo de operação (compra/venda)
+        if (tx.operationType === 'veiculo' && !tx.tempVehicleOperation) return true;
+        
+        // Outros (Receita/Despesa/Rendimento): Requer categoria
+        if (['receita', 'despesa', 'rendimento', 'liberacao_emprestimo'].includes(tx.operationType) && !tx.categoryId) return true;
+        
+        return false;
+    });
     
     if (incompleteTx.length > 0) {
         toast.error(`Atenção: ${incompleteTx.length} transação(ões) não estão totalmente categorizadas ou configuradas.`);
@@ -328,17 +373,41 @@ export function ImportTransactionDialog({ open, onOpenChange, account }: ImportT
     importedTransactions.forEach(tx => {
         const now = new Date().toISOString();
         const isTransfer = tx.operationType === 'transferencia';
+        const isInvestmentFlow = tx.operationType === 'aplicacao' || tx.operationType === 'resgate';
+        const isLoanPayment = tx.operationType === 'pagamento_emprestimo';
+        const isLoanLiberation = tx.operationType === 'liberacao_emprestimo';
+        const isVehicleTx = tx.operationType === 'veiculo';
         
         // Determina o fluxo (in/out)
         let flow: TransacaoCompleta['flow'] = 'out';
-        if (tx.operationType === 'receita' || tx.operationType === 'rendimento' || tx.operationType === 'liberacao_emprestimo' || (tx.operationType === 'veiculo' && tx.amount > 0)) {
+        if (tx.operationType === 'receita' || tx.operationType === 'rendimento' || isLoanLiberation || (isVehicleTx && tx.tempVehicleOperation === 'venda')) {
             flow = 'in';
         } else if (isTransfer) {
-            // Transferência: a transação na conta de origem é 'transfer_out'
             flow = 'transfer_out';
+        } else if (isInvestmentFlow && tx.operationType === 'resgate') {
+            flow = 'in';
         } else {
             flow = 'out';
         }
+        
+        // Links
+        const links: TransactionLinks = {
+            investmentId: isInvestmentFlow ? tx.tempInvestmentId : null,
+            loanId: isLoanPayment ? tx.tempLoanId : (isLoanLiberation ? tx.tempLoanId : null),
+            transferGroupId: isTransfer ? generateTransferGroupId() : null,
+            parcelaId: isLoanPayment ? '1' : null, // Simplificação: assume parcela 1 para importação
+            vehicleTransactionId: isVehicleTx ? `veh_${tx.id}` : null,
+        };
+        
+        // Meta
+        const meta: TransactionMeta = {
+            createdBy: 'system',
+            source: 'import',
+            createdAt: now,
+            originalDescription: tx.originalDescription,
+            vehicleOperation: isVehicleTx ? tx.tempVehicleOperation || 'compra' : undefined,
+            numeroContrato: isLoanLiberation ? tx.description : undefined, // Usa descrição como contrato temporário
+        };
         
         // Transação principal (na conta importada)
         const primaryTx: TransacaoCompleta = {
@@ -351,30 +420,19 @@ export function ImportTransactionDialog({ open, onOpenChange, account }: ImportT
             amount: tx.amount,
             categoryId: tx.categoryId || null,
             description: tx.description,
-            links: {
-                investmentId: null,
-                loanId: null,
-                transferGroupId: isTransfer ? generateTransferGroupId() : null,
-                parcelaId: null,
-                vehicleTransactionId: null,
-            },
-            conciliated: true, // Transações importadas são consideradas conciliadas
+            links: links,
+            conciliated: true,
             attachments: [],
-            meta: {
-                createdBy: 'system',
-                source: 'import',
-                createdAt: now,
-                originalDescription: tx.originalDescription, // <-- CORRIGIDO
-            }
+            meta: meta,
         };
         
         newTransactions.push(primaryTx);
         
-        // 3. Criação da transação de contrapartida (se for transferência)
+        // 3. Criação da transação de contrapartida (se necessário)
+        
+        // A. Transferência
         if (isTransfer && tx.destinationAccountId) {
             const transferGroupId = primaryTx.links.transferGroupId!;
-            
-            // Transação de contrapartida (na conta destino)
             const secondaryTx: TransacaoCompleta = {
                 ...primaryTx,
                 id: generateTransactionId(),
@@ -382,31 +440,77 @@ export function ImportTransactionDialog({ open, onOpenChange, account }: ImportT
                 flow: 'transfer_in',
                 operationType: 'transferencia',
                 description: `Transferência recebida de ${account.name}`,
+                links: { ...primaryTx.links, transferGroupId },
+                meta: { ...primaryTx.meta, createdBy: 'system' }
+            };
+            newTransactions.push(secondaryTx);
+        }
+        
+        // B. Aplicação / Resgate
+        if (isInvestmentFlow && tx.tempInvestmentId) {
+            const isAplicacao = tx.operationType === 'aplicacao';
+            const secondaryTx: TransacaoCompleta = {
+                ...primaryTx,
+                id: generateTransactionId(),
+                accountId: tx.tempInvestmentId,
+                flow: isAplicacao ? 'in' : 'out',
+                operationType: isAplicacao ? 'aplicacao' : 'resgate',
+                domain: 'investment',
+                description: isAplicacao ? (tx.description || `Aplicação recebida de conta corrente`) : (tx.description || `Resgate enviado para conta corrente`),
                 links: {
                     ...primaryTx.links,
-                    transferGroupId,
+                    investmentId: primaryTx.accountId, // Referência à conta oposta
                 },
-                meta: {
-                    ...primaryTx.meta,
-                    createdBy: 'system',
-                }
+                meta: { ...primaryTx.meta, createdBy: 'system' }
             };
-            
             newTransactions.push(secondaryTx);
-            
-            // Adiciona ao grupo de transferências (opcional, mas útil para rastreamento)
-            transferGroups.push({
-                id: transferGroupId,
-                fromAccountId: tx.accountId,
-                toAccountId: tx.destinationAccountId,
-                amount: tx.amount,
-                date: tx.date,
-                description: tx.description,
+        }
+        
+        // 4. Ações de Entidade (Empréstimo/Veículo)
+        
+        if (isLoanLiberation) {
+            // Cria empréstimo pendente
+            addEmprestimo({
+                contrato: tx.description,
+                valorTotal: tx.amount,
+                parcela: 0,
+                meses: 0,
+                taxaMensal: 0,
+                status: 'pendente_config',
+                liberacaoTransactionId: primaryTx.id,
+                contaCorrenteId: primaryTx.accountId,
+                dataInicio: primaryTx.date,
+            });
+        }
+        
+        if (isLoanPayment && tx.tempLoanId) {
+            // Marca pagamento (simplificado, sem parcela number)
+            const loanIdNum = parseInt(tx.tempLoanId.replace('loan_', ''));
+            if (!isNaN(loanIdNum)) {
+                markLoanParcelPaid(loanIdNum, tx.amount, tx.date, 1); // Assume parcela 1 para importação
+            }
+        }
+        
+        if (isVehicleTx && tx.tempVehicleOperation === 'compra') {
+            // Cria veículo pendente
+            addVeiculo({
+                modelo: tx.description,
+                marca: '',
+                tipo: 'carro', // Simplificação
+                ano: 0,
+                dataCompra: tx.date,
+                valorVeiculo: tx.amount,
+                valorSeguro: 0,
+                vencimentoSeguro: "",
+                parcelaSeguro: 0,
+                valorFipe: 0,
+                compraTransactionId: primaryTx.id,
+                status: 'pendente_cadastro',
             });
         }
     });
     
-    // 4. Adiciona todas as transações ao contexto
+    // 5. Adiciona todas as transações ao contexto
     newTransactions.forEach(t => addTransacaoV2(t));
     
     toast.success(`${newTransactions.length} lançamentos contabilizados com sucesso!`);
@@ -456,15 +560,35 @@ export function ImportTransactionDialog({ open, onOpenChange, account }: ImportT
     }
     
     if (step === 'review') {
-      const allCategorized = importedTransactions.every(tx => 
-        !!tx.operationType && 
-        (tx.isTransfer ? !!tx.destinationAccountId : !!tx.categoryId)
-      );
+      const allCategorized = importedTransactions.every(tx => {
+        if (!tx.operationType) return false;
+        
+        // Transferência: Requer conta destino
+        if (tx.operationType === 'transferencia') return !!tx.destinationAccountId;
+        
+        // Aplicação/Resgate: Requer investimento
+        if (tx.operationType === 'aplicacao' || tx.operationType === 'resgate') return !!tx.tempInvestmentId;
+        
+        // Pagamento Empréstimo: Requer empréstimo
+        if (tx.operationType === 'pagamento_emprestimo') return !!tx.tempLoanId;
+        
+        // Veículo: Requer tipo de operação
+        if (tx.operationType === 'veiculo') return !!tx.tempVehicleOperation;
+        
+        // Outros: Requer categoria
+        return !!tx.categoryId;
+      });
       
-      const incompleteCount = importedTransactions.filter(tx => 
-        !tx.operationType || 
-        (tx.isTransfer ? !tx.destinationAccountId : !tx.categoryId)
-      ).length;
+      const incompleteCount = importedTransactions.filter(tx => {
+        if (!tx.operationType) return true;
+        
+        if (tx.operationType === 'transferencia') return !tx.destinationAccountId;
+        if (tx.operationType === 'aplicacao' || tx.operationType === 'resgate') return !tx.tempInvestmentId;
+        if (tx.operationType === 'pagamento_emprestimo') return !tx.tempLoanId;
+        if (tx.operationType === 'veiculo') return !tx.tempVehicleOperation;
+        
+        return !tx.categoryId;
+      }).length;
 
       return (
         <div className="space-y-4">
@@ -494,6 +618,8 @@ export function ImportTransactionDialog({ open, onOpenChange, account }: ImportT
                 transactions={importedTransactions}
                 accounts={contasMovimento}
                 categories={categoriasV2}
+                investments={investments} // NEW PROP
+                loans={loans} // NEW PROP
                 onUpdateTransaction={handleUpdateTransaction}
                 onCreateRule={handleCreateRule}
             />

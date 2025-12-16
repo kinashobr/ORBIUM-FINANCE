@@ -915,6 +915,9 @@ const ReceitasDespesas = () => {
           open={showImportModal}
           onOpenChange={handleCloseImportModal}
           account={accountToImport}
+          // PASSANDO DADOS DE VÍNCULO
+          investments={investments}
+          loans={loans}
         />
       )}
     </MainLayout>

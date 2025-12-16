@@ -244,9 +244,12 @@ export interface ImportedTransaction {
   operationType: OperationType | null;
   description: string; // Descrição padronizada ou original
   
-  // Campos de Transferência (preenchidos manualmente)
+  // Campos de Vínculo (preenchidos manualmente na revisão)
   isTransfer: boolean;
-  destinationAccountId: string | null;
+  destinationAccountId: string | null; // Para Transferência
+  tempInvestmentId: string | null; // Para Aplicação/Resgate
+  tempLoanId: string | null; // Para Pagamento Empréstimo
+  tempVehicleOperation: 'compra' | 'venda' | null; // Para Veículo
   
   // Meta
   sourceType: 'csv' | 'ofx';
