@@ -147,8 +147,8 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     setMonthlyRevenueForecast(localRevenueForecast);
     
     // 2. Setup para comparação e persistência
-    // USANDO O SNAPSHOT IMUTÁVEL PARA COMPARAÇÃO
-    const originalBillsMap = new Map(originalMonthBills.map(b => [b.id, b])); 
+    // ⚠️ CORREÇÃO: Usa o snapshot imutável para comparação
+    const originalBillsMap = new Map(originalMonthBills.map(b => [b.id, b]));
     
     const newTransactions: TransacaoCompleta[] = [];
     const transactionsToRemove: string[] = [];
@@ -165,11 +165,12 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     // 3. Processa as contas LOCAIS (localBills)
     localBills.forEach(localVersion => {
         const original = originalBillsMap.get(localVersion.id);
-        const wasPaid = original?.isPaid ?? false;
+        
+        const wasPaid = original?.isPaid || false;
         const isNowPaid = localVersion.isPaid;
         const isTemplate = isGeneratedTemplate(localVersion);
         
-        // Check for non-payment changes (Exclusion, Amount, Account)
+        // Verifica se houve qualquer alteração que precise ser persistida
         const hasNonPaymentChanges = 
             localVersion.isExcluded !== original?.isExcluded || 
             localVersion.expectedAmount !== original?.expectedAmount || 
@@ -273,8 +274,18 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         } 
         // --- C. Handle Non-Payment Changes (Exclusion/Value/Account) ---
         else if (hasNonPaymentChanges) {
-            // Se for um template gerado OU ad-hoc, salva a modificação no billsTracker global
-            if (isTemplate || localVersion.sourceType === 'ad_hoc') {
+            
+            // Se for um template gerado, salva a modificação no billsTracker global
+            if (isTemplate) {
+                // Apenas salva a modificação se for do mês atual (para que getBillsForMonth a encontre)
+                if (isSameMonth(parseDateLocal(localVersion.dueDate), referenceDate)) {
+                    finalBillsTracker = finalBillsTracker.filter(b => b.id !== localVersion.id);
+                    finalBillsTracker.push(localVersion);
+                }
+            }
+            
+            // Se for ad-hoc, já está incluído no filtro inicial, mas garantimos que a versão mais recente seja salva
+            if (localVersion.sourceType === 'ad_hoc') {
                 finalBillsTracker = finalBillsTracker.filter(b => b.id !== localVersion.id);
                 finalBillsTracker.push(localVersion);
             }
@@ -298,7 +309,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     );
     
     // 7. Adiciona novas transações ao contexto
-    newTransactions.forEach(addTransacaoV2);
+    newTransactions.forEach(t => addTransacaoV2(t));
 
     onOpenChange(false);
     toast.success("Contas salvas com sucesso.");

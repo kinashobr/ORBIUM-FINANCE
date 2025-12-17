@@ -980,7 +980,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const prevMonth = subMonths(date, 1);
     const prevMonthYear = format(prevMonth, 'yyyy-MM');
     
-    // 1. Carregar todas as MODIFICAÇÕES/AD-HOC persistidas para o mês atual
+    // 1. Carregar todas as MODIFICAÇÕES/AD-HOC persistidas
     const persistedModificationsMap = new Map<string, BillTracker>();
     
     billsTracker.forEach(bill => {
@@ -1030,7 +1030,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             const dueDate = getDueDate(loan.dataInicio, i);
             
             if (isSameMonth(dueDate, date)) {
-                const billId = `loan_${loan.id}_${i}_${monthYear}`; // ID ÚNICO POR MÊS
+                // 🔑 ID DETERMINÍSTICO: loan_installment_ID_PARCELA_MESANO
+                const billId = `loan_installment_${loan.id}_${i}_${monthYear}`; 
                 const dueDateStr = format(dueDate, 'yyyy-MM-dd');
                 
                 const paidTx = transacoesV2.find(t => 
@@ -1041,9 +1042,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                 
                 const isPaidByTx = !!paidTx;
                 const existingModification = persistedModificationsMap.get(billId);
-                
-                // Se já foi pago, o status é 'pago' e o transactionId é o da transação
-                // Se não foi pago, o status é 'pendente'
                 
                 const baseBill: BillTracker = {
                     id: billId,
@@ -1078,7 +1076,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             const dueDate = parseDateLocal(parcela.vencimento);
             
             if (isSameMonth(dueDate, date)) {
-                const billId = `seguro_${seguro.id}_${parcela.numero}_${monthYear}`; // ID ÚNICO POR MÊS
+                // 🔑 ID DETERMINÍSTICO: insurance_installment_ID_PARCELA_MESANO
+                const billId = `insurance_installment_${seguro.id}_${parcela.numero}_${monthYear}`; 
                 const dueDateStr = format(dueDate, 'yyyy-MM-dd');
                 
                 const paidTx = transacoesV2.find(t => 
@@ -1120,7 +1119,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         const isFixed = cat.nature === 'despesa_fixa';
         const dueDate = new Date(date.getFullYear(), date.getMonth(), isFixed ? 10 : 25);
         const dueDateStr = format(dueDate, 'yyyy-MM-dd');
-        const billId = `${isFixed ? 'fixed' : 'variable'}_${cat.id}_${monthYear}`; // ID ÚNICO POR MÊS
+        
+        // 🔑 ID DETERMINÍSTICO: fixed_expense_ID_CATEGORIA_MESANO
+        const billId = `${isFixed ? 'fixed_expense' : 'variable_expense'}_${cat.id}_${monthYear}`; 
         
         const existingModification = persistedModificationsMap.get(billId);
         const paidTx = checkTransactionPayment(billId); // Check if paid via bill tracker
