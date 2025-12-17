@@ -24,7 +24,7 @@ import {
   getFlowTypeFromOperation, // <-- NEW IMPORT
 } from "@/types/finance";
 import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format, isWithinInterval } from "date-fns"; // Import date-fns helpers
-import { parseDateLocal } from "@/lib/utils"; // Importando a nova função
+import { parseDateLocal, getDueDate } from "@/lib/utils"; // Importando a nova função
 
 // ============================================
 // FUNÇÕES AUXILIARES PARA DATAS
@@ -998,7 +998,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                         sourceType: 'loan_installment',
                         sourceRef: loan.id.toString(),
                         parcelaNumber: i,
-                        suggestedAccountId: loan.contaCorrenteId,
+                        suggestedAccountId: contasMovimento.find(c => c.accountType === 'conta_corrente')?.id,
                         suggestedCategoryId: categoriasV2.find(c => c.label === 'Pag. Empréstimo')?.id,
                     };
                     existingBillsMap.set(billId, newBill);

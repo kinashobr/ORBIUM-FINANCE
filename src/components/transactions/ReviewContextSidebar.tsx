@@ -1,5 +1,5 @@
 import { useMemo, useCallback } from "react";
-import { Calendar, FileText, Check, Clock, Pin, RefreshCw, X, Save } from "lucide-react";
+import { Calendar, FileText, Check, Clock, Pin, RefreshCw, X, Save, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";

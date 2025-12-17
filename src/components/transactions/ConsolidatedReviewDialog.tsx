@@ -364,7 +364,7 @@ export function ConsolidatedReviewDialog({
   };
   
   // Lógica para o PeriodSelector
-  const handlePeriodChange = useCallback((ranges: ComparisonDateRanges) => {
+  const handlePeriodChangeInReview = useCallback((ranges: ComparisonDateRanges) => {
     setReviewRange(ranges.range1);
   }, []);
   
@@ -395,6 +395,7 @@ export function ConsolidatedReviewDialog({
           maxWidth={1800}
           maxHeight={1200}
           hideCloseButton={true} 
+          className="bg-card border-border overflow-hidden flex flex-col"
         >
           <DialogHeader className="px-4 pt-3 pb-2 border-b shrink-0" onMouseDown={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
@@ -436,7 +437,7 @@ export function ConsolidatedReviewDialog({
                     pendingCount={pendingCount}
                     totalCount={totalCount}
                     reviewRange={reviewRange}
-                    onPeriodChange={onPeriodChange}
+                    onPeriodChange={handlePeriodChangeInReview}
                     onApplyFilter={handleApplyFilter}
                     onContabilize={handleContabilize}
                     onClose={() => onOpenChange(false)}

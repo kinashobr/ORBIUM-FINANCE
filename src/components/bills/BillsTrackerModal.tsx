@@ -288,6 +288,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         minWidth={700}
         minHeight={500}
         hideCloseButton={true} 
+        className="bg-card border-border overflow-hidden flex flex-col"
       >
         
         {/* Header Principal - Ultra Compacto */}
