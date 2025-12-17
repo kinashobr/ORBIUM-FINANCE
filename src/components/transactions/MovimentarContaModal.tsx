@@ -167,7 +167,7 @@ const FloatingSelectWithIcon = ({ label, Icon, colorClass, value, onValueChange,
                 error && "peer-focus:text-destructive"
             )}
         >
-            label
+            {label} {/* CORRIGIDO: Usando a prop 'label' */}
         </Label>
     </div>
 );
@@ -568,7 +568,7 @@ export function MovimentarContaModal({
       <ResizableDialogContent 
         storageKey="movimentar_conta_modal"
         initialWidth={500}
-        initialHeight={isVinculoRequired ? 750 : 600}
+        initialHeight={750}
         minWidth={400}
         minHeight={500}
         className="max-w-lg bg-card border-border overflow-hidden flex flex-col p-0 shadow-lg animate-fade-in"
