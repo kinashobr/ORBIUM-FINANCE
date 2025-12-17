@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Building2, Wallet, PiggyBank, TrendingUp, Shield, Target, Bitcoin, CreditCard, ArrowLeftRight, Car, DollarSign, Plus, Minus, RefreshCw, Coins, TrendingDown } from "lucide-react";
-import { ContaCorrente, Categoria, AccountType, ACCOUNT_TYPE_LABELS, generateTransactionId, formatCurrency, OperationType, TransacaoCompleta, TransactionLinks, generateTransferGroupId, getFlowTypeFromOperation, getDomainFromOperation, InvestmentInfo } from "@/types/finance";
+import { ContaCorrente, Categoria, AccountType, ACCOUNT_TYPE_LABELS, generateTransactionId, formatCurrency, OperationType, TransacaoCompleta, TransactionLinks, generateTransferGroupId, getFlowTypeFromOperation, getDomainFromOperation, InvestmentInfo, SeguroVeiculo, Veiculo } from "@/types/finance";
 import { toast } from "sonner";
 import { parseDateLocal } from "@/lib/utils";
 import { EditableCell } from "../EditableCell";
@@ -19,7 +19,7 @@ interface LoanInfo {
     numero: number;
     vencimento: string;
     valor: number;
-    paga: boolean; // Alterado de 'pago' para 'paga'
+    paga: boolean;
     transactionId?: string;
   }[];
   valorParcela: number;
@@ -33,6 +33,8 @@ interface MovimentarContaModalProps {
   categories: Categoria[];
   investments: InvestmentInfo[];
   loans: LoanInfo[];
+  segurosVeiculo: SeguroVeiculo[]; // ADDED
+  veiculos: Veiculo[]; // ADDED
   selectedAccountId?: string;
   onSubmit: (transaction: TransacaoCompleta, transferGroup?: { id: string; fromAccountId: string; toAccountId: string; amount: number; date: string; description?: string }) => void;
   editingTransaction?: TransacaoCompleta;
@@ -68,7 +70,7 @@ const getAvailableOperationTypes = (accountType: AccountType): OperationType[] =
 };
 
 const getCategoryOptions = (operationType: OperationType | null, categories: Categoria[]): Categoria[] => {
-  if (!operationType || operationType === 'transferencia' || operationType === 'initial_balance') return [];
+  if (!operationType || operationType === 'transferencia' || operationType === 'initial_balance') return categories;
   
   const isIncome = operationType === 'receita' || operationType === 'rendimento' || operationType === 'liberacao_emprestimo' || (operationType === 'veiculo');
   
@@ -85,6 +87,8 @@ export function MovimentarContaModal({
   categories,
   investments,
   loans,
+  segurosVeiculo, // ADDED
+  veiculos, // ADDED
   selectedAccountId,
   onSubmit,
   editingTransaction,
@@ -104,19 +108,58 @@ export function MovimentarContaModal({
   const [tempTipoVeiculo, setTempTipoVeiculo] = useState<'carro' | 'moto' | 'caminhao'>('carro');
   const [tempNumeroContrato, setTempNumeroContrato] = useState<string>('');
   const [tempParcelaId, setTempParcelaId] = useState<string | null>(null);
+  
+  // NEW STATES for Insurance Linking
+  const [tempSeguroId, setTempSeguroId] = useState<string | null>(null);
+  const [tempSeguroParcelaId, setTempSeguroParcelaId] = useState<string | null>(null);
 
   const isEditing = !!editingTransaction;
   const selectedAccount = accounts.find(a => a.id === accountId);
   const availableOperations = selectedAccount ? getAvailableOperationTypes(selectedAccount.accountType) : [];
+  
   const isTransfer = operationType === 'transferencia';
   const isInvestmentFlow = operationType === 'aplicacao' || operationType === 'resgate';
   const isLoanPayment = operationType === 'pagamento_emprestimo';
   const isLoanLiberation = operationType === 'liberacao_emprestimo';
   const isVehicle = operationType === 'veiculo';
-  const isCategorizable = !isTransfer && !isInvestmentFlow && !isLoanPayment && !isLoanLiberation && !isVehicle;
+  
+  // Categorizable if it's a basic flow (receita, despesa, rendimento)
+  const isCategorizable = operationType === 'receita' || operationType === 'despesa' || operationType === 'rendimento';
+  
+  const seguroCategory = useMemo(() => categories.find(c => c.label.toLowerCase() === 'seguro'), [categories]);
+  const isInsurancePayment = operationType === 'despesa' && categoryId === seguroCategory?.id;
   
   const availableCategories = useMemo(() => getCategoryOptions(operationType, categories), [operationType, categories]);
   
+  // Filter loans to only show active ones for payment
+  const activeLoans = useMemo(() => loans.filter(l => l.id.startsWith('loan_')), [loans]);
+  
+  // Available Seguros (Active vehicles only)
+  const availableSeguros = useMemo(() => {
+      return segurosVeiculo.filter(s => {
+          const vehicle = veiculos.find(v => v.id === s.veiculoId);
+          return vehicle && vehicle.status === 'ativo';
+      });
+  }, [segurosVeiculo, veiculos]);
+  
+  // Available Parcels for selected Seguro
+  const availableSeguroParcelas = useMemo(() => {
+      if (!tempSeguroId) return [];
+      const seguro = segurosVeiculo.find(s => s.id === parseInt(tempSeguroId));
+      if (!seguro) return [];
+      
+      return seguro.parcelas.filter(p => !p.paga);
+  }, [tempSeguroId, segurosVeiculo]);
+  
+  // Filter available installments for the selected loan
+  const availableInstallments = useMemo(() => {
+    if (!tempLoanId) return [];
+    const loan = loans.find(l => l.id === tempLoanId);
+    if (!loan) return [];
+    
+    return loan.parcelas.filter(p => !p.paga);
+  }, [tempLoanId, loans]);
+
   // Reset state when modal opens/changes
   useEffect(() => {
     if (open) {
@@ -137,6 +180,16 @@ export function MovimentarContaModal({
         setTempTipoVeiculo(editingTransaction.meta?.tipoVeiculo || 'carro');
         setTempNumeroContrato(editingTransaction.meta?.numeroContrato || '');
         
+        // NEW: Insurance links
+        if (editingTransaction.links?.vehicleTransactionId) {
+            const [seguroIdStr, parcelaNumStr] = editingTransaction.links.vehicleTransactionId.split('_');
+            setTempSeguroId(seguroIdStr || null);
+            setTempSeguroParcelaId(parcelaNumStr || null);
+        } else {
+            setTempSeguroId(null);
+            setTempSeguroParcelaId(null);
+        }
+        
       } else {
         setAccountId(selectedAccountId || accounts[0]?.id || '');
         setDate(new Date().toISOString().split('T')[0]);
@@ -151,18 +204,25 @@ export function MovimentarContaModal({
         setTempParcelaId(null);
         setTempVehicleOperation(null);
         setTempNumeroContrato('');
+        setTempSeguroId(null); // NEW RESET
+        setTempSeguroParcelaId(null); // NEW RESET
       }
     }
   }, [open, editingTransaction, selectedAccountId, accounts, availableOperations]);
 
-  // Auto-select category if only one is available
+  // Auto-select category if only one is available AND it's categorizable
   useEffect(() => {
-    if (availableCategories.length === 1 && isCategorizable) {
+    if (availableCategories.length === 1 && isCategorizable && !isInsurancePayment) {
       setCategoryId(availableCategories[0].id);
-    } else if (isCategorizable) {
-      setCategoryId(null);
+    } else if (isCategorizable && !isInsurancePayment) {
+      // If it's a basic flow, ensure category is selected if available
+      if (!categoryId && availableCategories.length > 0) {
+          // Do nothing, let user select
+      } else if (!categoryId && availableCategories.length === 0) {
+          // If no categories, keep null
+      }
     }
-  }, [availableCategories, isCategorizable]);
+  }, [availableCategories, isCategorizable, isInsurancePayment, categoryId]);
 
   // Auto-select operation type if account changes
   useEffect(() => {
@@ -170,6 +230,32 @@ export function MovimentarContaModal({
       setOperationType(availableOperations[0] || null);
     }
   }, [selectedAccount, availableOperations, isEditing]);
+  
+  // Auto-fill amount and description for loan payment
+  useEffect(() => {
+    if (isLoanPayment && tempLoanId && tempParcelaId) {
+      const loan = loans.find(l => l.id === tempLoanId);
+      const parcela = loan?.parcelas.find(p => p.numero === parseInt(tempParcelaId));
+      
+      if (parcela) {
+        setAmount(parcela.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+        setDescription(`Pagamento Empréstimo ${loan?.numeroContrato || 'N/A'} - Parcela ${parcela.numero}/${loan?.totalParcelas || 'N/A'}`);
+      }
+    }
+  }, [isLoanPayment, tempLoanId, tempParcelaId, loans]);
+  
+  // Auto-fill amount and description for insurance payment
+  useEffect(() => {
+    if (isInsurancePayment && tempSeguroId && tempSeguroParcelaId) {
+      const seguro = segurosVeiculo.find(s => s.id === parseInt(tempSeguroId));
+      const parcela = seguro?.parcelas.find(p => p.numero === parseInt(tempSeguroParcelaId));
+      
+      if (parcela) {
+        setAmount(parcela.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+        setDescription(`Pagamento Seguro ${seguro?.numeroApolice || 'N/A'} - Parcela ${parcela.numero}/${seguro?.numeroParcelas || 'N/A'}`);
+      }
+    }
+  }, [isInsurancePayment, tempSeguroId, tempSeguroParcelaId, segurosVeiculo]);
 
   const handleAmountChange = (value: string) => {
     // Permite apenas números, vírgula e ponto
@@ -201,11 +287,19 @@ export function MovimentarContaModal({
       return;
     }
     
-    if (isCategorizable && !categoryId) {
+    // Validation for Categorizable flows (excluding insurance, which is handled below)
+    if (isCategorizable && !isInsurancePayment && !categoryId) {
       toast.error("Selecione uma categoria.");
       return;
     }
     
+    // Validation for Insurance Payment
+    if (isInsurancePayment && (!tempSeguroId || !tempSeguroParcelaId)) {
+        toast.error("Selecione o seguro e a parcela para o pagamento.");
+        return;
+    }
+    
+    // Validation for Vínculo flows
     if (isTransfer && !destinationAccountId) {
       toast.error("Selecione a conta destino para a transferência.");
       return;
@@ -216,8 +310,8 @@ export function MovimentarContaModal({
       return;
     }
     
-    if (isLoanPayment && !tempLoanId) {
-      toast.error("Selecione o contrato de empréstimo.");
+    if (isLoanPayment && (!tempLoanId || !tempParcelaId)) {
+      toast.error("Selecione o contrato e a parcela de empréstimo.");
       return;
     }
     
@@ -242,14 +336,16 @@ export function MovimentarContaModal({
       operationType,
       domain,
       amount: parsedAmount,
-      categoryId: isCategorizable ? categoryId : null,
+      // Use categoryId if categorizable OR if it's an insurance payment (where category is required)
+      categoryId: isCategorizable || isInsurancePayment ? categoryId : null,
       description: description.trim() || OPERATION_OPTIONS.find(op => op.value === operationType)?.label || 'Movimentação',
       links: {
         investmentId: tempInvestmentId,
         loanId: tempLoanId,
         transferGroupId: editingTransaction?.links?.transferGroupId || null,
         parcelaId: tempParcelaId,
-        vehicleTransactionId: null, // Será preenchido no ReceitasDespesas se for seguro
+        // NEW LINK: vehicleTransactionId for insurance payments
+        vehicleTransactionId: isInsurancePayment ? `${tempSeguroId}_${tempSeguroParcelaId}` : null, 
       } as TransactionLinks,
       conciliated: false,
       attachments: [],
@@ -281,30 +377,14 @@ export function MovimentarContaModal({
     toast.success(isEditing ? "Transação atualizada!" : "Transação registrada!");
   };
   
-  // Filter loans to only show active ones for payment
-  const activeLoans = useMemo(() => loans.filter(l => l.id.startsWith('loan_')), [loans]);
+  // Determine if Category Selector should be rendered
+  const showCategorySelector = isCategorizable || isInsurancePayment; 
   
-  // Filter available installments for the selected loan
-  const availableInstallments = useMemo(() => {
-    if (!tempLoanId) return [];
-    const loan = loans.find(l => l.id === tempLoanId);
-    if (!loan) return [];
-    
-    return loan.parcelas.filter(p => !p.paga); // Alterado de p.pago para p.paga
-  }, [tempLoanId, loans]);
+  // Determine if Category should be disabled
+  const isCategoryDisabled = !isCategorizable && !isInsurancePayment;
   
-  // Auto-fill amount and description for loan payment
-  useEffect(() => {
-    if (isLoanPayment && tempLoanId && tempParcelaId) {
-      const loan = loans.find(l => l.id === tempLoanId);
-      const parcela = loan?.parcelas.find(p => p.numero === parseInt(tempParcelaId));
-      
-      if (parcela) {
-        setAmount(parcela.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-        setDescription(`Pagamento Empréstimo ${loan?.numeroContrato || 'N/A'} - Parcela ${parcela.numero}/${loan?.totalParcelas || 'N/A'}`);
-      }
-    }
-  }, [isLoanPayment, tempLoanId, tempParcelaId, loans]);
+  // Determine if Amount should be auto-filled
+  const isAmountAutoFilled = (isLoanPayment && tempLoanId && tempParcelaId) || (isInsurancePayment && tempSeguroId && tempSeguroParcelaId);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -315,14 +395,12 @@ export function MovimentarContaModal({
             {isEditing ? "Editar Transação" : "Nova Movimentação"}
           </DialogTitle>
           <DialogDescription>
-              {selectedAccount?.accountType === 'corrente'
-                ? "Registre receitas, despesas, aplicações e operações de empréstimo."
-                : "Registre aplicações, resgates ou rendimentos."}
+              Registre receitas, despesas, transferências e movimentações de ativos.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Conta e Data */}
+          {/* Row 1: Conta e Data */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="accountId">Conta *</Label>
@@ -331,7 +409,7 @@ export function MovimentarContaModal({
                 onValueChange={(v) => setAccountId(v)}
                 disabled={isEditing}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-10">
                   <SelectValue placeholder="Selecione a conta" />
                 </SelectTrigger>
                 <SelectContent>
@@ -352,188 +430,50 @@ export function MovimentarContaModal({
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
+                className="h-10"
               />
             </div>
           </div>
 
-          {/* Tipo de Operação */}
-          <div className="space-y-2">
-            <Label htmlFor="operationType">Tipo de Operação *</Label>
-            <Select 
-              value={operationType || ''} 
-              onValueChange={(v) => {
-                setOperationType(v as OperationType);
-                setCategoryId(null); // Reset category on operation change
-                setTempInvestmentId(null);
-                setTempLoanId(null);
-                setTempParcelaId(null);
-                setDestinationAccountId(null);
-                setTempVehicleOperation(null);
-              }}
-              disabled={isEditing}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione a operação" />
-              </SelectTrigger>
-              <SelectContent>
-                {availableOperations.map(op => {
-                  const option = OPERATION_OPTIONS.find(o => o.value === op);
-                  if (!option) return null;
-                  const Icon = option.icon;
-                  return (
-                    <SelectItem key={op} value={op}>
-                      <span className="flex items-center gap-2">
-                        <Icon className="w-4 h-4" />
-                        {option.label}
-                      </span>
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-          </div>
-          
-          {/* Campos Condicionais de Vínculo */}
-          
-          {/* Transferência */}
-          {isTransfer && (
-            <div className="space-y-2">
-              <Label htmlFor="destinationAccount">Conta Destino *</Label>
-              <Select 
-                value={destinationAccountId || ''} 
-                onValueChange={(v) => setDestinationAccountId(v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a conta destino" />
-                </SelectTrigger>
-                <SelectContent>
-                  {accounts.filter(a => a.id !== accountId).map(a => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {ACCOUNT_TYPE_LABELS[a.accountType]} - {a.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-          
-          {/* Aplicação / Resgate */}
-          {isInvestmentFlow && (
-            <div className="space-y-2">
-              <Label htmlFor="investmentAccount">Conta de Investimento *</Label>
-              <Select 
-                value={tempInvestmentId || ''} 
-                onValueChange={(v) => setTempInvestmentId(v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o investimento" />
-                </SelectTrigger>
-                <SelectContent>
-                  {investments.map(i => (
-                    <SelectItem key={i.id} value={i.id}>
-                      {i.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-          
-          {/* Pagamento Empréstimo */}
-          {isLoanPayment && (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="loanContract">Contrato de Empréstimo *</Label>
-                <Select 
-                  value={tempLoanId || ''} 
-                  onValueChange={(v) => setTempLoanId(v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o contrato" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {activeLoans.map(l => (
-                      <SelectItem key={l.id} value={l.id}>
-                        {l.institution}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="parcelaId">Parcela *</Label>
-                <Select 
-                  value={tempParcelaId || ''} 
-                  onValueChange={(v) => setTempParcelaId(v)}
-                  disabled={!tempLoanId}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione a parcela" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableInstallments.map(p => (
-                      <SelectItem key={p.numero} value={String(p.numero)}>
-                        P{p.numero} - {formatCurrency(p.valor)} ({parseDateLocal(p.vencimento).toLocaleDateString("pt-BR")})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
-          
-          {/* Liberação Empréstimo */}
-          {isLoanLiberation && (
-            <div className="space-y-2">
-              <Label htmlFor="numeroContrato">Número do Contrato *</Label>
-              <Input
-                id="numeroContrato"
-                placeholder="Ex: Contrato 12345"
-                value={tempNumeroContrato}
-                onChange={(e) => setTempNumeroContrato(e.target.value)}
-              />
-            </div>
-          )}
-          
-          {/* Veículo */}
-          {isVehicle && (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="vehicleOperation">Operação *</Label>
-                <Select 
-                  value={tempVehicleOperation || ''} 
-                  onValueChange={(v) => setTempVehicleOperation(v as 'compra' | 'venda')}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Compra ou Venda" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="compra">Compra (Saída)</SelectItem>
-                    <SelectItem value="venda">Venda (Entrada)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="tipoVeiculo">Tipo de Veículo</Label>
-                <Select 
-                  value={tempTipoVeiculo} 
-                  onValueChange={(v) => setTempTipoVeiculo(v as 'carro' | 'moto' | 'caminhao')}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="carro">Carro</SelectItem>
-                    <SelectItem value="moto">Moto</SelectItem>
-                    <SelectItem value="caminhao">Caminhão</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
-
-          {/* Valor e Categoria */}
+          {/* Row 2: Tipo de Operação e Valor */}
           <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="operationType">Tipo de Operação *</Label>
+              <Select 
+                value={operationType || ''} 
+                onValueChange={(v) => {
+                  setOperationType(v as OperationType);
+                  setCategoryId(null); 
+                  setTempInvestmentId(null);
+                  setTempLoanId(null);
+                  setTempParcelaId(null);
+                  setDestinationAccountId(null);
+                  setTempVehicleOperation(null);
+                  setTempSeguroId(null); 
+                  setTempSeguroParcelaId(null); 
+                }}
+                disabled={isEditing}
+              >
+                <SelectTrigger className="h-10">
+                  <SelectValue placeholder="Selecione a operação" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableOperations.map(op => {
+                    const option = OPERATION_OPTIONS.find(o => o.value === op);
+                    if (!option) return null;
+                    const Icon = option.icon;
+                    return (
+                      <SelectItem key={op} value={op}>
+                        <span className="flex items-center gap-2">
+                          <Icon className="w-4 h-4" />
+                          {option.label}
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="amount">Valor (R$) *</Label>
               <Input
@@ -543,17 +483,32 @@ export function MovimentarContaModal({
                 placeholder="0,00"
                 value={amount}
                 onChange={(e) => handleAmountChange(e.target.value)}
+                disabled={isAmountAutoFilled}
+                className="h-10"
               />
             </div>
+          </div>
+          
+          {/* Row 3: Categoria e Vínculos (Condicionais) */}
+          <div className="grid grid-cols-2 gap-4">
             
-            {isCategorizable && (
+            {/* Categoria Selector */}
+            {showCategorySelector && (
               <div className="space-y-2">
-                <Label htmlFor="categoryId">Categoria *</Label>
+                <Label htmlFor="categoryId">Categoria {isCategorizable ? '*' : ''}</Label>
                 <Select 
                   value={categoryId || ''} 
-                  onValueChange={(v) => setCategoryId(v)}
+                  onValueChange={(v) => {
+                    setCategoryId(v);
+                    // Reset insurance links if category changes away from Seguro
+                    if (v !== seguroCategory?.id) {
+                        setTempSeguroId(null);
+                        setTempSeguroParcelaId(null);
+                    }
+                  }}
+                  disabled={isCategoryDisabled}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-10">
                     <SelectValue placeholder="Selecione a categoria" />
                   </SelectTrigger>
                   <SelectContent>
@@ -566,9 +521,188 @@ export function MovimentarContaModal({
                 </Select>
               </div>
             )}
+            
+            {/* Vínculo Principal (Transferência, Investimento, Liberação, Veículo) */}
+            {isTransfer && (
+              <div className="space-y-2">
+                <Label htmlFor="destinationAccount">Conta Destino *</Label>
+                <Select 
+                  value={destinationAccountId || ''} 
+                  onValueChange={(v) => setDestinationAccountId(v)}
+                >
+                  <SelectTrigger className="h-10">
+                    <SelectValue placeholder="Selecione a conta destino" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accounts.filter(a => a.id !== accountId).map(a => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {ACCOUNT_TYPE_LABELS[a.accountType]} - {a.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            
+            {isInvestmentFlow && (
+              <div className="space-y-2">
+                <Label htmlFor="investmentAccount">Conta de Investimento *</Label>
+                <Select 
+                  value={tempInvestmentId || ''} 
+                  onValueChange={(v) => setTempInvestmentId(v)}
+                >
+                  <SelectTrigger className="h-10">
+                    <SelectValue placeholder="Selecione o investimento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {investments.map(i => (
+                      <SelectItem key={i.id} value={i.id}>
+                        {i.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            
+            {isLoanLiberation && (
+              <div className="space-y-2">
+                <Label htmlFor="numeroContrato">Número do Contrato *</Label>
+                <Input
+                  id="numeroContrato"
+                  placeholder="Ex: Contrato 12345"
+                  value={tempNumeroContrato}
+                  onChange={(e) => setTempNumeroContrato(e.target.value)}
+                  className="h-10"
+                />
+              </div>
+            )}
+            
+            {isVehicle && (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-2">
+                  <Label htmlFor="vehicleOperation">Operação *</Label>
+                  <Select 
+                    value={tempVehicleOperation || ''} 
+                    onValueChange={(v) => setTempVehicleOperation(v as 'compra' | 'venda')}
+                  >
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="Compra/Venda" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="compra">Compra (Saída)</SelectItem>
+                      <SelectItem value="venda">Venda (Entrada)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tipoVeiculo">Tipo</Label>
+                  <Select 
+                    value={tempTipoVeiculo} 
+                    onValueChange={(v) => setTempTipoVeiculo(v as 'carro' | 'moto' | 'caminhao')}
+                  >
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="Tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="carro">Carro</SelectItem>
+                      <SelectItem value="moto">Moto</SelectItem>
+                      <SelectItem value="caminhao">Caminhão</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+            
+            {/* Pagamento Empréstimo (Ocupa 2 colunas) */}
+            {isLoanPayment && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="loanContract">Contrato de Empréstimo *</Label>
+                  <Select 
+                    value={tempLoanId || ''} 
+                    onValueChange={(v) => setTempLoanId(v)}
+                  >
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="Selecione o contrato" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activeLoans.map(l => (
+                        <SelectItem key={l.id} value={l.id}>
+                          {l.institution}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="parcelaId">Parcela *</Label>
+                  <Select 
+                    value={tempParcelaId || ''} 
+                    onValueChange={(v) => setTempParcelaId(v)}
+                    disabled={!tempLoanId}
+                  >
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="Selecione a parcela" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableInstallments.map(p => (
+                        <SelectItem key={p.numero} value={String(p.numero)}>
+                          P{p.numero} - {formatCurrency(p.valor)} ({parseDateLocal(p.vencimento).toLocaleDateString("pt-BR")})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+            
           </div>
+          
+          {/* NEW: Insurance Payment Linking (If Despesa + Categoria Seguro) */}
+          {isInsurancePayment && (
+            <div className="grid grid-cols-2 gap-4 border-t pt-4 border-border/50">
+                <div className="space-y-2">
+                    <Label htmlFor="seguroId">Seguro *</Label>
+                    <Select 
+                        value={tempSeguroId || ''} 
+                        onValueChange={(v) => { setTempSeguroId(v); setTempSeguroParcelaId(null); }}
+                    >
+                        <SelectTrigger className="h-10">
+                            <SelectValue placeholder="Selecione o seguro" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {availableSeguros.map(s => (
+                                <SelectItem key={s.id} value={String(s.id)}>
+                                    {s.numeroApolice} ({s.seguradora})
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="seguroParcelaId">Parcela *</Label>
+                    <Select 
+                        value={tempSeguroParcelaId || ''} 
+                        onValueChange={(v) => setTempSeguroParcelaId(v)}
+                        disabled={!tempSeguroId}
+                    >
+                        <SelectTrigger className="h-10">
+                            <SelectValue placeholder="Selecione a parcela" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {availableSeguroParcelas.map(p => (
+                                <SelectItem key={p.numero} value={String(p.numero)}>
+                                    P{p.numero} - {formatCurrency(p.valor)} ({parseDateLocal(p.vencimento).toLocaleDateString("pt-BR")})
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
+          )}
 
-          {/* Descrição */}
+          {/* Descrição (Full Width) */}
           <div className="space-y-2">
             <Label htmlFor="description">Descrição</Label>
             <Input
@@ -576,6 +710,7 @@ export function MovimentarContaModal({
               placeholder="Descrição da transação"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              className="h-10"
             />
           </div>
 

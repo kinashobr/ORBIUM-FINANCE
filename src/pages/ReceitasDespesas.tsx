@@ -55,7 +55,8 @@ const ReceitasDespesas = () => {
     unmarkSeguroParcelPaid, 
     standardizationRules, 
     deleteStandardizationRule, 
-    uncontabilizeImportedTransaction, // <-- NOVO
+    uncontabilizeImportedTransaction, 
+    segurosVeiculo, // <-- ADDED
   } = useFinance();
 
   // Local state for transfer groups
@@ -239,6 +240,18 @@ const ReceitasDespesas = () => {
 
     if (editingTransaction) {
       const linkedGroupId = editingTransaction.links?.transferGroupId;
+      
+      // --- NEW: Handle Insurance Payment Update on Edit ---
+      if (tx.links?.vehicleTransactionId && tx.flow === 'out') {
+          const [seguroIdStr, parcelaNumeroStr] = tx.links.vehicleTransactionId.split('_');
+          const seguroId = parseInt(seguroIdStr);
+          const parcelaNumero = parseInt(parcelaNumeroStr);
+          
+          if (!isNaN(seguroId) && !isNaN(parcelaNumero)) {
+              markSeguroParcelPaid(seguroId, parcelaNumero, tx.id);
+          }
+      }
+      
       if (linkedGroupId) {
         setTransacoesV2(prev => prev.map(t => {
           if (t.id === tx.id) {
@@ -285,6 +298,9 @@ const ReceitasDespesas = () => {
           }
           return t;
         }));
+      } else {
+        // Update single transaction
+        setTransacoesV2(prev => prev.map(t => t.id === tx.id ? tx : t));
       }
       return;
     }
@@ -456,6 +472,7 @@ const ReceitasDespesas = () => {
       }
     }
     
+    // --- NEW: Handle Insurance Payment Submission ---
     if (finalTx.links?.vehicleTransactionId && finalTx.flow === 'out') {
         const [seguroIdStr, parcelaNumeroStr] = finalTx.links.vehicleTransactionId.split('_');
         const seguroId = parseInt(seguroIdStr);
@@ -504,6 +521,7 @@ const ReceitasDespesas = () => {
       }
     }
     
+    // --- NEW: Handle Insurance Payment Unmark on Delete ---
     if (transactionToDelete?.links?.vehicleTransactionId && transactionToDelete.flow === 'out') {
         const [seguroIdStr, parcelaNumeroStr] = transactionToDelete.links.vehicleTransactionId.split('_');
         const seguroId = parseInt(seguroIdStr);
@@ -823,6 +841,8 @@ const ReceitasDespesas = () => {
         categories={categories}
         investments={investments}
         loans={loans}
+        segurosVeiculo={segurosVeiculo} // <-- NEW PROP
+        veiculos={veiculos} // <-- NEW PROP
         selectedAccountId={selectedAccountForModal}
         onSubmit={handleTransactionSubmit}
         editingTransaction={editingTransaction}
