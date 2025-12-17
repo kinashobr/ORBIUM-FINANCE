@@ -230,7 +230,7 @@ export function DRETab({ dateRanges }: DRETabProps) {
     
     // --- 2b. Filter transactions (Exclude cash insurance payments, asset purchases, and initial_balance) ---
     const transacoesDespesaOperacional = transactions.filter(t => 
-      (t.operationType === 'despesa') && // FIXED: Exclude 'veiculo' operation type
+      t.operationType === 'despesa' && // FIXED: Exclude 'veiculo' operation type
       t.flow === 'out' &&
       t.operationType !== 'initial_balance' && // EXCLUIR SALDO INICIAL
       // EXCLUDE cash payments for insurance if they are linked to the 'Seguro' category

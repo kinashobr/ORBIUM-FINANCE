@@ -39,6 +39,8 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     calculateLoanAmortizationAndInterest,
     markSeguroParcelPaid, // <-- IMPORTADO
     markLoanParcelPaid, // <-- IMPORTADO
+    unmarkSeguroParcelPaid, // <-- NOVO
+    unmarkLoanParcelPaid, // <-- NOVO
   } = useFinance();
   
   const [currentDate, setCurrentDate] = useState(startOfMonth(new Date()));
