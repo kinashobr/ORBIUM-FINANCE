@@ -244,9 +244,10 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
               </TabsTrigger>
             </TabsList>
 
-            <div className="flex-1 overflow-y-auto mt-4 pr-1 scrollbar-thin">
+            {/* ADJUSTED: Changed mt-4 to pt-4 on the scrollable container and removed mt-0 from TabsContent */}
+            <div className="flex-1 overflow-y-auto pt-4 pr-1 scrollbar-thin">
               {/* Aba Geral */}
-              <TabsContent value="geral" className="mt-0 space-y-4">
+              <TabsContent value="geral" className="space-y-4">
                 {/* Row 1: Main Financials */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <LoanCard
@@ -382,12 +383,12 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
               </TabsContent>
 
               {/* Aba Parcelas */}
-              <TabsContent value="parcelas" className="mt-0">
+              <TabsContent value="parcelas">
                 <InstallmentsTable emprestimo={emprestimo} />
               </TabsContent>
 
               {/* Aba Gráficos */}
-              <TabsContent value="graficos" className="mt-0 space-y-4">
+              <TabsContent value="graficos" className="space-y-4">
                 <div className="glass-card p-4">
                   <h4 className="font-medium text-sm mb-4">Evolução do Saldo Devedor</h4>
                   <div className="h-[250px]">
