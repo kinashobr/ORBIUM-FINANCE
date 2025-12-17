@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback, Dispatch, SetStateAction } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, Dispatch, SetStateAction } from "react";
 import {
   Categoria, TransacaoCompleta,
   DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES,
@@ -980,7 +980,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         const billDate = parseDateLocal(bill.dueDate);
         
         // Inclui contas ad-hoc do mês atual ou contas pagas de meses anteriores (para histórico)
-        if (isSameMonth(billDate, date) || bill.isPaid) {
+        // E contas fixas/variáveis que foram modificadas (valor, conta, exclusão)
+        if (isSameMonth(billDate, date) || bill.isPaid || bill.sourceType === 'ad_hoc' || bill.isExcluded) {
             existingBillsMap.set(bill.id, bill);
         }
     });
@@ -1035,7 +1036,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                     parcelaNumber: i,
                     suggestedAccountId: loan.contaCorrenteId,
                     suggestedCategoryId: categoriasV2.find(c => c.label === 'Pag. Empréstimo')?.id,
-                    isExcluded: existing?.isExcluded,
+                    isExcluded: existing?.isExcluded, // Respect existing exclusion status
                 };
                 existingBillsMap.set(billId, newBill);
                 
@@ -1069,7 +1070,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                     parcelaNumber: parcela.numero,
                     suggestedAccountId: contasMovimento.find(c => c.accountType === 'conta_corrente')?.id,
                     suggestedCategoryId: categoriasV2.find(c => c.label.toLowerCase() === 'seguro')?.id,
-                    isExcluded: existing?.isExcluded,
+                    isExcluded: existing?.isExcluded, // Respect existing exclusion status
                 };
                 existingBillsMap.set(billId, newBill);
             }
@@ -1101,7 +1102,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             sourceRef: cat.id,
             suggestedAccountId: existing?.suggestedAccountId || contasMovimento.find(c => c.accountType === 'conta_corrente')?.id,
             suggestedCategoryId: cat.id,
-            isExcluded: existing?.isExcluded,
+            isExcluded: existing?.isExcluded, // Respect existing exclusion status
         };
         existingBillsMap.set(billId, newBill);
     });
@@ -1131,14 +1132,32 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             sourceRef: cat.id,
             suggestedAccountId: existing?.suggestedAccountId || contasMovimento.find(c => c.accountType === 'conta_corrente')?.id,
             suggestedCategoryId: cat.id,
-            isExcluded: existing?.isExcluded,
+            isExcluded: existing?.isExcluded, // Respect existing exclusion status
         };
         existingBillsMap.set(billId, newBill);
     });
     
     // 7. Filtrar e retornar
+    // Filtra:
+    // - Contas pagas (isPaid: true)
+    // - Contas ad-hoc (sourceType: ad_hoc)
+    // - Contas geradas automaticamente que NÃO estão excluídas (isExcluded: false)
+    // - Contas geradas automaticamente que ESTÃO excluídas, mas são do mês atual (para permitir desmarcar a exclusão)
     return Array.from(existingBillsMap.values())
-        .filter(b => !b.isExcluded || isSameMonth(parseDateLocal(b.dueDate), date))
+        .filter(b => {
+            const isGenerated = b.sourceType !== 'ad_hoc';
+            const isCurrentMonth = isSameMonth(parseDateLocal(b.dueDate), date);
+            
+            if (b.isPaid) return true;
+            if (b.sourceType === 'ad_hoc') return true;
+            
+            // Se for gerada, só mostra se NÃO estiver excluída OU se for do mês atual (para permitir desmarcar a exclusão)
+            if (isGenerated) {
+                return !b.isExcluded || isCurrentMonth;
+            }
+            
+            return true;
+        })
         .sort((a, b) => parseDateLocal(a.dueDate).getTime() - parseDateLocal(b.dueDate).getTime());
 }, [billsTracker, emprestimos, segurosVeiculo, categoriasV2, transacoesV2, contasMovimento, calculateLoanSchedule]);
 

@@ -138,6 +138,9 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         const wasPaid = originalBill?.isPaid || false;
         const isNowPaid = localVersion.isPaid;
         
+        // Determina se é uma conta gerada automaticamente (parcela, fixa, variável)
+        const isGenerated = localVersion.sourceType !== 'ad_hoc';
+        
         // --- A. Handle Payment/Unpayment (Requires Transaction/Context Update) ---
         if (isNowPaid && !wasPaid) {
             const bill = localVersion;
@@ -238,7 +241,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         } 
         // --- C. Processamento de Alterações (Exclusão/Valor/Conta) ---
         else if (originalBill) {
-            const isGeneratedInstallment = localVersion.sourceType === 'loan_installment' || localVersion.sourceType === 'insurance_installment';
             
             const hasNonPaymentChanges = 
                 localVersion.isExcluded !== originalBill.isExcluded || 
@@ -246,22 +248,25 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                 localVersion.suggestedAccountId !== originalBill.suggestedAccountId;
                 
             if (hasNonPaymentChanges) {
-                // Apenas persistimos alterações para contas que NÃO são parcelas geradas automaticamente
-                if (!isGeneratedInstallment) {
-                    
+                
+                if (localVersion.sourceType === 'ad_hoc') {
+                    // Se for ad-hoc e excluído, deleta permanentemente
                     if (localVersion.isExcluded) {
-                        // Se for marcado como excluído, removemos do billsTracker (para que não apareça no próximo mês)
                         deleteBill(localVersion.id);
                     } else {
-                        // Se for uma alteração de valor/conta, ou se foi desmarcado como excluído
+                        // Se for ad-hoc e modificado, atualiza
                         updateBill(localVersion.id, localVersion);
                     }
+                } else if (isGenerated) {
+                    // Se for gerado (fixa/variável/parcela) e modificado/excluído, atualiza o registro existente
+                    // Isso garante que o status isExcluded seja persistido para o mês atual
+                    updateBill(localVersion.id, localVersion);
                 }
             }
         }
         // --- D. Adicionar novas contas Ad-Hoc ---
-        else if (!originalBill && localVersion.sourceType !== 'loan_installment' && localVersion.sourceType !== 'insurance_installment') {
-            // Adiciona a conta se ela não for uma parcela gerada automaticamente
+        else if (!originalBill && localVersion.sourceType === 'ad_hoc') {
+            // Adiciona a conta se ela for ad-hoc e não existir
             const { id, isPaid, ...rest } = localVersion;
             addBill(rest);
         }
