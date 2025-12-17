@@ -102,7 +102,7 @@ export function FixedBillsList({ bills, onToggleFixedBill, mode }: FixedBillsLis
                 
                 <TableCell className="text-center text-sm">
                   {bill.isPaid ? (
-                    <Badge variant="success" className="text-xs">Pago</Badge>
+                    <Badge variant="default" className="text-xs bg-success hover:bg-success/90">Pago</Badge>
                   ) : (
                     <Badge variant="outline" className="text-xs">Pendente</Badge>
                   )}
