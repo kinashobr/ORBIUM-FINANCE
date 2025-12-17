@@ -1,13 +1,14 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2, Wallet, PiggyBank, TrendingUp, Shield, Target, Bitcoin, CreditCard, ArrowLeftRight, Car, DollarSign, Plus, Minus, RefreshCw, Coins, TrendingDown, Tags, Calendar, CheckCircle2, Info } from "lucide-react";
+import { Building2, Wallet, PiggyBank, TrendingUp, Shield, Target, Bitcoin, CreditCard, ArrowLeftRight, Car, DollarSign, Plus, Minus, RefreshCw, Coins, TrendingDown, Tags, Calendar, CheckCircle2, Info, X } from "lucide-react";
 import { ContaCorrente, Categoria, AccountType, ACCOUNT_TYPE_LABELS, generateTransactionId, formatCurrency, OperationType, TransacaoCompleta, TransactionLinks, generateTransferGroupId, getFlowTypeFromOperation, getDomainFromOperation, InvestmentInfo, SeguroVeiculo, Veiculo, OPERATION_TYPE_LABELS } from "@/types/finance";
 import { toast } from "sonner";
 import { parseDateLocal, cn } from "@/lib/utils";
+import { ResizableDialogContent } from "../ui/ResizableDialogContent"; // Importando ResizableDialogContent
 
 // Interface simplificada para Empréstimo
 interface LoanInfo {
@@ -500,29 +501,84 @@ export function MovimentarContaModal({
       color: 'text-blue-500',
   }));
   
+  // Tipo auxiliar para o mapeamento de categorias
+  type CategoryOption = Categoria & { value: string; iconComponent: string | React.ReactNode };
+
+  const categoryOptions: CategoryOption[] = useMemo(() => availableCategories.map(c => ({
+      ...c,
+      value: c.id,
+      iconComponent: c.icon,
+  })), [availableCategories]);
+
+  const filteredCategories: CategoryOption[] = useMemo(() => {
+    if (!searchCategory) return categoryOptions;
+    const lowerCaseSearch = searchCategory.toLowerCase();
+    return categoryOptions.filter(c => c.label.toLowerCase().includes(lowerCaseSearch));
+  }, [categoryOptions, searchCategory]);
+  
   const currentCategoryOption = categoryOptions.find(c => c.value === categoryId);
+  
+  const currentBalance = useMemo(() => {
+    // Placeholder for current balance, assuming the account object has a 'balance' property
+    return selectedAccount?.initialBalance || 0; 
+  }, [selectedAccount]);
+
+  // --- Validation Logic ---
+  const validationErrors = useMemo(() => {
+    const parsedAmount = parseFromBR(amount);
+    
+    const errors = {
+      amount: parsedAmount <= 0,
+      account: !accountId,
+      operation: !operationType,
+      category: isCategorizable && !isInsurancePayment && !categoryId,
+      transfer: isTransfer && !destinationAccountId,
+      investment: isInvestmentFlow && !tempInvestmentId,
+      loanPayment: isLoanPayment && (!tempLoanId || !tempParcelaId),
+      loanLiberation: isLoanLiberation && !tempNumeroContrato,
+      vehicle: isVehicle && !tempVehicleOperation,
+      insurancePayment: isInsurancePayment && (!tempSeguroId || !tempSeguroParcelaId),
+    };
+    
+    return errors;
+  }, [amount, accountId, operationType, isCategorizable, isInsurancePayment, categoryId, isTransfer, destinationAccountId, isInvestmentFlow, tempInvestmentId, isLoanPayment, tempLoanId, tempParcelaId, isLoanLiberation, tempNumeroContrato, isVehicle, tempVehicleOperation, tempSeguroId, tempSeguroParcelaId]);
+
+  const isValid = useMemo(() => !Object.values(validationErrors).some(error => error), [validationErrors]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md bg-card border-border overflow-hidden flex flex-col p-0 shadow-lg animate-fade-in max-h-[90vh]">
+      <ResizableDialogContent 
+        storageKey="movimentar_conta_modal"
+        initialWidth={480}
+        initialHeight={750}
+        minWidth={400}
+        minHeight={600}
+        hideCloseButton={true}
+        className="bg-card border-border overflow-hidden flex flex-col p-0 shadow-lg animate-fade-in"
+      >
         
         {/* CABEÇALHO DINÂMICO */}
         <DialogHeader className="p-6 pb-4 border-b border-border/50 shrink-0">
-          <div className="flex items-center gap-3 mb-2">
-            <div className={cn(
-              "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
-              getOperationColor(operationType, 'iconBg')
-            )}>
-              <HeaderIcon className="w-5 h-5 text-white" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 mb-2">
+              <div className={cn(
+                "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
+                getOperationColor(operationType, 'iconBg')
+              )}>
+                <HeaderIcon className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl font-bold text-foreground">
+                  {isEditing ? "Editar Transação" : "Nova Movimentação"}
+                </DialogTitle>
+                <DialogDescription className="text-sm text-muted-foreground mt-1">
+                  {isEditing ? "Atualize os detalhes da transação" : "Registre uma nova transação financeira"}
+                </DialogDescription>
+              </div>
             </div>
-            <div>
-              <DialogTitle className="text-xl font-bold text-foreground">
-                {isEditing ? "Editar Transação" : "Nova Movimentação"}
-              </DialogTitle>
-              <DialogDescription className="text-sm text-muted-foreground mt-1">
-                {isEditing ? "Atualize os detalhes da transação" : "Registre uma nova transação financeira"}
-              </DialogDescription>
-            </div>
+            <Button variant="ghost" onClick={() => onOpenChange(false)} size="icon" className="shrink-0">
+                <X className="w-5 h-5" />
+            </Button>
           </div>
         </DialogHeader>
 
@@ -547,16 +603,16 @@ export function MovimentarContaModal({
                 disabled={isEditing}
               >
                 <SelectTrigger className={cn("h-12 bg-background border-2 hover:border-primary/50 transition-colors rounded-xl", validationErrors.account && "border-destructive")}>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 w-full">
                     <div className={cn(
                       "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
                       getAccountColor(selectedAccount?.accountType, 'bg')
                     )}>
                       <Wallet className="w-4 h-4 text-white" />
                     </div>
-                    <div className="text-left truncate">
+                    <div className="text-left min-w-0 flex-1 truncate">
                       <div className="font-medium text-sm truncate">{selectedAccount?.name}</div>
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-xs text-muted-foreground truncate">
                         {ACCOUNT_TYPE_LABELS[selectedAccount?.accountType || 'corrente']}
                       </div>
                     </div>
@@ -572,9 +628,9 @@ export function MovimentarContaModal({
                                 )}>
                                     <Wallet className="w-4 h-4 text-white" />
                                 </div>
-                                <div className="text-left">
-                                    <div className="font-medium">{a.name}</div>
-                                    <div className="text-xs text-muted-foreground">
+                                <div className="text-left min-w-0 flex-1">
+                                    <div className="font-medium truncate">{a.name}</div>
+                                    <div className="text-xs text-muted-foreground truncate">
                                         {ACCOUNT_TYPE_LABELS[a.accountType]}
                                     </div>
                                 </div>
@@ -637,7 +693,7 @@ export function MovimentarContaModal({
               />
             </div>
 
-            {/* 4. Valor com botões rápidos */}
+            {/* 4. Valor */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-xs font-medium text-muted-foreground">Valor (R$) *</Label>
@@ -654,22 +710,7 @@ export function MovimentarContaModal({
                   placeholder="0,00"
                   disabled={!!isAmountAutoFilled}
                 />
-                {!isAmountAutoFilled && (
-                    <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex gap-1">
-                      {[100, 500, 1000].map(value => (
-                        <Button
-                          key={value}
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-6 px-2 text-xs rounded-lg"
-                          onClick={() => setAmount(formatToBR(parseFromBR(amount) + value))}
-                        >
-                          +{value}
-                        </Button>
-                      ))}
-                    </div>
-                )}
+                {/* Botões de adição rápida removidos */}
               </div>
             </div>
           </div>
@@ -733,11 +774,11 @@ export function MovimentarContaModal({
                   >
                     <SelectTrigger className={cn("h-12 rounded-xl border-2", validationErrors.category && "border-destructive")}>
                       {currentCategoryOption ? (
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
                           <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                             {currentCategoryOption.iconComponent || <Tags className="w-4 h-4" />}
                           </div>
-                          <span>{currentCategoryOption.label}</span>
+                          <span className="truncate">{currentCategoryOption.label}</span>
                         </div>
                       ) : (
                         <span className="text-muted-foreground">Selecione uma categoria</span>
@@ -758,8 +799,8 @@ export function MovimentarContaModal({
                             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                               {category.iconComponent || <Tags className="w-4 h-4" />}
                             </div>
-                            <div className="text-left">
-                              <div className="font-medium">{category.label}</div>
+                            <div className="text-left min-w-0 flex-1">
+                              <div className="font-medium truncate">{category.label}</div>
                               <div className="text-xs text-muted-foreground">
                                 {category.nature === 'receita' ? 'Receita' : 'Despesa'}
                               </div>
@@ -819,7 +860,7 @@ export function MovimentarContaModal({
                       <SelectTrigger className={cn("h-12 rounded-xl border-2", validationErrors.transfer && "border-destructive")}>
                         <div className="flex items-center gap-3">
                           <Wallet className="w-5 h-5 text-muted-foreground" />
-                          <span>{destinationAccountId ? destinationAccountOptions.find(a => a.value === destinationAccountId)?.name : 'Selecione a conta destino'}</span>
+                          <span className="truncate">{destinationAccountId ? destinationAccountOptions.find(a => a.value === destinationAccountId)?.name : 'Selecione a conta destino'}</span>
                         </div>
                       </SelectTrigger>
                       <SelectContent>
@@ -832,9 +873,9 @@ export function MovimentarContaModal({
                                     )}>
                                         <Wallet className="w-4 h-4 text-white" />
                                     </div>
-                                    <div className="text-left">
-                                        <div className="font-medium">{a.name}</div>
-                                        <div className="text-xs text-muted-foreground">
+                                    <div className="text-left min-w-0 flex-1">
+                                        <div className="font-medium truncate">{a.name}</div>
+                                        <div className="text-xs text-muted-foreground truncate">
                                             {ACCOUNT_TYPE_LABELS[a.accountType]}
                                         </div>
                                     </div>
@@ -964,7 +1005,7 @@ export function MovimentarContaModal({
                             <SelectTrigger className={cn("h-12 rounded-xl border-2", validationErrors.investment && "border-destructive")}>
                                 <div className="flex items-center gap-3">
                                     <PiggyBank className="w-5 h-5 text-muted-foreground" />
-                                    <span>{tempInvestmentId ? investmentOptions.find(i => i.value === tempInvestmentId)?.label : 'Selecione o investimento *'}</span>
+                                    <span className="truncate">{tempInvestmentId ? investmentOptions.find(i => i.value === tempInvestmentId)?.label : 'Selecione o investimento *'}</span>
                                 </div>
                             </SelectTrigger>
                             <SelectContent>
@@ -1118,7 +1159,7 @@ export function MovimentarContaModal({
             </Button>
           </div>
         </DialogFooter>
-      </DialogContent>
+      </ResizableDialogContent>
     </Dialog>
   );
 }
