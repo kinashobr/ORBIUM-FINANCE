@@ -282,6 +282,7 @@ export interface ImportedTransaction {
   destinationAccountId: string | null; // Para Transferência
   tempInvestmentId: string | null; // Para Aplicação/Resgate
   tempLoanId: string | null; // Para Pagamento Empréstimo
+  tempParcelaId: string | null; // NOVO: Para Pagamento Empréstimo (Parcela)
   tempVehicleOperation: 'compra' | 'venda' | null; // Para Veículo
   
   // Meta
