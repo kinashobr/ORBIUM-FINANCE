@@ -55,6 +55,7 @@ const ReceitasDespesas = () => {
     unmarkSeguroParcelPaid, 
     standardizationRules, 
     deleteStandardizationRule, 
+    uncontabilizeImportedTransaction, // <-- NOVO
   } = useFinance();
 
   // Local state for transfer groups
@@ -525,6 +526,11 @@ const ReceitasDespesas = () => {
                 deleteVeiculo(vehicleId);
             }
         }
+    }
+    
+    // NOVO: Reverter status de contabilização se a transação veio de importação
+    if (transactionToDelete?.meta.source === 'import') {
+        uncontabilizeImportedTransaction(id);
     }
 
     const linkedGroupId = transactionToDelete?.links?.transferGroupId;

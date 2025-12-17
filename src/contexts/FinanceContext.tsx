@@ -330,6 +330,7 @@ interface FinanceContextType {
   deleteImportedStatement: (statementId: string) => void;
   getTransactionsForReview: (accountId: string, range: DateRange) => ImportedTransaction[];
   updateImportedStatement: (statementId: string, updates: Partial<ImportedStatement>) => void;
+  uncontabilizeImportedTransaction: (transactionId: string) => void; // <-- NEW FUNCTION
   
   // Data Filtering (NEW)
   dateRanges: ComparisonDateRanges;
@@ -875,6 +876,39 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   
   const updateImportedStatement = useCallback((statementId: string, updates: Partial<ImportedStatement>) => {
     setImportedStatements(prev => prev.map(s => s.id === statementId ? { ...s, ...updates } : s));
+  }, []);
+  
+  const uncontabilizeImportedTransaction = useCallback((transactionId: string) => {
+    setImportedStatements(prev => prev.map(s => {
+        let updated = false;
+        const newRawTransactions = s.rawTransactions.map(t => {
+            if (t.contabilizedTransactionId === transactionId) {
+                updated = true;
+                return {
+                    ...t,
+                    isContabilized: false,
+                    contabilizedTransactionId: undefined,
+                    // Reset categorization/linking for re-review
+                    categoryId: null,
+                    operationType: null,
+                    description: t.originalDescription,
+                    isTransfer: false,
+                    destinationAccountId: null,
+                    tempInvestmentId: null,
+                    tempLoanId: null,
+                    tempVehicleOperation: null,
+                };
+            }
+            return t;
+        });
+        
+        if (updated) {
+            const pendingCount = newRawTransactions.filter(t => !t.isContabilized).length;
+            const newStatus = pendingCount === 0 ? 'complete' : 'partial';
+            return { ...s, rawTransactions: newRawTransactions, status: newStatus };
+        }
+        return s;
+    }));
   }, []);
   
   const getTransactionsForReview = useCallback((accountId: string, range: DateRange): ImportedTransaction[] => {
@@ -1552,6 +1586,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     deleteImportedStatement,
     getTransactionsForReview,
     updateImportedStatement,
+    uncontabilizeImportedTransaction, // <-- NEW FUNCTION
     
     dateRanges,
     setDateRanges,
