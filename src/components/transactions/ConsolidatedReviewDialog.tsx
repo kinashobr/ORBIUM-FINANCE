@@ -14,18 +14,17 @@ import { toast } from "sonner";
 import { parseDateLocal, cn } from "@/lib/utils";
 import { TransactionReviewTable } from "./TransactionReviewTable";
 import { StandardizationRuleFormModal } from "./StandardizationRuleFormModal";
-import { ReviewContextSidebar } from "./ReviewContextSidebar";
-import { StandardizationRuleManagerModal } from "./StandardizationRuleManagerModal";
-import { ResizableSidebar } from "../transactions/ResizableSidebar";
+import { ReviewContextSidebar } from "./ReviewContextSidebar"; // NEW IMPORT
+import { StandardizationRuleManagerModal } from "./StandardizationRuleManagerModal"; // NEW IMPORT
+import { ResizableSidebar } from "./ResizableSidebar"; // NEW IMPORT
 import { startOfMonth, endOfMonth, format, subDays, startOfDay, endOfDay } from "date-fns";
-import { ResizableDialogContent } from "../ui/ResizableDialogContent";
+import { ResizableDialogContent } from "../ui/ResizableDialogContent"; // NEW IMPORT
 
 // Interface simplificada para Empréstimo
 interface LoanInfo {
   id: string;
   institution: string;
   numeroContrato?: string;
-  totalParcelas?: number; // ADDED: Need total installments for calculation
 }
 
 // Interface simplificada para Investimento
@@ -57,7 +56,7 @@ export function ConsolidatedReviewDialog({
     getTransactionsForReview,
     standardizationRules,
     addStandardizationRule,
-    deleteStandardizationRule,
+    deleteStandardizationRule, // ADDED
     addTransacaoV2,
     updateImportedStatement,
     importedStatements,
@@ -65,7 +64,6 @@ export function ConsolidatedReviewDialog({
     markSeguroParcelPaid,
     addEmprestimo,
     addVeiculo,
-    calculatePaidInstallmentsUpToDate, // ADDED
   } = useFinance();
   
   const account = accounts.find(a => a.id === accountId);
@@ -151,7 +149,7 @@ export function ConsolidatedReviewDialog({
       if (tx.isPotentialDuplicate) return false; 
       
       // Verifica se a transação está pronta para ser contabilizada
-      const isCategorized = tx.categoryId || tx.isTransfer || tx.tempInvestmentId || tx.tempLoanId || tx.tempVehicleOperation || tx.operationType === 'liberacao_emprestimo';
+      const isCategorized = tx.categoryId || tx.isTransfer || tx.tempInvestmentId || tx.tempLoanId || tx.tempVehicleOperation;
       return !!isCategorized;
     });
     
@@ -162,6 +160,7 @@ export function ConsolidatedReviewDialog({
     
     setLoading(true);
     const newTransactions: TransacaoCompleta[] = [];
+    const contabilizedIds = new Set<string>();
     const updatedStatements = new Map<string, ImportedStatement>();
     
     // Mapeamento de IDs de transações brutas para seus extratos
@@ -176,6 +175,10 @@ export function ConsolidatedReviewDialog({
       
       const account = accounts.find(a => a.id === tx.accountId);
       const isCreditCard = account?.accountType === 'cartao_credito';
+      
+      const isIncoming = tx.operationType === 'receita' || tx.operationType === 'resgate' ||
+                         tx.operationType === 'liberacao_emprestimo' || tx.operationType === 'rendimento' ||
+                         (tx.operationType === 'veiculo' && tx.tempVehicleOperation === 'venda');
       
       let flow = getFlowTypeFromOperation(tx.operationType!, tx.tempVehicleOperation || undefined);
       
@@ -209,7 +212,7 @@ export function ConsolidatedReviewDialog({
           source: 'import',
           createdAt: now,
           originalDescription: tx.originalDescription,
-          vehicleOperation: tx.operationType === 'veiculo' ? tx.tempVehicleOperation : undefined,
+          vehicleOperation: tx.operationType === 'veiculo' ? tx.tempVehicleOperation || undefined : undefined,
         }
       };
       
@@ -291,20 +294,8 @@ export function ConsolidatedReviewDialog({
       else if (tx.operationType === 'pagamento_emprestimo' && tx.tempLoanId) {
         newTransactions.push(baseTx);
         const loanIdNum = parseInt(tx.tempLoanId.replace('loan_', ''));
-        
         if (!isNaN(loanIdNum)) {
-            // Calculate the next pending installment number
-            const nextPaidCount = calculatePaidInstallmentsUpToDate(loanIdNum, parseDateLocal(tx.date));
-            const loan = loans.find(l => l.id === tx.tempLoanId);
-            const parcelaNumero = nextPaidCount + 1;
-            
-            if (loan && parcelaNumero <= (loan.totalParcelas || 0)) {
-                baseTx.links.parcelaId = parcelaNumero.toString();
-                markLoanParcelPaid(loanIdNum, tx.amount, tx.date, parcelaNumero);
-            } else {
-                // If we can't determine the installment number, mark it as paid without a specific number
-                markLoanParcelPaid(loanIdNum, tx.amount, tx.date);
-            }
+            markLoanParcelPaid(loanIdNum, tx.amount, tx.date);
         }
       }
       // 5. Compra de Veículo
@@ -329,6 +320,8 @@ export function ConsolidatedReviewDialog({
       else {
         newTransactions.push(baseTx);
       }
+      
+      contabilizedIds.add(tx.id);
       
       // 5. Atualizar status dos statements
       const statementId = txToStatementMap.get(tx.id);
@@ -364,7 +357,7 @@ export function ConsolidatedReviewDialog({
   };
   
   // Lógica para o PeriodSelector
-  const handlePeriodChangeInReview = useCallback((ranges: ComparisonDateRanges) => {
+  const handlePeriodChange = useCallback((ranges: ComparisonDateRanges) => {
     setReviewRange(ranges.range1);
   }, []);
   
@@ -377,7 +370,7 @@ export function ConsolidatedReviewDialog({
   };
   
   const pendingCount = transactionsToReview.filter(tx => {
-    const isCategorized = tx.categoryId || tx.isTransfer || tx.tempInvestmentId || tx.tempLoanId || tx.tempVehicleOperation || tx.operationType === 'liberacao_emprestimo';
+    const isCategorized = tx.categoryId || tx.isTransfer || tx.tempInvestmentId || tx.tempLoanId || tx.tempVehicleOperation;
     return !isCategorized && !tx.isPotentialDuplicate; // Excluir duplicatas da contagem de pendentes
   }).length;
   
@@ -395,7 +388,6 @@ export function ConsolidatedReviewDialog({
           maxWidth={1800}
           maxHeight={1200}
           hideCloseButton={true} 
-          className="bg-card border-border overflow-hidden flex flex-col"
         >
           <DialogHeader className="px-4 pt-3 pb-2 border-b shrink-0" onMouseDown={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
@@ -422,7 +414,7 @@ export function ConsolidatedReviewDialog({
             </div>
           </DialogHeader>
 
-          <div className="flex flex-1 overflow-y-auto">
+          <div className="flex flex-1 overflow-y-auto"> {/* CORREÇÃO 1: A rolagem vertical é gerenciada por este container */}
             
             {/* Coluna Lateral (Controle e Status) - AGORA REDIMENSIONÁVEL */}
             <ResizableSidebar
@@ -437,7 +429,7 @@ export function ConsolidatedReviewDialog({
                     pendingCount={pendingCount}
                     totalCount={totalCount}
                     reviewRange={reviewRange}
-                    onPeriodChange={handlePeriodChangeInReview}
+                    onPeriodChange={handlePeriodChange}
                     onApplyFilter={handleApplyFilter}
                     onContabilize={handleContabilize}
                     onClose={() => onOpenChange(false)}
@@ -446,7 +438,7 @@ export function ConsolidatedReviewDialog({
             </ResizableSidebar>
 
             {/* Coluna Principal (Tabela de Revisão) */}
-            <div className="flex-1 px-4 pt-2 pb-2">
+            <div className="flex-1 px-4 pt-2 pb-2"> {/* CORREÇÃO 2: Removido overflow-y-auto daqui */}
               <h3 className="text-sm font-semibold text-foreground mb-3">
                 Transações Pendentes no Período ({format(reviewRange.from || new Date(), 'dd/MM/yy')} - {format(reviewRange.to || new Date(), 'dd/MM/yy')})
               </h3>

@@ -24,7 +24,7 @@ import {
   getFlowTypeFromOperation, // <-- NEW IMPORT
 } from "@/types/finance";
 import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format, isWithinInterval } from "date-fns"; // Import date-fns helpers
-import { parseDateLocal, getDueDate } from "@/lib/utils"; // Importando a nova função
+import { parseDateLocal } from "@/lib/utils"; // Importando a nova função
 
 // ============================================
 // FUNÇÕES AUXILIARES PARA DATAS
@@ -73,6 +73,22 @@ function parseDateRanges(storedRanges: any): ComparisonDateRanges {
         },
     };
 }
+
+// Helper function to calculate the due date of an installment
+const getDueDate = (startDateStr: string, installmentNumber: number): Date => {
+  // Uses parseDateLocal to ensure the start date is interpreted locally
+  const startDate = parseDateLocal(startDateStr);
+  const dueDate = new Date(startDate);
+  
+  // Adjustment: If installmentNumber = 1, add 0 months.
+  dueDate.setMonth(dueDate.getMonth() + installmentNumber - 1);
+  
+  return dueDate;
+};
+
+// ============================================
+// FUNÇÕES DE PARSING (MOVIDAS DO DIALOG)
+// ============================================
 
 // Helper para normalizar valor (R$ 1.234,56 -> 1234.56)
 const normalizeAmount = (amountStr: string): number => {
@@ -349,6 +365,24 @@ interface FinanceContextType {
   // Exportação e Importação
   exportData: () => void;
   importData: (file: File) => Promise<{ success: boolean; message: string }>;
+  
+  // Removidos: Investimentos RF, Criptomoedas, Stablecoins, Movimentações de Investimento
+  investimentosRF: any[];
+  criptomoedas: any[];
+  stablecoins: any[];
+  movimentacoesInvestimento: any[];
+  addInvestimentoRF: (inv: any) => void;
+  updateInvestimentoRF: (id: number, inv: any) => void;
+  deleteInvestimentoRF: (id: number, inv: any) => void;
+  addCriptomoeda: (cripto: any) => void;
+  updateCriptomoeda: (id: number, cripto: any) => void;
+  deleteCriptomoeda: (id: number, cripto: any) => void;
+  addStablecoin: (stable: any) => void;
+  updateStablecoin: (id: number, stable: any) => void;
+  deleteStablecoin: (id: number, stable: any) => void;
+  addMovimentacaoInvestimento: (mov: any) => void;
+  updateMovimentacaoInvestimento: (id: number, mov: any) => void;
+  deleteMovimentacaoInvestimento: (id: number, mov: any) => void;
 }
 
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
@@ -603,12 +637,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         }
     });
     
-    // Se houver parcelas explicitamente linkadas, use a contagem de links únicos.
     if (paidParcelas.size > 0) {
         return paidParcelas.size;
     }
 
-    // Fallback: Se não houver links de parcela, conte o número de transações.
     return paymentsUpToDate.length;
 
   }, [emprestimos, transacoesV2]);
@@ -870,7 +902,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             const isSameAmount = Math.abs(manualTx.amount - importedTx.amount) < 0.01; // Tolerância de 1 centavo
             
             // Determinar o fluxo da transação importada (baseado no operationType)
-            const importedFlow = getFlowTypeFromOperation(importedTx.operationType || 'despesa', importedTx.tempVehicleOperation || undefined);
+            const importedFlow = getFlowTypeFromOperation(importedTx.operationType || 'despesa');
             
             // Comparar fluxos (simplificado: in/out)
             const isSameFlow = (manualTx.flow === 'in' || manualTx.flow === 'transfer_in') === (importedFlow === 'in' || importedFlow === 'transfer_in');
@@ -998,7 +1030,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                         sourceType: 'loan_installment',
                         sourceRef: loan.id.toString(),
                         parcelaNumber: i,
-                        suggestedAccountId: contasMovimento.find(c => c.accountType === 'conta_corrente')?.id,
+                        suggestedAccountId: loan.contaCorrenteId,
                         suggestedCategoryId: categoriasV2.find(c => c.label === 'Pag. Empréstimo')?.id,
                     };
                     existingBillsMap.set(billId, newBill);
@@ -1161,14 +1193,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setEmprestimos(prev => prev.map(e => {
       if (e.id !== loanId) return e;
       
-      // Check if this is the final installment
-      const isQuitado = parcelaNumero && parcelaNumero >= e.meses;
+      const isQuitado = (e.parcelasPagas || 0) + 1 >= e.meses;
       
       return {
         ...e,
         status: isQuitado ? 'quitado' : 'ativo',
-        // Note: We rely on calculatePaidInstallmentsUpToDate for the count, 
-        // but we ensure status is 'ativo' if it was 'pendente_config'
       };
     }));
   }, []);
@@ -1177,14 +1206,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setEmprestimos(prev => prev.map(e => {
       if (e.id !== loanId) return e;
       
-      // If the loan was quitado, revert it to active
-      if (e.status === 'quitado') {
-          return {
-              ...e,
-              status: 'ativo',
-          };
-      }
-      return e;
+      return {
+        ...e,
+        status: 'ativo',
+      };
     }));
   }, []);
 
@@ -1574,7 +1599,23 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     exportData,
     importData,
     
-    // Removidos: Placeholders para V1
+    // Placeholders para V1 removidos (mantidos para evitar erros de tipagem)
+    investimentosRF: [],
+    criptomoedas: [],
+    stablecoins: [],
+    movimentacoesInvestimento: [],
+    addInvestimentoRF: () => { console.warn("Função V1 removida"); },
+    updateInvestimentoRF: () => { console.warn("Função V1 removida"); },
+    deleteInvestimentoRF: () => { console.warn("Função V1 removida"); },
+    addCriptomoeda: () => { console.warn("Função V1 removida"); },
+    updateCriptomoeda: () => { console.warn("Função V1 removida"); },
+    deleteCriptomoeda: () => { console.warn("Função V1 removida"); },
+    addStablecoin: () => { console.warn("Função V1 removida"); },
+    updateStablecoin: () => { console.warn("Função V1 removida"); },
+    deleteStablecoin: () => { console.warn("Função V1 removida"); },
+    addMovimentacaoInvestimento: () => { console.warn("Função V1 removida"); },
+    updateMovimentacaoInvestimento: () => { console.warn("Função V1 removida"); },
+    deleteMovimentacaoInvestimento: () => { console.warn("Função V1 removida"); },
   };
 
   return (

@@ -25,12 +25,11 @@ import { AccountStatementDialog } from "@/components/transactions/AccountStateme
 import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
 import { BillsTrackerModal } from "@/components/bills/BillsTrackerModal";
 import { StatementManagerDialog } from "@/components/transactions/StatementManagerDialog"; 
-import { ConsolidatedReviewDialog } from "@/components/transactions/ConsolidatedReviewDialog";
+import { ConsolidatedReviewDialog } from "@/components/transactions/ConsolidatedReviewDialog"; // NEW IMPORT
 
 // Context
 import { useFinance } from "@/contexts/FinanceContext";
 import { parseDateLocal } from "@/lib/utils";
-import { TransactionTable } from "@/components/transactions/TransactionTable"; // ADDED
 
 const ReceitasDespesas = () => {
   const { 
@@ -46,13 +45,13 @@ const ReceitasDespesas = () => {
     markLoanParcelPaid,
     unmarkLoanParcelPaid,
     veiculos,
-    addVeiculo,
-    deleteVeiculo,
-    calculateBalanceUpToDate,
-    dateRanges,
-    setDateRanges,
+    addVeiculo, // <-- ADDED
+    deleteVeiculo, // <-- ADDED
+    calculateBalanceUpToDate, // Importado do contexto
+    dateRanges, // <-- Use context state
+    setDateRanges, // <-- Use context setter
     markSeguroParcelPaid,
-    unmarkSeguroParcelPaid,
+    unmarkSeguroParcelPaid, // CORRIGIDO: Nome da função
   } = useFinance();
 
   // Local state for transfer groups
@@ -117,7 +116,7 @@ const ReceitasDespesas = () => {
     });
   }, [transacoesV2]);
 
-  // Transações do Período 1 (Principal) - Usado para KPIs e Tabela
+  // Transações do Período 1 (Principal)
   const transacoesPeriodo1 = useMemo(() => filterTransactionsByRange(dateRanges.range1), [filterTransactionsByRange, dateRanges.range1]);
 
   // Transações do Período 2 (Comparação)
@@ -474,7 +473,7 @@ const ReceitasDespesas = () => {
             markSeguroParcelPaid(seguroId, parcelaNumero, finalTx.id);
         }
     }
-
+    
     newTransactions.forEach(t => addTransacaoV2(t));
   };
 
@@ -747,36 +746,6 @@ const ReceitasDespesas = () => {
     });
     return counts;
   }, [transactions]);
-  
-  // --- Filtros da Tabela Principal ---
-  const filteredTransactions = useMemo(() => {
-    let filtered = transacoesPeriodo1;
-
-    if (selectedAccountId !== 'all') {
-      filtered = filtered.filter(t => t.accountId === selectedAccountId);
-    }
-
-    if (selectedCategoryId !== 'all') {
-      filtered = filtered.filter(t => t.categoryId === selectedCategoryId);
-    }
-
-    if (selectedTypes.length > 0 && selectedTypes.length < 10) {
-      filtered = filtered.filter(t => selectedTypes.includes(t.operationType));
-    }
-
-    if (searchTerm) {
-      const lowerCaseSearch = searchTerm.toLowerCase();
-      filtered = filtered.filter(t => 
-        t.description.toLowerCase().includes(lowerCaseSearch) ||
-        t.amount.toString().includes(lowerCaseSearch) ||
-        t.date.includes(lowerCaseSearch)
-      );
-    }
-    
-    // Ordenar por data mais recente
-    return filtered.sort((a, b) => parseDateLocal(b.date).getTime() - parseDateLocal(a.date).getTime());
-  }, [transacoesPeriodo1, selectedAccountId, selectedCategoryId, selectedTypes, searchTerm]);
-  // -----------------------------------
 
   return (
     <MainLayout>
@@ -826,47 +795,9 @@ const ReceitasDespesas = () => {
           />
         )}
 
-        {/* Main Content Grid: Filters, Table, and KPIs */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Coluna Esquerda (Filtros e Tabela) */}
-          <div className="lg:col-span-3 space-y-4">
-            <div className="glass-card p-4">
-              <TransactionFilters
-                accounts={visibleAccounts}
-                categories={categories}
-                searchTerm={searchTerm}
-                onSearchChange={setSearchTerm}
-                selectedAccountId={selectedAccountId}
-                onAccountChange={setSelectedAccountId}
-                selectedCategoryId={selectedCategoryId}
-                onCategoryChange={setSelectedCategoryId}
-                selectedTypes={selectedTypes}
-                onTypesChange={setSelectedTypes}
-                onClearFilters={() => {
-                  setSearchTerm("");
-                  setSelectedAccountId("all");
-                  setSelectedCategoryId("all");
-                  setSelectedTypes(['receita', 'despesa', 'transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo', 'liberacao_emprestimo', 'veiculo', 'rendimento', 'initial_balance']);
-                }}
-              />
-            </div>
-            
-            <div className="glass-card p-4">
-              <TransactionTable
-                transactions={filteredTransactions}
-                accounts={accounts}
-                categories={categories}
-                onEdit={handleEditTransaction}
-                onDelete={handleDeleteTransaction}
-                onToggleConciliated={handleToggleConciliated}
-              />
-            </div>
-          </div>
-          
-          {/* Coluna Direita (KPIs) */}
-          <div className="lg:col-span-1 space-y-4">
-            <KPISidebar transactions={transacoesPeriodo1} categories={categories} />
-          </div>
+        {/* KPI Sidebar - full width */}
+        <div className="glass-card p-4">
+          <KPISidebar transactions={transacoesPeriodo1} categories={categories} />
         </div>
       </div>
 
@@ -940,7 +871,7 @@ const ReceitasDespesas = () => {
           account={accountToManage}
           investments={investments}
           loans={loans}
-          onStartConsolidatedReview={handleStartConsolidatedReview}
+          onStartConsolidatedReview={handleStartConsolidatedReview} // Passa o novo handler
         />
       )}
       

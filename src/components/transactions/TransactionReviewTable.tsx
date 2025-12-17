@@ -20,7 +20,6 @@ interface LoanInfo {
   id: string;
   institution: string;
   numeroContrato?: string;
-  totalParcelas?: number; // ADDED
 }
 
 // Interface simplificada para Investimento

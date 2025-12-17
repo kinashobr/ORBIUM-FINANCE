@@ -1,5 +1,5 @@
 import { useMemo, useCallback } from "react";
-import { Calendar, FileText, Check, Clock, Pin, RefreshCw, X, Save, Settings } from "lucide-react";
+import { Calendar, FileText, Check, Clock, Pin, RefreshCw, X, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -9,7 +9,7 @@ import { PeriodSelector } from "../dashboard/PeriodSelector";
 import { DateRange, ComparisonDateRanges, ImportedStatement, formatCurrency } from "@/types/finance";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea } from "@/components/ui/scroll-area"; // ADDED IMPORT
 
 interface ReviewContextSidebarProps {
   accountId: string;
@@ -116,7 +116,7 @@ export function ReviewContextSidebar({
               className="w-full h-8 gap-2 text-xs"
               onClick={onManageRules}
             >
-              <Settings className="w-4 h-4" />
+              <Pin className="w-4 h-4" />
               Gerenciar Regras
             </Button>
             <div className="text-xs text-muted-foreground pt-1">
