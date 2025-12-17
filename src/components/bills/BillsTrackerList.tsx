@@ -212,10 +212,7 @@ export function BillsTrackerList({
   };
   
   const handleUpdateDueDate = (bill: BillTracker, newDateStr: string) => {
-    if (bill.sourceType === 'loan_installment' || bill.sourceType === 'insurance_installment') {
-        toast.error("Data de vencimento de parcelas fixas deve ser alterada no cadastro do Empréstimo/Seguro.");
-        return;
-    }
+    // Remove a restrição de tipo, permitindo a edição para todas as contas não pagas.
     
     if (bill.isPaid) {
         toast.error("Não é possível alterar a data de vencimento de contas já pagas.");
@@ -364,8 +361,11 @@ export function BillsTrackerList({
                 const isOverdue = dueDate < currentDate && !bill.isPaid;
                 const isPaid = bill.isPaid;
                 
-                // Apenas contas ad-hoc, fixed_expense ou variable_expense podem ter valor/data alterados
-                const isEditable = bill.sourceType !== 'loan_installment' && bill.sourceType !== 'insurance_installment';
+                // Apenas contas ad-hoc, fixed_expense ou variable_expense podem ter valor alterado
+                const isAmountEditable = bill.sourceType !== 'loan_installment' && bill.sourceType !== 'insurance_installment';
+                
+                // A data de vencimento pode ser alterada se não estiver paga
+                const isDateEditable = !isPaid;
                 
                 return (
                   <TableRow 
@@ -388,7 +388,7 @@ export function BillsTrackerList({
                       <div className="flex items-center gap-1">
                         {isOverdue && <AlertTriangle className="w-4 h-4 text-destructive" />}
                         
-                        {isEditable && !isPaid ? (
+                        {isDateEditable ? (
                             <EditableCell
                                 value={bill.dueDate}
                                 type="date"
@@ -435,7 +435,7 @@ export function BillsTrackerList({
                     </TableCell>
                     
                     <TableCell className={cn("text-right font-semibold whitespace-nowrap p-2", isPaid ? "text-success" : "text-destructive")} style={{ width: columnWidths.amount }}>
-                      {isEditable && !isPaid ? (
+                      {isAmountEditable && !isPaid ? (
                         <EditableCell 
                           value={bill.expectedAmount} 
                           type="currency" 
@@ -448,7 +448,7 @@ export function BillsTrackerList({
                     </TableCell>
                     
                     <TableCell className="text-center p-2 text-base" style={{ width: columnWidths.actions }}>
-                      {isEditable && !isPaid && (
+                      {isAmountEditable && !isPaid && (
                         <Button 
                           variant="ghost" 
                           size="icon" 
