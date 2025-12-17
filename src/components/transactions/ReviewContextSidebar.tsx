@@ -15,6 +15,7 @@ interface ReviewContextSidebarProps {
   accountId: string;
   statements: ImportedStatement[];
   pendingCount: number;
+  readyToContabilizeCount: number; // NOVO PROP
   totalCount: number;
   reviewRange: DateRange;
   onPeriodChange: (ranges: ComparisonDateRanges) => void;
@@ -28,6 +29,7 @@ export function ReviewContextSidebar({
   accountId,
   statements,
   pendingCount,
+  readyToContabilizeCount, // USADO AQUI
   totalCount,
   reviewRange,
   onPeriodChange,
@@ -38,7 +40,8 @@ export function ReviewContextSidebar({
 }: ReviewContextSidebarProps) {
   
   const isRangeSelected = !!reviewRange.from && !!reviewRange.to;
-  const isReadyToContabilize = pendingCount > 0;
+  // CORREÇÃO: O botão deve ser habilitado se houver qualquer transação pronta para contabilizar.
+  const isReadyToContabilize = readyToContabilizeCount > 0; 
   
   const dummyRanges: ComparisonDateRanges = useMemo(() => ({
     range1: reviewRange,
@@ -135,7 +138,7 @@ export function ReviewContextSidebar({
           className="w-full gap-2 h-9"
         >
           <Check className="w-4 h-4" />
-          Contabilizar ({totalCount - pendingCount})
+          Contabilizar ({readyToContabilizeCount})
         </Button>
         <Button 
           variant="ghost" 

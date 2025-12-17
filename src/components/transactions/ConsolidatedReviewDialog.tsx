@@ -150,7 +150,7 @@ export function ConsolidatedReviewDialog({
       if (tx.isPotentialDuplicate) return false; 
       
       // Verifica se a transação está pronta para ser contabilizada
-      const isCategorized = tx.categoryId || tx.isTransfer || tx.tempInvestmentId || tx.tempLoanId || tx.tempVehicleOperation;
+      const isCategorized = tx.categoryId || tx.isTransfer || tx.tempInvestmentId || tx.tempLoanId || tx.tempVehicleOperation || tx.operationType === 'liberacao_emprestimo';
       return !!isCategorized;
     });
     
@@ -375,13 +375,30 @@ export function ConsolidatedReviewDialog({
     setShowRuleManagerModal(true);
   };
   
-  const pendingCount = transactionsToReview.filter(tx => {
-    const isCategorized = tx.categoryId || tx.isTransfer || tx.tempInvestmentId || tx.tempLoanId || tx.tempVehicleOperation;
-    return !isCategorized && !tx.isPotentialDuplicate; // Excluir duplicatas da contagem de pendentes
-  }).length;
+  // CORREÇÃO AQUI: Calcular a contagem de transações prontas e pendentes
+  const readyToContabilizeCount = useMemo(() => {
+    return transactionsToReview.filter(tx => {
+      // Ignora duplicatas potenciais
+      if (tx.isPotentialDuplicate) return false; 
+      
+      // Verifica se a transação está pronta para ser contabilizada
+      const isCategorized = tx.categoryId || tx.isTransfer || tx.tempInvestmentId || tx.tempLoanId || tx.tempVehicleOperation || tx.operationType === 'liberacao_emprestimo';
+      return !!isCategorized;
+    }).length;
+  }, [transactionsToReview]);
+  
+  const pendingCount = useMemo(() => {
+    return transactionsToReview.filter(tx => {
+      // Ignora duplicatas potenciais
+      if (tx.isPotentialDuplicate) return false; 
+      
+      // Verifica se a transação NÃO está pronta
+      const isCategorized = tx.categoryId || tx.isTransfer || tx.tempInvestmentId || tx.tempLoanId || tx.tempVehicleOperation || tx.operationType === 'liberacao_emprestimo';
+      return !isCategorized;
+    }).length;
+  }, [transactionsToReview]);
   
   const totalCount = transactionsToReview.length;
-  const readyToContabilizeCount = totalCount - pendingCount - transactionsToReview.filter(tx => tx.isPotentialDuplicate).length;
 
   return (
     <>
@@ -434,6 +451,7 @@ export function ConsolidatedReviewDialog({
                     accountId={accountId}
                     statements={importedStatements.filter(s => s.accountId === accountId)}
                     pendingCount={pendingCount}
+                    readyToContabilizeCount={readyToContabilizeCount} {/* NOVO PROP */}
                     totalCount={totalCount}
                     reviewRange={reviewRange}
                     onPeriodChange={handlePeriodChange}
