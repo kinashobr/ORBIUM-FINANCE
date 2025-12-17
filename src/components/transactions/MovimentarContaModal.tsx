@@ -92,6 +92,53 @@ const parseFromBR = (value: string) => {
   return isNegative ? -parsed : parsed;
 };
 
+// --- NEW: Operation Configuration ---
+const OPERATION_CONFIG: Record<OperationType, { label: string; icon: React.ElementType; colorClass: string }> = {
+  receita: { label: 'Receita', icon: Plus, colorClass: 'text-success' },
+  despesa: { label: 'Despesa', icon: Minus, colorClass: 'text-destructive' },
+  transferencia: { label: 'Transferência', icon: ArrowLeftRight, colorClass: 'text-primary' },
+  aplicacao: { label: 'Aplicação', icon: TrendingDown, colorClass: 'text-purple-600' },
+  resgate: { label: 'Resgate', icon: TrendingUp, colorClass: 'text-amber-600' },
+  pagamento_emprestimo: { label: 'Pag. Empréstimo', icon: CreditCard, colorClass: 'text-orange-600' },
+  liberacao_emprestimo: { label: 'Liberação Empréstimo', icon: DollarSign, colorClass: 'text-emerald-600' },
+  veiculo: { label: 'Veículo', icon: Car, colorClass: 'text-indigo-600' },
+  rendimento: { label: 'Rendimento', icon: Coins, colorClass: 'text-teal-600' },
+  initial_balance: { label: 'Saldo Inicial', icon: CheckCircle2, colorClass: 'text-gray-600' },
+};
+
+// --- NEW: Available Operations Helper ---
+const getAvailableOperationTypes = (accountType: AccountType): OperationType[] => {
+  switch (accountType) {
+    case 'corrente':
+    case 'cartao_credito':
+      return ['receita', 'despesa', 'transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo', 'liberacao_emprestimo', 'veiculo', 'rendimento'];
+    case 'renda_fixa':
+    case 'poupanca':
+    case 'reserva':
+    case 'objetivo':
+      return ['aplicacao', 'resgate', 'rendimento'];
+    case 'cripto':
+      return ['aplicacao', 'resgate', 'rendimento'];
+    default:
+      return ['receita', 'despesa'];
+  }
+};
+
+// --- NEW: Category Options Helper ---
+const getCategoryOptions = (operationType: OperationType | null, categories: Categoria[]): Categoria[] => {
+  if (!operationType) return categories;
+
+  const isIncome = operationType === 'receita' || operationType === 'rendimento' || operationType === 'liberacao_emprestimo';
+  
+  if (isIncome) {
+    return categories.filter(c => c.nature === 'receita');
+  }
+  
+  // For all other types (despesa, financing, asset), show expense categories
+  return categories.filter(c => c.nature === 'despesa_fixa' || c.nature === 'despesa_variavel');
+};
+
+
 // --- Component Definition ---
 
 export function MovimentarContaModal({
