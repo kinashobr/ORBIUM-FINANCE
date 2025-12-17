@@ -451,7 +451,7 @@ export function ConsolidatedReviewDialog({
                     accountId={accountId}
                     statements={importedStatements.filter(s => s.accountId === accountId)}
                     pendingCount={pendingCount}
-                    readyToContabilizeCount={readyToContabilizeCount} {/* NOVO PROP */}
+                    readyToContabilizeCount={readyToContabilizeCount}
                     totalCount={totalCount}
                     reviewRange={reviewRange}
                     onPeriodChange={handlePeriodChange}
