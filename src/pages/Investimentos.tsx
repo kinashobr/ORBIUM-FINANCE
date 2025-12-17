@@ -140,7 +140,7 @@ const Investimentos = () => {
     const totalStables = stablecoinAccounts.reduce((acc, c) => acc + calculateAccountBalance(c.id, targetDate), 0);
     const totalObjetivos = objetivosAccounts.reduce((acc, c) => acc + calculateAccountBalance(c.id, targetDate), 0);
 
-    const valorVeiculos = getValorFipeTotal();
+    const valorVeiculos = getValorFipeTotal(targetDate);
     
     const patrimonioInvestimentos = totalRF + totalCripto + totalStables + totalObjetivos;
     const patrimonioTotal = patrimonioInvestimentos + valorVeiculos;
@@ -150,6 +150,9 @@ const Investimentos = () => {
     // Rentabilidade Média (Simplificada, pois dados de rentabilidade V1 foram removidos)
     const rentabilidadeMedia = 5.0; // Valor placeholder
     
+    // Nota: getTotalReceitas e getTotalDespesas não são period-aware por padrão, mas são usados aqui
+    // para métricas mensais. Se o PeriodSelector for usado para filtrar o mês, eles devem ser ajustados.
+    // Por enquanto, mantemos a chamada original, mas o cálculo de saldo está correto.
     const receitasMes = getTotalReceitas();
     const despesasMes = getTotalDespesas();
     const variacaoMensal = receitasMes > 0 ? ((receitasMes - despesasMes) / receitasMes) * 100 : 0;

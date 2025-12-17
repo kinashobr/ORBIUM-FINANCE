@@ -37,6 +37,8 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     emprestimos,
     segurosVeiculo,
     calculateLoanAmortizationAndInterest,
+    markSeguroParcelPaid, // <-- IMPORTADO
+    markLoanParcelPaid, // <-- IMPORTADO
   } = useFinance();
   
   const [currentDate, setCurrentDate] = useState(startOfMonth(new Date()));
@@ -118,6 +120,9 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             // Update description to reflect payment details
             const loan = emprestimos.find(e => e.id === loanId);
             description = `Pagamento Empréstimo ${loan?.contrato || 'N/A'} - P${bill.parcelaNumber}/${loan?.meses || 'N/A'}`;
+            
+            // ** AÇÃO CRÍTICA: Atualizar Entidade V2 (Empréstimo) **
+            markLoanParcelPaid(loanId, bill.expectedAmount, format(new Date(), 'yyyy-MM-dd'), bill.parcelaNumber);
         }
       }
       
@@ -125,8 +130,12 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         // Link to vehicle transaction (Seguro ID_Parcela Num)
         baseLinks.vehicleTransactionId = `${bill.sourceRef}_${bill.parcelaNumber}`;
         
-        const seguro = segurosVeiculo.find(s => s.id === parseInt(bill.sourceRef));
+        const seguroId = parseInt(bill.sourceRef);
+        const seguro = segurosVeiculo.find(s => s.id === seguroId);
         description = `Pagamento Seguro ${seguro?.numeroApolice || 'N/A'} - P${bill.parcelaNumber}/${seguro?.numeroParcelas || 'N/A'}`;
+        
+        // ** AÇÃO CRÍTICA: Atualizar Entidade V2 (Seguro) **
+        markSeguroParcelPaid(seguroId, bill.parcelaNumber, transactionId);
       }
       
       const newTransaction = {
@@ -170,7 +179,20 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     } else {
       // Unmark as paid and delete transaction
       if (bill.transactionId) {
-        // Find and delete the transaction
+        
+        // ** AÇÃO CRÍTICA: Reverter Entidade V2 (Seguro/Empréstimo) **
+        if (bill.sourceType === 'loan_installment' && bill.sourceRef && bill.parcelaNumber) {
+            const loanId = parseInt(bill.sourceRef);
+            // Nota: unmarkLoanParcelPaid não precisa de parcelaNumber, mas é bom ter
+            unmarkLoanParcelPaid(loanId); 
+        }
+        
+        if (bill.sourceType === 'insurance_installment' && bill.sourceRef && bill.parcelaNumber) {
+            const seguroId = parseInt(bill.sourceRef);
+            unmarkSeguroParcelPaid(seguroId, bill.parcelaNumber);
+        }
+        
+        // Remove transaction ID from bill tracker
         setBillsTracker(prev => prev.map(b => {
             if (b.id === bill.id) {
                 return { ...b, isPaid: false, transactionId: undefined, paymentDate: undefined };
@@ -178,15 +200,14 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             return b;
         }));
         
-        // Note: We rely on the user to manually delete the transaction if needed, 
-        // or we implement a dedicated function here if we want full autonomy.
+        // Nota: A transação real deve ser excluída manualmente pelo usuário na tela de transações.
         toast.warning("Conta desmarcada como paga. Lembre-se de excluir a transação manualmente se necessário.");
         
       } else {
         updateBill(bill.id, { isPaid: false, paymentDate: undefined });
       }
     }
-  }, [updateBill, addTransacaoV2, contasMovimento, categoriasV2, emprestimos, segurosVeiculo, calculateLoanAmortizationAndInterest, setBillsTracker]);
+  }, [updateBill, addTransacaoV2, contasMovimento, categoriasV2, emprestimos, segurosVeiculo, calculateLoanAmortizationAndInterest, setBillsTracker, markSeguroParcelPaid, markLoanParcelPaid, unmarkSeguroParcelPaid, unmarkLoanParcelPaid]);
   
   const handleToggleFixedBill = useCallback((potentialBill: PotentialFixedBill, isChecked: boolean) => {
     const { sourceType, sourceRef, parcelaNumber, dueDate, expectedAmount, description, isPaid } = potentialBill;
@@ -203,7 +224,11 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             sourceRef,
             parcelaNumber,
             suggestedAccountId: contasMovimento.find(c => c.accountType === 'corrente')?.id,
-            suggestedCategoryId: categoriasV2.find(c => c.label.toLowerCase() === 'seguro' || c.label.toLowerCase() === 'emprestimo')?.id || null,
+            // Determinar categoria sugerida com base no tipo
+            suggestedCategoryId: categoriasV2.find(c => 
+                (sourceType === 'loan_installment' && c.label.toLowerCase().includes('emprestimo')) ||
+                (sourceType === 'insurance_installment' && c.label.toLowerCase().includes('seguro'))
+            )?.id || null,
             isExcluded: false,
             paymentDate: isPaid ? format(parseDateLocal(dueDate), 'yyyy-MM-dd') : undefined, // Use due date as placeholder for paid bills
         };

@@ -88,11 +88,11 @@ const Emprestimos = () => {
   }, [location.state, pendingLoans]);
 
   // Helper function to calculate the next due date for a loan
-  const getNextDueDate = useCallback((loan: Emprestimo): Date | null => {
+  const getNextDueDate = useCallback((loan: Emprestimo, targetDate: Date | undefined): Date | null => {
     if (!loan.dataInicio || loan.meses === 0) return null;
     
-    // Use the dynamically calculated paid installments up to the end of the period
-    const paidUpToDate = calculatePaidInstallmentsUpToDate(loan.id, dateRanges.range1.to || new Date());
+    // Use the dynamically calculated paid installments up to the target date
+    const paidUpToDate = calculatePaidInstallmentsUpToDate(loan.id, targetDate || new Date());
     
     const nextParcela = paidUpToDate + 1;
     if (nextParcela > loan.meses) return null;
@@ -105,7 +105,7 @@ const Emprestimos = () => {
     dueDate.setMonth(dueDate.getMonth() + nextParcela - 1);
     
     return dueDate;
-  }, [calculatePaidInstallmentsUpToDate, dateRanges.range1.to]);
+  }, [calculatePaidInstallmentsUpToDate]); // Removido dateRanges.range1.to da dependência, pois é passado como argumento
 
   // Cálculos principais
   const calculos = useMemo(() => {
@@ -265,7 +265,7 @@ const Emprestimos = () => {
                 const percentual = loan.meses > 0 ? (paidCount / loan.meses) * 100 : 0;
                 
                 // Use paidCount for next due date calculation
-                const nextDueDate = getNextDueDate({ ...loan, parcelasPagas: paidCount });
+                const nextDueDate = getNextDueDate(loan, dateRanges.range1.to);
                 const isPending = loan.status === 'pendente_config';
                 
                 return (

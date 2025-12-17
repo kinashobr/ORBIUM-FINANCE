@@ -141,7 +141,7 @@ export function DRETab({ dateRanges }: DRETabProps) {
     transacoesV2,
     categoriasV2,
     emprestimos,
-    segurosVeiculo, 
+    segurosVeiculo,
     getJurosTotais,
     calculateLoanSchedule, // <-- NEW
   } = useFinance();
@@ -176,9 +176,10 @@ export function DRETab({ dateRanges }: DRETabProps) {
     const categoriasMap = new Map(categoriasV2.map(c => [c.id, c]));
     const seguroCategory = categoriasV2.find(c => c.label.toLowerCase() === 'seguro');
 
-    // 1. RECEITAS: Apenas operações de 'receita' e 'rendimento'
+    // 1. RECEITAS: Apenas operações de 'receita' e 'rendimento', EXCLUINDO 'initial_balance'
     const transacoesReceita = transactions.filter(t => 
-      t.operationType === 'receita' || t.operationType === 'rendimento'
+      (t.operationType === 'receita' || t.operationType === 'rendimento') &&
+      t.operationType !== 'initial_balance'
     );
 
     const receitasAgrupadas = new Map<string, number>();
@@ -227,10 +228,11 @@ export function DRETab({ dateRanges }: DRETabProps) {
         });
     }
     
-    // --- 2b. Filter transactions (Exclude cash insurance payments and asset purchases) ---
+    // --- 2b. Filter transactions (Exclude cash insurance payments, asset purchases, and initial_balance) ---
     const transacoesDespesaOperacional = transactions.filter(t => 
       (t.operationType === 'despesa') && // FIXED: Exclude 'veiculo' operation type
       t.flow === 'out' &&
+      t.operationType !== 'initial_balance' && // EXCLUIR SALDO INICIAL
       // EXCLUDE cash payments for insurance if they are linked to the 'Seguro' category
       (t.categoryId !== seguroCategory?.id)
     );
@@ -373,13 +375,13 @@ export function DRETab({ dateRanges }: DRETabProps) {
       });
 
       const receitasMes = transacoesMes
-        .filter(t => t.operationType === 'receita' || t.operationType === 'rendimento')
+        .filter(t => (t.operationType === 'receita' || t.operationType === 'rendimento') && t.operationType !== 'initial_balance')
         .reduce((acc, t) => acc + t.amount, 0);
       
       // Despesas aqui incluem despesas operacionais e pagamentos de empréstimo (valor total da parcela)
       // NOTE: This evolution chart uses CASH basis for simplicity (total outflow)
       const despesasMes = transacoesMes
-        .filter(t => t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo' || t.operationType === 'veiculo')
+        .filter(t => (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo' || t.operationType === 'veiculo') && t.operationType !== 'initial_balance')
         .reduce((acc, t) => acc + t.amount, 0);
 
       resultado.push({
