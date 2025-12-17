@@ -41,15 +41,15 @@ interface MovimentarContaModalProps {
 }
 
 const OPERATION_OPTIONS: { value: OperationType; label: string; icon: React.ElementType; color: string; bgColor: string }[] = [
-  { value: 'receita', label: 'Receita', icon: Plus, color: 'text-success', bgColor: 'bg-success/10' },
-  { value: 'despesa', label: 'Despesa', icon: Minus, color: 'text-destructive', bgColor: 'bg-destructive/10' },
+  { value: 'receita', label: 'Receita', icon: Plus, color: 'text-primary', bgColor: 'bg-primary/10' },
+  { value: 'despesa', label: 'Despesa', icon: Minus, color: 'text-primary', bgColor: 'bg-primary/10' },
   { value: 'transferencia', label: 'Transferência', icon: ArrowLeftRight, color: 'text-primary', bgColor: 'bg-primary/10' },
   { value: 'aplicacao', label: 'Aplicação', icon: TrendingUp, color: 'text-accent', bgColor: 'bg-accent/10' },
   { value: 'resgate', label: 'Resgate', icon: TrendingDown, color: 'text-warning', bgColor: 'bg-warning/10' },
   { value: 'pagamento_emprestimo', label: 'Pag. Empréstimo', icon: CreditCard, color: 'text-warning', bgColor: 'bg-warning/10' },
-  { value: 'liberacao_emprestimo', label: 'Liberação', icon: DollarSign, color: 'text-success', bgColor: 'bg-success/10' },
+  { value: 'liberacao_emprestimo', label: 'Liberação', icon: DollarSign, color: 'text-primary', bgColor: 'bg-primary/10' },
   { value: 'veiculo', label: 'Veículo', icon: Car, color: 'text-primary', bgColor: 'bg-primary/10' },
-  { value: 'rendimento', label: 'Rendimento', icon: Coins, color: 'text-success', bgColor: 'bg-success/10' },
+  { value: 'rendimento', label: 'Rendimento', icon: Coins, color: 'text-primary', bgColor: 'bg-primary/10' },
 ];
 
 const getAvailableOperationTypes = (accountType: AccountType): OperationType[] => {
