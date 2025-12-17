@@ -338,8 +338,8 @@ interface FinanceContextType {
   setAlertStartDate: Dispatch<SetStateAction<string>>;
   
   // NEW: Revenue Forecast
-  monthlyRevenueForecast: number | null;
-  setMonthlyRevenueForecast: Dispatch<SetStateAction<number | null>>;
+  monthlyRevenueForecast: number;
+  setMonthlyRevenueForecast: Dispatch<SetStateAction<number>>;
   getRevenueForPreviousMonth: (date: Date) => number;
   
   // Cálculos principais
@@ -545,8 +545,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   );
   
   // Revenue Forecast State
-  const [monthlyRevenueForecast, setMonthlyRevenueForecast] = useState<number | null>(() => 
-    loadFromStorage(STORAGE_KEYS.MONTHLY_REVENUE_FORECAST, null)
+  const [monthlyRevenueForecast, setMonthlyRevenueForecast] = useState<number>(() => 
+    loadFromStorage(STORAGE_KEYS.MONTHLY_REVENUE_FORECAST, 0)
   );
 
   // ============================================
@@ -986,7 +986,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     billsTracker.forEach(bill => {
         const billDate = parseDateLocal(bill.dueDate);
         
-        // Inclui contas ad-hoc (de qualquer mês) E templates modificados/excluídos/pagos do mês atual
+        // Inclui contas ad-hoc (de qualquer mês) E templates modificados/excluídos do mês atual
         if (bill.sourceType === 'ad_hoc' || isSameMonth(billDate, date)) {
             persistedModificationsMap.set(bill.id, bill);
         }
@@ -1156,438 +1156,467 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   // ============================================
   // OPERAÇÕES DE ENTIDADES V2
-// ... (rest of the file)
-```
+  // ============================================
 
-### 2. Atualizando `src/components/bills/BillsTrackerModal.tsx`
+  const addEmprestimo = (emprestimo: Omit<Emprestimo, "id">) => {
+    const newId = Math.max(0, ...emprestimos.map(e => e.id)) + 1;
+    setEmprestimos([...emprestimos, { ...emprestimo, id: newId, status: emprestimo.status || 'ativo', parcelasPagas: 0 }]);
+  };
 
-Vou ajustar a inicialização do estado local para `localRevenueForecast` para usar a lógica de `null` e garantir que o valor salvo (mesmo que zero) seja respeitado.
+  const updateEmprestimo = (id: number, updates: Partial<Emprestimo>) => {
+    setEmprestimos(emprestimos.map(e => e.id === id ? { ...e, ...updates } : e));
+  };
 
-<dyad-write path="src/components/bills/BillsTrackerModal.tsx" description="Ajustando a inicialização do localRevenueForecast para respeitar o valor salvo (incluindo zero) e evitar resets indesejados.">
-import { useState, useMemo, useEffect, useCallback } from "react";
-import { Dialog, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Calendar, CheckCircle2, Clock, TrendingUp, TrendingDown, DollarSign, Calculator, Menu, LogOut, X, Save, RefreshCw } from "lucide-react";
-import { useFinance } from "@/contexts/FinanceContext";
-import { BillsTrackerList } from "./BillsTrackerList";
-import { BillsContextSidebar } from "./BillsContextSidebar";
-import { format } from "date-fns";
-import { cn } from "@/lib/utils";
-import { BillTracker, formatCurrency, TransacaoCompleta, getDomainFromOperation, generateTransactionId, generateBillId } from "@/types/finance";
-import { Drawer, DrawerContent, DrawerTrigger } from "@/components/ui/drawer";
-import { toast } from "sonner";
-import { ResizableSidebar } from "../transactions/ResizableSidebar";
-import { ResizableDialogContent } from "../ui/ResizableDialogContent";
-import { parseDateLocal } from "@/lib/utils";
-import { isSameMonth } from "date-fns";
+  const deleteEmprestimo = (id: number) => {
+    setEmprestimos(emprestimos.filter(e => e.id !== id));
+  };
 
-interface BillsTrackerModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
+  const getPendingLoans = useCallback(() => {
+    return emprestimos.filter(e => e.status === 'pendente_config');
+  }, [emprestimos]);
 
-// Helper para verificar se é um template gerado automaticamente
-const isGeneratedTemplate = (bill: BillTracker) => 
-    bill.sourceType !== 'ad_hoc' && bill.sourceRef;
-
-export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps) {
-  const { 
-    billsTracker, 
-    setBillsTracker, 
-    addBill, // <-- USADO DIRETAMENTE
-    updateBill, 
-    deleteBill, 
-    getBillsForMonth, 
-    dateRanges,
-    monthlyRevenueForecast,
-    setMonthlyRevenueForecast,
-    getRevenueForPreviousMonth,
-    addTransacaoV2,
-    markLoanParcelPaid,
-    unmarkLoanParcelPaid,
-    markSeguroParcelPaid,
-    unmarkSeguroParcelPaid, // <-- FIX: Corrected spelling
-    setTransacoesV2,
-    contasMovimento, 
-    categoriasV2, 
-    transacoesV2, // <-- ADDED: Need access to global transactions for deletion
-  } = useFinance();
-  
-  const referenceDate = dateRanges.range1.to || new Date();
-  
-  // Estado local para manipulação (começa vazio)
-  const [localBills, setLocalBills] = useState<BillTracker[]>([]);
-  
-  // Receita do mês anterior (para sugestão)
-  const previousMonthRevenue = useMemo(() => {
-    return getRevenueForPreviousMonth(referenceDate);
-  }, [getRevenueForPreviousMonth, referenceDate]);
-  
-  // Estado local para a previsão de receita
-  const [localRevenueForecast, setLocalRevenueForecast] = useState<number>(() => 
-    monthlyRevenueForecast !== null ? monthlyRevenueForecast : previousMonthRevenue
-  );
-  
-  // --- Refresh Logic (Always generates the full list) ---
-  const handleRefreshList = useCallback(() => {
-    // Generate the full list including templates
-    const generatedBills = getBillsForMonth(referenceDate, true);
-    setLocalBills(generatedBills);
-    // Ensure forecast is also refreshed, respecting explicit 0
-    setLocalRevenueForecast(monthlyRevenueForecast !== null ? monthlyRevenueForecast : previousMonthRevenue); 
-    toast.info("Lista de contas atualizada manualmente.");
-  }, [getBillsForMonth, referenceDate, monthlyRevenueForecast, previousMonthRevenue]);
-
-  // Initial load when modal opens
-  useEffect(() => {
-    if (open) {
-      // Inicializa o estado local com a lista gerada automaticamente
-      const generatedBills = getBillsForMonth(referenceDate, true);
-      setLocalBills(generatedBills);
-      // Use global forecast if set, otherwise use previous month's revenue as suggestion
-      setLocalRevenueForecast(monthlyRevenueForecast !== null ? monthlyRevenueForecast : previousMonthRevenue);
-    }
-  }, [open, monthlyRevenueForecast, previousMonthRevenue, getBillsForMonth, referenceDate]);
-
-  // Totais baseados no estado local
-  const totalExpectedExpense = useMemo(() => 
-    localBills.filter(b => !b.isExcluded).reduce((acc, b) => acc + b.expectedAmount, 0),
-    [localBills]
-  );
-  
-  const totalPaid = useMemo(() => 
-    localBills.filter(b => b.isPaid).reduce((acc, b) => acc + b.expectedAmount, 0),
-    [localBills]
-  );
-  
-  const totalBills = localBills.length;
-  const paidCount = localBills.filter(b => b.isPaid).length;
-  const pendingCount = totalBills - paidCount;
-  
-  const netForecast = localRevenueForecast - totalExpectedExpense;
-
-  // Handlers para BillsTrackerList (operam no estado local)
-  const handleUpdateBillLocal = useCallback((id: string, updates: Partial<BillTracker>) => {
-    setLocalBills(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
+  const markLoanParcelPaid = useCallback((loanId: number, valorPago: number, dataPagamento: string, parcelaNumero?: number) => {
+    setEmprestimos(prev => prev.map(e => {
+      if (e.id !== loanId) return e;
+      
+      // Simplificação: Apenas marca o status como ativo/quitado
+      const isQuitado = (e.parcelasPagas || 0) + 1 >= e.meses;
+      
+      return {
+        ...e,
+        status: isQuitado ? 'quitado' : 'ativo',
+      };
+    }));
   }, []);
-
-  const handleDeleteBillLocal = useCallback((id: string) => {
-    // Note: This handler is currently not used by BillsTrackerList, which uses handleExcludeBill
-    setLocalBills(prev => prev.filter(b => b.id !== id));
-  }, []);
-
-  const handleTogglePaidLocal = useCallback((bill: BillTracker, isChecked: boolean) => {
-    // Uses the current system date for payment
-    const today = new Date();
-    
-    setLocalBills(prev => prev.map(b => {
-        if (b.id === bill.id) {
-            return { 
-                ...b, 
-                isPaid: isChecked,
-                // Uses the current system date for payment
-                paymentDate: isChecked ? format(today, 'yyyy-MM-dd') : undefined,
-                // Preserve existing transactionId if available, otherwise generate a new one if paying
-                transactionId: isChecked ? b.transactionId || generateTransactionId() : undefined,
-            };
-        }
-        return b;
+  
+  const unmarkLoanParcelPaid = useCallback((loanId: number) => {
+    setEmprestimos(prev => prev.map(e => {
+      if (e.id !== loanId) return e;
+      
+      return {
+        ...e,
+        status: 'ativo',
+      };
     }));
   }, []);
 
-  // Lógica de Persistência (Salvar e Sair)
-  const handleSaveAndClose = () => {
-    // 1. Persiste a previsão de receita
-    setMonthlyRevenueForecast(localRevenueForecast);
-    
-    // 2. Sincroniza o estado local com o estado global (BillsTracker)
-    
-    // Mapeia o estado global atual do billsTracker
-    const originalBillsMap = new Map(billsTracker.map(b => [b.id, b]));
-    
-    const newTransactions: TransacaoCompleta[] = [];
-    const transactionsToRemove: string[] = [];
-    
-    // Filtra o billsTracker global para manter apenas contas de outros meses
-    // e contas ad-hoc (que são sempre persistidas)
-    let finalBillsTracker: BillTracker[] = billsTracker.filter(b => {
-        const isCurrentMonth = isSameMonth(parseDateLocal(b.dueDate), referenceDate);
-        return !isCurrentMonth || b.sourceType === 'ad_hoc';
-    });
-    
-    // Itera sobre as contas LOCAIS (localBills) para ver o que mudou
-    localBills.forEach(localVersion => {
-        const originalBill = originalBillsMap.get(localVersion.id);
-        
-        const wasPaid = originalBill?.isPaid || false;
-        const isNowPaid = localVersion.isPaid;
-        const isTemplate = isGeneratedTemplate(localVersion);
-        
-        // Verifica se houve qualquer alteração que precise ser persistida
-        const hasNonPaymentChanges = 
-            localVersion.isExcluded !== originalBill?.isExcluded || 
-            localVersion.expectedAmount !== originalBill?.expectedAmount || 
-            localVersion.suggestedAccountId !== originalBill?.suggestedAccountId;
-            
-        // --- A. Handle Payment (isNowPaid && !wasPaid) ---
-        if (isNowPaid && !wasPaid) {
-            const bill = localVersion;
-            const paymentDate = bill.paymentDate || format(new Date(), 'yyyy-MM-dd'); 
-            const transactionId = bill.transactionId || generateTransactionId(); 
-            
-            const suggestedAccount = contasMovimento.find(c => c.id === bill.suggestedAccountId);
-            if (!suggestedAccount) {
-                toast.error(`Erro: Conta de débito para ${bill.description} não encontrada.`);
-                return;
-            }
-            
-            let operationType: TransacaoCompleta['operationType'] = 'despesa';
-            let loanIdLink: string | null = null;
-            let parcelaIdLink: string | null = null;
-            let vehicleTransactionIdLink: string | null = null;
-            
-            if (bill.sourceType === 'loan_installment' && bill.sourceRef && bill.parcelaNumber) {
-              operationType = 'pagamento_emprestimo';
-              loanIdLink = `loan_${bill.sourceRef}`;
-              parcelaIdLink = bill.parcelaNumber.toString();
-            } else if (bill.sourceType === 'insurance_installment' && bill.sourceRef && bill.parcelaNumber) {
-              operationType = 'despesa';
-              vehicleTransactionIdLink = `${bill.sourceRef}_${bill.parcelaNumber}`;
-            }
+  const addVeiculo = (veiculo: Omit<Veiculo, "id">) => {
+    const newId = Math.max(0, ...veiculos.map(v => v.id)) + 1;
+    setVeiculos([...veiculos, { ...veiculo, id: newId, status: veiculo.status || 'ativo' }]);
+  };
 
-            const newTransaction: TransacaoCompleta = {
-              id: transactionId,
-              date: paymentDate,
-              accountId: suggestedAccount.id,
-              flow: 'out',
-              operationType,
-              domain: getDomainFromOperation(operationType),
-              amount: bill.expectedAmount,
-              categoryId: bill.suggestedCategoryId || null,
-              description: bill.description,
-              links: {
-                investmentId: null,
-                loanId: loanIdLink,
-                transferGroupId: null,
-                parcelaId: parcelaIdLink,
-                vehicleTransactionId: vehicleTransactionIdLink,
-              },
-              conciliated: false,
-              attachments: [],
-              meta: {
-                createdBy: 'system',
-                source: 'bill_tracker',
-                createdAt: format(new Date(), 'yyyy-MM-dd'),
-              }
-            };
-            
-            newTransactions.push(newTransaction);
-            
-            // Marca no contexto (Empréstimo/Seguro)
-            if (bill.sourceType === 'loan_installment' && bill.sourceRef && bill.parcelaNumber) {
-                const loanId = parseInt(bill.sourceRef);
-                if (!isNaN(loanId)) {
-                    markLoanParcelPaid(loanId, bill.expectedAmount, paymentDate, bill.parcelaNumber);
-                }
-            } else if (bill.sourceType === 'insurance_installment' && bill.sourceRef && bill.parcelaNumber) {
-                const seguroId = parseInt(bill.sourceRef);
-                if (!isNaN(seguroId)) {
-                    markSeguroParcelPaid(seguroId, bill.parcelaNumber, transactionId);
-                }
-            }
-            
-            // Se for template ou ad-hoc, salva a versão paga no billsTracker global
-            // (Templates pagos são salvos para rastreamento de histórico)
-            if (isTemplate || localVersion.sourceType === 'ad_hoc') {
-                finalBillsTracker = finalBillsTracker.filter(b => b.id !== localVersion.id);
-                finalBillsTracker.push({ ...localVersion, transactionId });
-            }
-            
-        } 
-        // --- B. Handle Unpayment (wasPaid && !isNowPaid) ---
-        else if (wasPaid && !isNowPaid) {
-            const bill = originalBill!; 
-            
-            if (bill.transactionId) {
-                transactionsToRemove.push(bill.transactionId);
-                
-                // Remove do contexto (Empréstimo/Seguro)
-                if (bill.sourceType === 'loan_installment' && bill.sourceRef && bill.parcelaNumber) {
-                    const loanId = parseInt(bill.sourceRef);
-                    if (!isNaN(loanId)) {
-                        unmarkLoanParcelPaid(loanId);
-                    }
-                } else if (bill.sourceType === 'insurance_installment' && bill.sourceRef && bill.parcelaNumber) {
-                    const seguroId = parseInt(bill.sourceRef);
-                    if (!isNaN(seguroId)) {
-                        unmarkSeguroParcelPaid(seguroId, bill.parcelaNumber); 
-                    }
-                }
-            }
-            
-            // Se for template ou ad-hoc, salva a versão pendente no billsTracker global
-            if (isTemplate || localVersion.sourceType === 'ad_hoc') {
-                const updatedBill = { ...localVersion, isPaid: false, paymentDate: undefined, transactionId: undefined };
-                finalBillsTracker = finalBillsTracker.filter(b => b.id !== localVersion.id);
-                finalBillsTracker.push(updatedBill);
-            }
-        } 
-        // --- C. Handle Non-Payment Changes (Exclusion/Value/Account) ---
-        else if (hasNonPaymentChanges) {
-            
-            // Se for um template, salva a modificação no billsTracker global
-            if (isTemplate) {
-                // Apenas salva a modificação se for do mês atual (para que getBillsForMonth a encontre)
-                if (isSameMonth(parseDateLocal(localVersion.dueDate), referenceDate)) {
-                    finalBillsTracker = finalBillsTracker.filter(b => b.id !== localVersion.id);
-                    finalBillsTracker.push(localVersion);
-                }
-            }
-            
-            // Se for ad-hoc, salva a versão mais recente
-            if (localVersion.sourceType === 'ad_hoc') {
-                finalBillsTracker = finalBillsTracker.filter(b => b.id !== localVersion.id);
-                finalBillsTracker.push(localVersion);
-            }
+  const updateVeiculo = (id: number, updates: Partial<Veiculo>) => {
+    setVeiculos(veiculos.map(v => v.id === id ? { ...v, ...updates } : v));
+  };
+
+  const deleteVeiculo = (id: number) => {
+    setVeiculos(veiculos.filter(v => v.id !== id));
+  };
+
+  const getPendingVehicles = useCallback(() => {
+    return veiculos.filter(v => v.status === 'pendente_cadastro');
+  }, [veiculos]);
+
+  const addSeguroVeiculo = (seguro: Omit<SeguroVeiculo, "id">) => {
+    const newId = Math.max(0, ...segurosVeiculo.map(s => s.id)) + 1;
+    setSegurosVeiculo([...segurosVeiculo, { ...seguro, id: newId }]);
+  };
+
+  const updateSeguroVeiculo = (id: number, updates: Partial<SeguroVeiculo>) => {
+    setSegurosVeiculo(segurosVeiculo.map(s => s.id === id ? { ...s, ...updates } : s));
+  };
+
+  const deleteSeguroVeiculo = (id: number) => {
+    setSegurosVeiculo(segurosVeiculo.filter(s => s.id !== id));
+  };
+  
+  const markSeguroParcelPaid = useCallback((seguroId: number, parcelaNumero: number, transactionId: string) => {
+    setSegurosVeiculo(prevSeguros => prevSeguros.map(seguro => {
+      if (seguro.id !== seguroId) return seguro;
+      
+      const updatedParcelas = seguro.parcelas.map(parcela => {
+        if (parcela.numero === parcelaNumero) {
+          return { ...parcela, paga: true, transactionId };
         }
-        // --- D. Handle Paid but Unchanged (wasPaid && isNowPaid) ---
-        else if (wasPaid && isNowPaid) {
-            // Se for um template pago, garantimos que ele seja re-adicionado ao billsTracker
-            // para preservar o registro de pagamento/modificação para o mês atual.
-            if (isTemplate) {
-                finalBillsTracker = finalBillsTracker.filter(b => b.id !== localVersion.id);
-                finalBillsTracker.push(localVersion);
-            }
-            // Se for ad-hoc, já foi incluído no filtro inicial ou será re-adicionado em C.
-            // Se for ad-hoc e não tiver alterações, ele já está em finalBillsTracker (do filtro inicial).
+        return parcela;
+      });
+      
+      return { ...seguro, parcelas: updatedParcelas };
+    }));
+  }, []);
+  
+  const unmarkSeguroParcelPaid = useCallback((seguroId: number, parcelaNumero: number) => {
+    setSegurosVeiculo(prevSeguros => prevSeguros.map(seguro => {
+      if (seguro.id !== seguroId) return seguro;
+      
+      const updatedParcelas = seguro.parcelas.map(parcela => {
+        if (parcela.numero === parcelaNumero) {
+          return { ...parcela, paga: false, transactionId: undefined };
         }
+        return parcela;
+      });
+      
+      return { ...seguro, parcelas: updatedParcelas };
+    }));
+  }, []);
+
+  const addObjetivo = (obj: Omit<ObjetivoFinanceiro, "id">) => {
+    const newId = Math.max(0, ...objetivos.map(o => o.id)) + 1;
+    setObjetivos([...objetivos, { ...obj, id: newId }]);
+  };
+
+  const updateObjetivo = (id: number, updates: Partial<ObjetivoFinanceiro>) => {
+    setObjetivos(objetivos.map(o => o.id === id ? { ...o, ...updates } : o));
+  };
+
+  const deleteObjetivo = (id: number) => {
+    setObjetivos(objetivos.filter(o => o.id !== id));
+  };
+
+  // ============================================
+  // OPERAÇÕES TRANSAÇÕES V2
+  // ============================================
+
+  const addTransacaoV2 = (transaction: TransacaoCompleta) => {
+    setTransacoesV2(prev => [...prev, transaction]);
+  };
+  
+  // ============================================
+  // OPERAÇÕES DE REGRAS DE PADRONIZAÇÃO
+  // ============================================
+  
+  const addStandardizationRule = useCallback((rule: Omit<StandardizationRule, "id">) => {
+    const newRule: StandardizationRule = {
+        ...rule,
+        id: generateRuleId(),
+    };
+    setStandardizationRules(prev => [...prev, newRule]);
+  }, []);
+
+  const deleteStandardizationRule = useCallback((id: string) => {
+    setStandardizationRules(prev => prev.filter(r => r.id !== id));
+  }, []);
+
+  // ============================================
+  // FUNÇÕES DE CONTAS MOVIMENTO
+  // ============================================
+
+  const getContasCorrentesTipo = useCallback(() => {
+    return contasMovimento.filter(c => c.accountType === 'conta_corrente');
+  }, [contasMovimento]);
+  
+  // ============================================
+  // CÁLCULOS - Baseados em TransacoesV2
+  // ============================================
+
+  const getTotalReceitas = (mes?: string): number => {
+    const receitas = transacoesV2.filter(t => {
+      const isReceita = t.operationType === 'receita' || t.operationType === 'rendimento';
+      if (!mes) return isReceita;
+      return isReceita && t.date.startsWith(mes);
     });
+    return receitas.reduce((acc, t) => acc + t.amount, 0);
+  };
+
+  const getTotalDespesas = (mes?: string): number => {
+    const despesas = transacoesV2.filter(t => {
+      const isDespesa = t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo';
+      if (!mes) return isDespesa;
+      return isDespesa && t.date.startsWith(mes);
+    });
+    return despesas.reduce((acc, t) => acc + t.amount, 0);
+  };
+
+  const getTotalDividas = () => {
+    return emprestimos.reduce((acc, e) => acc + e.valorTotal, 0);
+  };
+
+  const getCustoVeiculos = () => {
+    return veiculos.filter(v => v.status !== 'vendido').reduce((acc, v) => acc + v.valorSeguro, 0);
+  };
+
+  const getSaldoAtual = useCallback(() => {
+    let totalBalance = 0;
+
+    contasMovimento.forEach(conta => {
+      const balance = calculateBalanceUpToDate(conta.id, undefined, transacoesV2, contasMovimento);
+      
+      totalBalance += balance;
+    });
+
+    return totalBalance;
+  }, [contasMovimento, transacoesV2, calculateBalanceUpToDate]);
+
+  const getValorFipeTotal = useCallback((targetDate?: Date) => {
+    const date = targetDate || new Date(9999, 11, 31);
+    return veiculos
+        .filter(v => v.status !== 'vendido' && parseDateLocal(v.dataCompra) <= date)
+        .reduce((acc, v) => acc + v.valorFipe, 0);
+  }, [veiculos]);
+
+  const getLoanPrincipalRemaining = useCallback((targetDate?: Date) => {
+    const date = targetDate || new Date(9999, 11, 31);
+
+    return emprestimos.reduce((acc, e) => {
+      if (e.status === 'quitado' || e.status === 'pendente_config') return acc;
+      
+      const paidUpToDate = calculatePaidInstallmentsUpToDate(e.id, date);
+      let currentSaldo = e.valorTotal;
+      
+      if (paidUpToDate > 0) {
+          const schedule = calculateLoanSchedule(e.id);
+          const lastPaidItem = schedule.find(item => item.parcela === paidUpToDate);
+          if (lastPaidItem) {
+              currentSaldo = lastPaidItem.saldoDevedor;
+          }
+      }
+      
+      return acc + Math.max(0, currentSaldo);
+    }, 0);
+  }, [emprestimos, calculatePaidInstallmentsUpToDate, calculateLoanSchedule]);
+
+  const getCreditCardDebt = useCallback((targetDate?: Date) => {
+    const date = targetDate || new Date(9999, 11, 31);
+
+    return contasMovimento
+      .filter(c => c.accountType === 'cartao_credito')
+      .reduce((acc, c) => {
+        const balance = calculateBalanceUpToDate(c.id, date, transacoesV2, contasMovimento);
+        return acc + Math.abs(Math.min(0, balance));
+      }, 0);
+  }, [contasMovimento, transacoesV2, calculateBalanceUpToDate]);
+
+  const getSaldoDevedor = useCallback((targetDate?: Date) => {
+    const saldoEmprestimos = getLoanPrincipalRemaining(targetDate);
+    const saldoCartoes = getCreditCardDebt(targetDate);
+    return saldoEmprestimos + saldoCartoes;
+  }, [getLoanPrincipalRemaining, getCreditCardDebt]);
+
+  const getJurosTotais = () => {
+    return emprestimos.reduce((acc, e) => {
+      const custoTotal = e.parcela * e.meses;
+      const juros = custoTotal - e.valorTotal;
+      return acc + juros;
+    }, 0);
+  };
+
+  const getDespesasFixas = () => {
+    const despesasFixas = transacoesV2.filter(t => {
+      const category = categoriasV2.find(c => c.id === t.categoryId);
+      return category?.nature === 'despesa_fixa';
+    });
+    return despesasFixas.reduce((acc, t) => acc + t.amount, 0);
+  };
+
+  const getAtivosTotal = useCallback((targetDate?: Date) => {
+    const date = targetDate || new Date(9999, 11, 31);
+
+    const saldoContasAtivas = contasMovimento
+      .filter(c => c.accountType !== 'cartao_credito')
+      .reduce((acc, c) => {
+        const balance = calculateBalanceUpToDate(c.id, date, transacoesV2, contasMovimento);
+        return acc + Math.max(0, balance);
+      }, 0);
+      
+    const valorVeiculos = getValorFipeTotal(date);
+    const segurosAApropriar = getSegurosAApropriar(date); 
+                          
+    return saldoContasAtivas + valorVeiculos + segurosAApropriar; 
+  }, [contasMovimento, transacoesV2, getValorFipeTotal, calculateBalanceUpToDate, getSegurosAApropriar]); 
+
+  const getPassivosTotal = useCallback((targetDate?: Date) => {
+    const saldoDevedor = getSaldoDevedor(targetDate);
+    const segurosAPagar = getSegurosAPagar(targetDate); 
     
-    // 3. Filtra bills excluídas permanentemente (apenas ad-hoc)
-    finalBillsTracker = finalBillsTracker.filter(b => 
-        !(b.sourceType === 'ad_hoc' && b.isExcluded)
-    );
+    return saldoDevedor + segurosAPagar; 
+  }, [getSaldoDevedor, getSegurosAPagar]); 
+
+  const getPatrimonioLiquido = useCallback((targetDate?: Date) => {
+    return getAtivosTotal(targetDate) - getPassivosTotal(targetDate);
+  }, [getAtivosTotal, getPassivosTotal]);
+
+  // ============================================
+  // EXPORTAÇÃO E IMPORTAÇÃO
+  // ============================================
+
+  const exportData = () => {
+    const data: FinanceExportV2 = {
+      schemaVersion: "2.0",
+      exportedAt: new Date().toISOString(),
+      data: {
+        accounts: contasMovimento,
+        categories: categoriasV2,
+        transactions: transacoesV2,
+        transferGroups: [],
+        importedStatements: importedStatements, // EXPORTANDO NOVO ESTADO
+      }
+    };
+
+    (data.data as any).emprestimos = emprestimos;
+    (data.data as any).veiculos = veiculos;
+    (data.data as any).segurosVeiculo = segurosVeiculo;
+    (data.data as any).objetivos = objetivos;
+    (data.data as any).billsTracker = billsTracker;
+    (data.data as any).standardizationRules = standardizationRules;
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `finance_backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importData = async (file: File): Promise<{ success: boolean; message: string }> => {
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+
+      if (data.schemaVersion === '2.0' && data.data) {
+        if (data.data.accounts) {
+            setContasMovimento(data.data.accounts);
+        }
+        if (data.data.categories) setCategoriasV2(data.data.categories);
+        if (data.data.transactions) setTransacoesV2(data.data.transactions);
+        
+        if (data.data.emprestimos) setEmprestimos(data.data.emprestimos);
+        if (data.data.veiculos) setVeiculos(data.data.veiculos);
+        if (data.data.segurosVeiculo) setSegurosVeiculo(data.data.segurosVeiculo);
+        if (data.data.objetivos) setObjetivos(data.data.objetivos);
+        if (data.data.billsTracker) setBillsTracker(data.data.billsTracker);
+        if (data.data.standardizationRules) setStandardizationRules(data.data.standardizationRules);
+        if (data.data.importedStatements) setImportedStatements(data.data.importedStatements); // IMPORTANDO NOVO ESTADO
+        
+        return { success: true, message: "Dados V2 importados com sucesso!" };
+      } else {
+        return { success: false, message: "Erro ao importar dados. Versão do schema incompatível." };
+      }
+    } catch (error) {
+      return { success: false, message: "Erro ao importar dados. Verifique o formato do arquivo." };
+    }
+  };
+
+  // ============================================
+  // VALOR DO CONTEXTO
+  // ============================================
+
+  const value: FinanceContextType = {
+    emprestimos,
+    addEmprestimo,
+    updateEmprestimo,
+    deleteEmprestimo,
+    getPendingLoans,
+    markLoanParcelPaid,
+    unmarkLoanParcelPaid,
+    calculateLoanSchedule, 
+    calculateLoanAmortizationAndInterest, 
+    calculateLoanPrincipalDueInNextMonths, 
+    veiculos,
+    addVeiculo,
+    updateVeiculo,
+    deleteVeiculo,
+    getPendingVehicles,
+    segurosVeiculo,
+    addSeguroVeiculo,
+    updateSeguroVeiculo,
+    deleteSeguroVeiculo,
+    markSeguroParcelPaid,
+    unmarkSeguroParcelPaid,
+    objetivos,
+    addObjetivo,
+    updateObjetivo,
+    deleteObjetivo,
     
-    // 4. Persiste o billsTracker atualizado
-    setBillsTracker(finalBillsTracker);
+    billsTracker,
+    setBillsTracker,
+    addBill,
+    updateBill,
+    deleteBill,
+    getBillsForMonth, // RENOMEADO
     
-    // 5. Remove transações estornadas do contexto global
-    setTransacoesV2(prev => prev.filter(t => !transactionsToRemove.includes(t.id)));
+    contasMovimento,
+    setContasMovimento,
+    getContasCorrentesTipo,
+    categoriasV2,
+    setCategoriasV2,
+    transacoesV2,
+    setTransacoesV2,
+    addTransacaoV2,
     
-    // 6. Adiciona novas transações ao contexto
-    newTransactions.forEach(t => addTransacaoV2(t));
+    standardizationRules,
+    addStandardizationRule,
+    deleteStandardizationRule,
     
-    onOpenChange(false);
-    toast.success("Contas pagas e alterações salvas!");
+    // Imported Statements (Fase 1)
+    importedStatements,
+    processStatementFile,
+    deleteImportedStatement,
+    getTransactionsForReview,
+    updateImportedStatement,
+    
+    dateRanges,
+    setDateRanges,
+    
+    alertStartDate,
+    setAlertStartDate,
+    
+    monthlyRevenueForecast,
+    setMonthlyRevenueForecast,
+    getRevenueForPreviousMonth,
+    
+    getTotalReceitas,
+    getTotalDespesas,
+    getTotalDividas,
+    getCustoVeiculos,
+    getSaldoAtual,
+    getValorFipeTotal,
+    getSaldoDevedor,
+    getLoanPrincipalRemaining, 
+    getCreditCardDebt, 
+    getJurosTotais,
+    getDespesasFixas,
+    getPatrimonioLiquido,
+    getAtivosTotal,
+    getPassivosTotal,
+    getSegurosAApropriar, 
+    getSegurosAPagar, 
+    calculateBalanceUpToDate, 
+    calculateTotalInvestmentBalanceAtDate,
+    calculatePaidInstallmentsUpToDate,
+    exportData,
+    importData,
+    
+    // Placeholders para V1 removidos (mantidos para evitar erros de tipagem)
+    investimentosRF: [],
+    criptomoedas: [],
+    stablecoins: [],
+    movimentacoesInvestimento: [],
+    addInvestimentoRF: () => { console.warn("Função V1 removida"); },
+    updateInvestimentoRF: () => { console.warn("Função V1 removida"); },
+    deleteInvestimentoRF: () => { console.warn("Função V1 removida"); },
+    addCriptomoeda: () => { console.warn("Função V1 removida"); },
+    updateCriptomoeda: () => { console.warn("Função V1 removida"); },
+    deleteCriptomoeda: () => { console.warn("Função V1 removida"); },
+    addStablecoin: () => { console.warn("Função V1 removida"); },
+    updateStablecoin: () => { console.warn("Função V1 removida"); },
+    deleteStablecoin: () => { console.warn("Função V1 removida"); },
+    addMovimentacaoInvestimento: () => { console.warn("Função V1 removida"); },
+    updateMovimentacaoInvestimento: () => { console.warn("Função V1 removida"); },
+    deleteMovimentacaoInvestimento: () => { console.warn("Função V1 removida"); },
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <ResizableDialogContent 
-        storageKey="bills_tracker_modal"
-        initialWidth={1000}
-        initialHeight={700}
-        minWidth={700}
-        minHeight={500}
-        hideCloseButton={true} 
-      >
-        
-        {/* Header Principal - Ultra Compacto */}
-        <DialogHeader className="border-b pb-2 pt-3 px-4 shrink-0">
-          <div className="flex items-center justify-between">
-            <DialogTitle className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-              <Calendar className="w-4 h-4 text-primary" />
-              Contas a Pagar - {format(referenceDate, 'MMMM/yyyy')}
-            </DialogTitle>
-            
-            <div className="flex items-center gap-3 text-sm">
-              {/* Botão de Menu (Apenas em telas pequenas) */}
-              <Drawer>
-                <DrawerTrigger asChild className="lg:hidden">
-                  <Button variant="outline" size="sm" className="gap-1 h-8 text-xs">
-                    <Menu className="w-4 h-4" />
-                    Contexto
-                  </Button>
-                </DrawerTrigger>
-                <DrawerContent>
-                  <div className="mx-auto w-full max-w-md">
-                    <BillsContextSidebar
-                      localRevenueForecast={localRevenueForecast}
-                      setLocalRevenueForecast={setLocalRevenueForecast}
-                      previousMonthRevenue={previousMonthRevenue}
-                      totalExpectedExpense={totalExpectedExpense}
-                      totalPaid={totalPaid}
-                      pendingCount={pendingCount}
-                      netForecast={netForecast}
-                      isMobile={true}
-                      onSaveAndClose={handleSaveAndClose}
-                      onRefreshList={handleRefreshList} 
-                    />
-                  </div>
-                </DrawerContent>
-              </Drawer>
-              
-              {/* Contagem de Status (Visível em todas as telas) */}
-              <div className="hidden sm:flex items-center gap-3">
-                <div className="flex items-center gap-1 text-destructive">
-                  <Clock className="w-3 h-3" />
-                  <span className="text-xs">{pendingCount} Pendentes</span>
-                </div>
-                <div className="flex items-center gap-1 text-success">
-                  <CheckCircle2 className="w-3 h-3" />
-                  <span className="text-xs">{paidCount} Pagas</span>
-                </div>
-              </div>
-              
-              {/* Botão de fechar (Visível em todas as telas) */}
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-8 w-8"
-                onClick={handleSaveAndClose}
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        </DialogHeader>
-        
-        {/* Conteúdo Principal (2 Colunas) */}
-        <div className="flex flex-1 overflow-hidden">
-          
-          {/* Coluna 1: Sidebar de Contexto (Fixo em telas grandes) */}
-          <ResizableSidebar
-            initialWidth={240}
-            minWidth={200}
-            maxWidth={350}
-            storageKey="bills_sidebar_width"
-          >
-            <BillsContextSidebar
-              localRevenueForecast={localRevenueForecast}
-              setLocalRevenueForecast={setLocalRevenueForecast}
-              previousMonthRevenue={previousMonthRevenue}
-              totalExpectedExpense={totalExpectedExpense}
-              totalPaid={totalPaid}
-              pendingCount={pendingCount}
-              netForecast={netForecast}
-              onSaveAndClose={handleSaveAndClose}
-              onRefreshList={handleRefreshList} 
-            />
-          </ResizableSidebar>
-
-          {/* Coluna 2: Lista de Transações (Ocupa o espaço restante) */}
-          <div className="flex-1 overflow-y-auto px-4 pt-2 pb-2">
-            <BillsTrackerList
-              bills={localBills} // Usa o estado local
-              onUpdateBill={handleUpdateBillLocal}
-              onDeleteBill={handleDeleteBillLocal}
-              onAddBill={handleAddBillAndRefresh} // Passa o novo handler
-              onTogglePaid={handleTogglePaidLocal} // Novo handler
-              currentDate={referenceDate}
-            />
-          </div>
-        </div>
-      </ResizableDialogContent>
-    </Dialog>
+    <FinanceContext.Provider value={value}>
+      {children}
+    </FinanceContext.Provider>
   );
+}
+
+export function useFinance() {
+  const context = useContext(FinanceContext);
+  if (context === undefined) {
+    throw new Error("useFinance deve ser usado dentro de um FinanceProvider");
+  }
+  return context;
 }
