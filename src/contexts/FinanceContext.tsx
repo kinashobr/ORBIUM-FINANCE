@@ -301,7 +301,7 @@ interface FinanceContextType {
   setBillsTracker: Dispatch<SetStateAction<BillTracker[]>>;
   updateBill: (id: string, updates: Partial<BillTracker>) => void;
   deleteBill: (id: string) => void;
-  getBillsForMonth: (date: Date) => BillTracker[]; // REMOVIDO includeTemplates
+  getBillsForMonth: (date: Date) => BillTracker[]; // RENOMEADO
   getPotentialFixedBillsForMonth: (date: Date, localBills: BillTracker[]) => PotentialFixedBill[]; // NEW
   
   // Contas Movimento (new integrated system)
@@ -785,7 +785,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         const segurosAPagar = Math.max(0, seguro.valorTotal - totalPaid);
         
         return acc + Math.round(segurosAPagar * 100) / 100;
-    }, 0);
+    }, [segurosVeiculo, transacoesV2]);
   }, [segurosVeiculo, transacoesV2]);
 
   // ============================================
@@ -968,26 +968,18 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   // SIMPLIFICADO: Retorna apenas contas persistidas (ad-hoc ou modificações salvas)
   const getBillsForMonth = useCallback((date: Date): BillTracker[] => {
-    const monthYear = format(date, 'yyyy-MM');
     
-    // 1. Filtra todas as contas persistidas (ad-hoc ou modificações de templates)
+    // Retorna apenas as contas que pertencem ao mês de referência
     const filteredBills = billsTracker.filter(bill => {
         const billDate = parseDateLocal(bill.dueDate);
-        
-        // Apenas contas do mês de referência
-        if (!isSameMonth(billDate, date)) {
-            return false;
-        }
-        
-        // Inclui todas as contas ad-hoc e todas as contas que foram salvas (modificadas ou pagas)
-        return true;
+        return isSameMonth(billDate, date);
     });
     
-    // 2. Remove contas que foram explicitamente excluídas (isExcluded)
+    // Remove contas que foram explicitamente excluídas (isExcluded)
     // Nota: Mantemos as contas pagas, mesmo que excluídas, para fins de histórico no modal.
     const finalBills = filteredBills.filter(b => !b.isExcluded || b.isPaid);
     
-    // 3. Ordena
+    // Ordena
     return finalBills.sort((a, b) => parseDateLocal(a.dueDate).getTime() - parseDateLocal(b.dueDate).getTime());
   }, [billsTracker]);
   

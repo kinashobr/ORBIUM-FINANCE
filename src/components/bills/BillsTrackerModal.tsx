@@ -60,6 +60,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   useEffect(() => {
     if (!open) return;
     
+    // 1. Carrega APENAS as contas persistidas (ad-hoc ou fixas que já foram salvas)
     const persistedBills = getBillsForMonth(referenceDate);
     
     setLocalBills(persistedBills);
@@ -71,6 +72,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
 
   // Calcula as parcelas fixas potenciais (Empréstimos/Seguros)
   const potentialFixedBills = useMemo(() => {
+    // Passa localBills para que o seletor saiba quais já estão incluídas
     return getPotentialFixedBillsForMonth(referenceDate, localBills);
   }, [getPotentialFixedBillsForMonth, referenceDate, localBills]);
 
@@ -142,6 +144,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         }
         
         if (existingBill && existingBill.isExcluded) {
+            // Se já existe e estava excluída, reativa
             setLocalBills(prev => prev.map(b => 
                 b.id === existingBill.id ? { ...b, isExcluded: false } : b
             ));
@@ -150,6 +153,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         }
         
         if (!existingBill) {
+            // Cria uma nova conta (BillTracker) a partir do potencial
             const newBill: BillTracker = {
                 id: generateBillId(),
                 description: potentialBill.description,
@@ -193,6 +197,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     const newTransactions: TransacaoCompleta[] = [];
     const transactionsToRemove: string[] = [];
     
+    // Filtra todas as contas que NÃO são do mês atual
     let finalBillsTracker: BillTracker[] = billsTracker.filter(b => {
         const billDate = parseDateLocal(b.dueDate);
         const isCurrentMonth = isSameMonth(billDate, referenceDate);
@@ -299,6 +304,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             finalBillsTracker.push(updatedBill);
         } 
         else {
+            // Se não foi paga e não foi excluída, ou se foi paga e não mudou, mantém
             if (!localVersion.isExcluded) {
                 finalBillsTracker.push(localVersion);
             }
