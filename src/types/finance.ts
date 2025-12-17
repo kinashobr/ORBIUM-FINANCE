@@ -302,16 +302,29 @@ export interface ImportedStatement {
   rawTransactions: ImportedTransaction[]; // Transações brutas do arquivo
 }
 
-// Schema de Exportação V2 (Simplificado)
+// Schema de Exportação V2 (Completo e Explícito)
 export interface FinanceExportV2 {
   schemaVersion: '2.0';
   exportedAt: string;
   data: {
+    // Core Data
     accounts: ContaCorrente[];
     categories: Categoria[];
     transactions: TransacaoCompleta[];
     transferGroups: TransferGroup[];
-    importedStatements: ImportedStatement[]; // ADICIONADO
+    
+    // V2 Entities
+    emprestimos: Emprestimo[];
+    veiculos: Veiculo[];
+    segurosVeiculo: SeguroVeiculo[];
+    objetivos: ObjetivoFinanceiro[];
+    billsTracker: BillTracker[];
+    standardizationRules: StandardizationRule[];
+    importedStatements: ImportedStatement[];
+    
+    // Configuration/Context States
+    monthlyRevenueForecast: number;
+    alertStartDate: string;
   };
 }
 

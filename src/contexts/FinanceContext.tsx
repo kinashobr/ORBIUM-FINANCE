@@ -1475,20 +1475,26 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       schemaVersion: "2.0",
       exportedAt: new Date().toISOString(),
       data: {
+        // Core Data
         accounts: contasMovimento,
         categories: categoriasV2,
         transactions: transacoesV2,
         transferGroups: [],
-        importedStatements: importedStatements, // EXPORTANDO NOVO ESTADO
+        
+        // V2 Entities
+        emprestimos,
+        veiculos,
+        segurosVeiculo,
+        objetivos,
+        billsTracker,
+        standardizationRules,
+        importedStatements,
+        
+        // Configuration/Context States
+        monthlyRevenueForecast,
+        alertStartDate,
       }
     };
-
-    (data.data as any).emprestimos = emprestimos;
-    (data.data as any).veiculos = veiculos;
-    (data.data as any).segurosVeiculo = segurosVeiculo;
-    (data.data as any).objetivos = objetivos;
-    (data.data as any).billsTracker = billsTracker;
-    (data.data as any).standardizationRules = standardizationRules;
 
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -1517,7 +1523,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (data.data.objetivos) setObjetivos(data.data.objetivos);
         if (data.data.billsTracker) setBillsTracker(data.data.billsTracker);
         if (data.data.standardizationRules) setStandardizationRules(data.data.standardizationRules);
-        if (data.data.importedStatements) setImportedStatements(data.data.importedStatements); // IMPORTANDO NOVO ESTADO
+        if (data.data.importedStatements) setImportedStatements(data.data.importedStatements);
+        
+        // NEW CONFIGURATION STATES
+        if (data.data.monthlyRevenueForecast !== undefined) setMonthlyRevenueForecast(data.data.monthlyRevenueForecast);
+        if (data.data.alertStartDate) setAlertStartDate(data.data.alertStartDate);
         
         return { success: true, message: "Dados V2 importados com sucesso!" };
       } else {
