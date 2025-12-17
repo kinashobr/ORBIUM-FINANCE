@@ -14,6 +14,7 @@ import { parseDateLocal, cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
+import { ResizableDialogContent } from "../ui/ResizableDialogContent"; // ADDED
 
 // Interface simplificada para Empréstimo (agora passada via props)
 interface LoanInfo {
@@ -177,9 +178,11 @@ export function StatementManagerDialog({ open, onOpenChange, account, investment
             {loading ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
             ) : (
-              <Check className="w-4 h-4 mr-2" />
+              <>
+                <Check className="w-4 h-4 mr-2" />
+                Carregar Extrato
+              </>
             )}
-            {loading ? "Processando..." : "Carregar Extrato"}
           </Button>
         </div>
         
@@ -260,8 +263,16 @@ export function StatementManagerDialog({ open, onOpenChange, account, investment
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[95vh] overflow-hidden flex flex-col p-0">
-        <DialogHeader className="shrink-0 px-6 pt-6 pb-4 border-b">
+      <ResizableDialogContent 
+        storageKey="statement_manager_modal"
+        initialWidth={800}
+        initialHeight={600}
+        minWidth={600}
+        minHeight={500}
+        hideCloseButton={true}
+        className="bg-card border-border overflow-hidden flex flex-col"
+      >
+        <DialogHeader className="shrink-0 px-6 pt-6 pb-4 border-b dialog-header-drag-area">
           <DialogTitle className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-primary" />
             Gerenciar Extratos - {account.name}
@@ -274,7 +285,7 @@ export function StatementManagerDialog({ open, onOpenChange, account, investment
         <div className="flex-1 overflow-y-auto px-6 pb-6 pr-7">
             {renderContent()}
         </div>
-      </DialogContent>
+      </ResizableDialogContent>
     </Dialog>
   );
 }

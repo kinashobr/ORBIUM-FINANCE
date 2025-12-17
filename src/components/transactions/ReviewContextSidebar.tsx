@@ -9,7 +9,7 @@ import { PeriodSelector } from "../dashboard/PeriodSelector";
 import { DateRange, ComparisonDateRanges, ImportedStatement, formatCurrency } from "@/types/finance";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { ScrollArea } from "@/components/ui/scroll-area"; // ADDED IMPORT
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ReviewContextSidebarProps {
   accountId: string;
@@ -116,7 +116,7 @@ export function ReviewContextSidebar({
               className="w-full h-8 gap-2 text-xs"
               onClick={onManageRules}
             >
-              <Pin className="w-4 h-4" />
+              <Settings className="w-4 h-4" />
               Gerenciar Regras
             </Button>
             <div className="text-xs text-muted-foreground pt-1">

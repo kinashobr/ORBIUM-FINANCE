@@ -868,7 +868,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             const isSameAmount = Math.abs(manualTx.amount - importedTx.amount) < 0.01; // Tolerância de 1 centavo
             
             // Determinar o fluxo da transação importada (baseado no operationType)
-            const importedFlow = getFlowTypeFromOperation(importedTx.operationType || 'despesa');
+            const importedFlow = getFlowTypeFromOperation(importedTx.operationType || 'despesa', importedTx.tempVehicleOperation || undefined);
             
             // Comparar fluxos (simplificado: in/out)
             const isSameFlow = (manualTx.flow === 'in' || manualTx.flow === 'transfer_in') === (importedFlow === 'in' || importedFlow === 'transfer_in');

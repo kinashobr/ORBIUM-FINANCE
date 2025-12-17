@@ -14,11 +14,11 @@ import { toast } from "sonner";
 import { parseDateLocal, cn } from "@/lib/utils";
 import { TransactionReviewTable } from "./TransactionReviewTable";
 import { StandardizationRuleFormModal } from "./StandardizationRuleFormModal";
-import { ReviewContextSidebar } from "./ReviewContextSidebar"; // NEW IMPORT
-import { StandardizationRuleManagerModal } from "./StandardizationRuleManagerModal"; // NEW IMPORT
-import { ResizableSidebar } from "./ResizableSidebar"; // NEW IMPORT
+import { ReviewContextSidebar } from "./ReviewContextSidebar";
+import { StandardizationRuleManagerModal } from "./StandardizationRuleManagerModal";
+import { ResizableSidebar } from "./ResizableSidebar";
 import { startOfMonth, endOfMonth, format, subDays, startOfDay, endOfDay } from "date-fns";
-import { ResizableDialogContent } from "../ui/ResizableDialogContent"; // NEW IMPORT
+import { ResizableDialogContent } from "../ui/ResizableDialogContent";
 
 // Interface simplificada para Empréstimo
 interface LoanInfo {
@@ -56,7 +56,7 @@ export function ConsolidatedReviewDialog({
     getTransactionsForReview,
     standardizationRules,
     addStandardizationRule,
-    deleteStandardizationRule, // ADDED
+    deleteStandardizationRule,
     addTransacaoV2,
     updateImportedStatement,
     importedStatements,
@@ -149,7 +149,7 @@ export function ConsolidatedReviewDialog({
       if (tx.isPotentialDuplicate) return false; 
       
       // Verifica se a transação está pronta para ser contabilizada
-      const isCategorized = tx.categoryId || tx.isTransfer || tx.tempInvestmentId || tx.tempLoanId || tx.tempVehicleOperation;
+      const isCategorized = tx.categoryId || tx.isTransfer || tx.tempInvestmentId || tx.tempLoanId || tx.tempVehicleOperation || tx.operationType === 'liberacao_emprestimo';
       return !!isCategorized;
     });
     
@@ -160,7 +160,6 @@ export function ConsolidatedReviewDialog({
     
     setLoading(true);
     const newTransactions: TransacaoCompleta[] = [];
-    const contabilizedIds = new Set<string>();
     const updatedStatements = new Map<string, ImportedStatement>();
     
     // Mapeamento de IDs de transações brutas para seus extratos
@@ -175,10 +174,6 @@ export function ConsolidatedReviewDialog({
       
       const account = accounts.find(a => a.id === tx.accountId);
       const isCreditCard = account?.accountType === 'cartao_credito';
-      
-      const isIncoming = tx.operationType === 'receita' || tx.operationType === 'resgate' ||
-                         tx.operationType === 'liberacao_emprestimo' || tx.operationType === 'rendimento' ||
-                         (tx.operationType === 'veiculo' && tx.tempVehicleOperation === 'venda');
       
       let flow = getFlowTypeFromOperation(tx.operationType!, tx.tempVehicleOperation || undefined);
       
@@ -321,8 +316,6 @@ export function ConsolidatedReviewDialog({
         newTransactions.push(baseTx);
       }
       
-      contabilizedIds.add(tx.id);
-      
       // 5. Atualizar status dos statements
       const statementId = txToStatementMap.get(tx.id);
       if (statementId) {
@@ -370,7 +363,7 @@ export function ConsolidatedReviewDialog({
   };
   
   const pendingCount = transactionsToReview.filter(tx => {
-    const isCategorized = tx.categoryId || tx.isTransfer || tx.tempInvestmentId || tx.tempLoanId || tx.tempVehicleOperation;
+    const isCategorized = tx.categoryId || tx.isTransfer || tx.tempInvestmentId || tx.tempLoanId || tx.tempVehicleOperation || tx.operationType === 'liberacao_emprestimo';
     return !isCategorized && !tx.isPotentialDuplicate; // Excluir duplicatas da contagem de pendentes
   }).length;
   
@@ -414,7 +407,7 @@ export function ConsolidatedReviewDialog({
             </div>
           </DialogHeader>
 
-          <div className="flex flex-1 overflow-y-auto"> {/* CORREÇÃO 1: A rolagem vertical é gerenciada por este container */}
+          <div className="flex flex-1 overflow-y-auto">
             
             {/* Coluna Lateral (Controle e Status) - AGORA REDIMENSIONÁVEL */}
             <ResizableSidebar
@@ -438,7 +431,7 @@ export function ConsolidatedReviewDialog({
             </ResizableSidebar>
 
             {/* Coluna Principal (Tabela de Revisão) */}
-            <div className="flex-1 px-4 pt-2 pb-2"> {/* CORREÇÃO 2: Removido overflow-y-auto daqui */}
+            <div className="flex-1 px-4 pt-2 pb-2">
               <h3 className="text-sm font-semibold text-foreground mb-3">
                 Transações Pendentes no Período ({format(reviewRange.from || new Date(), 'dd/MM/yy')} - {format(reviewRange.to || new Date(), 'dd/MM/yy')})
               </h3>
