@@ -1,134 +1,97 @@
-import { useMemo, useState } from "react";
-import { Card } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
+import { useMemo } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
-import { ArrowRight, Calendar, Check, Clock, DollarSign, Repeat, Shield, TrendingDown } from "lucide-react";
-import { PotentialFixedBill, BillSourceType, formatCurrency, BillTracker } from "@/types/finance";
-import { cn } from "@/lib/utils";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { DollarSign, Shield, CheckCircle2, Clock, ListChecks } from "lucide-react";
+import { PotentialFixedBill, BillTracker, formatCurrency } from "@/types/finance";
+import { cn, parseDateLocal } from "@/lib/utils";
 import { format } from "date-fns";
-import { FutureInstallmentSelectorModal } from "./FutureInstallmentSelectorModal"; // Import NEW component
 
 interface FixedInstallmentSelectorProps {
   potentialBills: PotentialFixedBill[];
-  onToggleInstallment: (bill: PotentialFixedBill, isChecked: boolean) => void;
   localBills: BillTracker[];
-  referenceDate: Date; // Adicionando referenceDate
+  onToggleInstallment: (potentialBill: PotentialFixedBill, isChecked: boolean) => void;
+  referenceDate: Date;
+  onOpenAllInstallments: () => void; // NEW PROP
 }
-
-const SOURCE_CONFIG: Record<BillSourceType, { icon: React.ElementType; color: string; label: string }> = {
-  loan_installment: { icon: DollarSign, color: 'text-orange-500', label: 'Empréstimo' },
-  insurance_installment: { icon: Shield, color: 'text-blue-500', label: 'Seguro' },
-  fixed_expense: { icon: Repeat, color: 'text-purple-500', label: 'Fixa' },
-  variable_expense: { icon: TrendingDown, color: 'text-warning', label: 'Variável' },
-  ad_hoc: { icon: Calendar, color: 'text-primary', label: 'Avulsa' },
-};
 
 export function FixedInstallmentSelector({
   potentialBills,
-  onToggleInstallment,
   localBills,
-  referenceDate, // Recebendo referenceDate
+  onToggleInstallment,
+  referenceDate,
+  onOpenAllInstallments,
 }: FixedInstallmentSelectorProps) {
   
-  const [showFutureModal, setShowFutureModal] = useState(false);
-
-  const pendingBills = useMemo(() => 
-    potentialBills.filter(b => !b.isPaid),
-    [potentialBills]
-  );
+  // Filter bills for the current month that are not paid and not excluded
+  const currentMonthPendingFixedBills = useMemo(() => {
+    return potentialBills.filter(bill => !bill.isPaid);
+  }, [potentialBills]);
   
-  const totalPendingAmount = useMemo(() => 
-    pendingBills.filter(b => !b.isIncluded).reduce((acc, b) => acc + b.expectedAmount, 0),
-    [pendingBills]
-  );
-  
-  const totalIncludedAmount = useMemo(() => 
-    pendingBills.filter(b => b.isIncluded).reduce((acc, b) => acc + b.expectedAmount, 0),
-    [pendingBills]
-  );
-
-  const handleIncludeFutureBills = (bills: PotentialFixedBill[]) => {
-    bills.forEach(bill => {
-        // Simula o toggle para incluir a conta na lista principal (localBills)
-        onToggleInstallment(bill, true);
-    });
-  };
+  const totalFixed = currentMonthPendingFixedBills.reduce((acc, b) => b.isIncluded ? acc + b.expectedAmount : acc, 0);
+  const includedCount = currentMonthPendingFixedBills.filter(b => b.isIncluded).length;
 
   return (
-    <Card className="p-3 space-y-3 glass-card shrink-0">
-      <div className="flex items-center justify-between">
-        <Label className="text-sm font-semibold text-foreground flex items-center gap-1">
-          <Clock className="w-4 h-4 text-destructive" />
-          Parcelas Fixas do Mês ({pendingBills.length})
-        </Label>
-        
+    <Card className="glass-card p-3 space-y-3">
+      <CardHeader className="p-0 pb-2 border-b border-border flex flex-row items-center justify-between">
+        <CardTitle className="text-sm font-semibold flex items-center gap-1">
+          <ListChecks className="w-4 h-4 text-primary" />
+          Parcelas Fixas do Mês ({includedCount}/{currentMonthPendingFixedBills.length})
+        </CardTitle>
         <Button 
             variant="outline" 
             size="sm" 
             className="h-7 text-xs px-2 gap-1"
-            onClick={() => setShowFutureModal(true)}
+            onClick={onOpenAllInstallments} // NEW ACTION
         >
-            <Calendar className="w-3 h-3" />
-            Adiantar Parcelas
+            <ListChecks className="w-3 h-3" />
+            Todas Parcelas
         </Button>
-      </div>
-
-      <div className="border rounded-md overflow-hidden">
-        <Table>
-          <TableBody>
-            {pendingBills.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={3} className="text-center text-muted-foreground py-4 text-xs">
-                  <Check className="w-4 h-4 mx-auto mb-1 text-success" />
-                  Nenhuma parcela fixa pendente neste mês.
-                </TableCell>
-              </TableRow>
-            ) : (
-              pendingBills.map((bill) => {
-                const config = SOURCE_CONFIG[bill.sourceType] || SOURCE_CONFIG.ad_hoc;
-                const Icon = config.icon;
-                
-                return (
-                  <TableRow key={bill.key} className={cn("h-10", bill.isIncluded && "bg-primary/5 hover:bg-primary/10")}>
-                    <TableCell className="w-[40px] text-center p-2">
-                      <Checkbox
-                        checked={bill.isIncluded}
-                        onCheckedChange={(checked) => onToggleInstallment(bill, checked as boolean)}
-                        className={cn("w-4 h-4", bill.isIncluded && "border-primary data-[state=checked]:bg-primary")}
-                      />
-                    </TableCell>
-                    <TableCell className="text-xs p-2">
-                      <div className="flex items-center gap-1">
-                        <Icon className={cn("w-3 h-3", config.color)} />
-                        <span className="font-medium">{bill.description}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="w-[100px] text-right font-semibold text-xs p-2">
-                      {formatCurrency(bill.expectedAmount)}
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      </CardHeader>
       
-      <div className="flex justify-between text-xs text-muted-foreground pt-1">
-        <span>Incluídas: <span className="font-semibold text-primary">{formatCurrency(totalIncludedAmount)}</span></span>
-        <span>Pendentes: <span className="font-semibold text-destructive">{formatCurrency(totalPendingAmount)}</span></span>
-      </div>
-      
-      {/* Modal de Adiantamento */}
-      <FutureInstallmentSelectorModal
-        open={showFutureModal}
-        onOpenChange={setShowFutureModal}
-        localBills={localBills}
-        onIncludeBills={handleIncludeFutureBills}
-        referenceDate={referenceDate} // PASSANDO referenceDate
-      />
+      <CardContent className="p-0 space-y-2">
+        {currentMonthPendingFixedBills.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-2">
+            Nenhuma parcela fixa (Empréstimo/Seguro) vence neste mês.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {currentMonthPendingFixedBills.map((bill) => {
+              const Icon = bill.sourceType === 'loan_installment' ? DollarSign : Shield;
+              
+              return (
+                <div key={bill.key} className="flex items-center justify-between text-sm p-2 rounded-md hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id={bill.key}
+                      checked={bill.isIncluded}
+                      onCheckedChange={(checked) => onToggleInstallment(bill, checked as boolean)}
+                      className={cn("w-4 h-4", bill.isIncluded && "border-primary data-[state=checked]:bg-primary")}
+                    />
+                    <Label htmlFor={bill.key} className="text-xs font-medium flex items-center gap-1 cursor-pointer">
+                      <Icon className="w-3 h-3 text-muted-foreground" />
+                      {bill.description}
+                    </Label>
+                  </div>
+                  <div className="text-xs text-right">
+                    <span className="font-semibold">{formatCurrency(bill.expectedAmount)}</span>
+                    <span className="text-muted-foreground ml-1">({format(parseDateLocal(bill.dueDate), 'dd/MM')})</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        
+        <Separator />
+        
+        <div className="flex justify-between items-center pt-1">
+          <span className="text-sm font-medium text-muted-foreground">Total Incluído:</span>
+          <span className="text-sm font-bold text-destructive">{formatCurrency(totalFixed)}</span>
+        </div>
+      </CardContent>
     </Card>
   );
 }

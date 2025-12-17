@@ -15,7 +15,7 @@ import { ResizableSidebar } from "../transactions/ResizableSidebar";
 import { ResizableDialogContent } from "../ui/ResizableDialogContent";
 import { parseDateLocal } from "@/lib/utils";
 import { isSameMonth } from "date-fns";
-import { FutureInstallmentSelectorModal } from "./FutureInstallmentSelectorModal"; // Import NEW component
+import { AllInstallmentsReviewModal } from "./AllInstallmentsReviewModal"; // IMPORT NEW component
 
 interface BillsTrackerModalProps {
   open: boolean;
@@ -57,6 +57,9 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   }, [getRevenueForPreviousMonth, referenceDate]);
   
   const [localRevenueForecast, setLocalRevenueForecast] = useState(monthlyRevenueForecast || previousMonthRevenue);
+  
+  // NEW STATE for the All Installments Review Modal
+  const [showAllInstallmentsModal, setShowAllInstallmentsModal] = useState(false);
   
   useEffect(() => {
     if (!open) return;
@@ -189,13 +192,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         }
     }
   }, [localBills, contasMovimento, categoriasV2]);
-
-  const handleIncludeFutureBills = useCallback((bills: PotentialFixedBill[]) => {
-    bills.forEach(bill => {
-        // Reutiliza a lógica de toggle para incluir a conta na lista principal (localBills)
-        handleToggleFixedBill(bill, true);
-    });
-  }, [handleToggleFixedBill]);
 
   const handleSaveAndClose = () => {
     setMonthlyRevenueForecast(localRevenueForecast);
@@ -422,7 +418,8 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                 potentialBills={potentialFixedBills}
                 onToggleInstallment={handleToggleFixedBill}
                 localBills={localBills}
-                referenceDate={referenceDate} // PASSANDO referenceDate
+                referenceDate={referenceDate}
+                onOpenAllInstallments={() => setShowAllInstallmentsModal(true)} // NEW HANDLER
             />
             
             <BillsTrackerList
@@ -435,6 +432,16 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             />
           </div>
         </div>
+        
+        {/* All Installments Review Modal (Replaces FutureInstallmentSelectorModal) */}
+        <AllInstallmentsReviewModal
+            open={showAllInstallmentsModal}
+            onOpenChange={setShowAllInstallmentsModal}
+            referenceDate={referenceDate}
+            localBills={localBills}
+            onToggleInstallment={handleToggleFixedBill}
+        />
+        
       </ResizableDialogContent>
     </Dialog>
   );
