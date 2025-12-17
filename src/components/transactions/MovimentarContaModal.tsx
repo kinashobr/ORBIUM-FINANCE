@@ -40,6 +40,9 @@ interface MovimentarContaModalProps {
   editingTransaction?: TransacaoCompleta;
 }
 
+// Tipo auxiliar para o mapeamento de categorias (MOVIDO PARA FORA DO COMPONENTE)
+type CategoryOption = Categoria & { value: string; iconComponent: string | React.ReactNode };
+
 // --- Helper Functions for Styling and Formatting ---
 
 const OPERATION_COLOR_MAP = {
@@ -227,9 +230,8 @@ export function MovimentarContaModal({
     return loan.parcelas.filter(p => !p.paga);
   }, [tempLoanId, loans]);
   
-  // Tipo auxiliar para o mapeamento de categorias
-  type CategoryOption = Categoria & { value: string; iconComponent: string | React.ReactNode };
-
+  // REMOVIDO: Tipo auxiliar CategoryOption duplicado
+  
   const categoryOptions: CategoryOption[] = useMemo(() => availableCategories.map(c => ({
       ...c,
       value: c.id,
@@ -242,12 +244,16 @@ export function MovimentarContaModal({
     return categoryOptions.filter(c => c.label.toLowerCase().includes(lowerCaseSearch));
   }, [categoryOptions, searchCategory]);
   
+  const currentCategoryOption = categoryOptions.find(c => c.value === categoryId);
+  
+  // REMOVIDO: currentBalance duplicado
   const currentBalance = useMemo(() => {
     // Placeholder for current balance, assuming the account object has a 'balance' property
     return selectedAccount?.initialBalance || 0; 
   }, [selectedAccount]);
 
   // --- Validation Logic ---
+  // REMOVIDO: validationErrors duplicado
   const validationErrors = useMemo(() => {
     const parsedAmount = parseFromBR(amount);
     
@@ -267,6 +273,7 @@ export function MovimentarContaModal({
     return errors;
   }, [amount, accountId, operationType, isCategorizable, isInsurancePayment, categoryId, isTransfer, destinationAccountId, isInvestmentFlow, tempInvestmentId, isLoanPayment, tempLoanId, tempParcelaId, isLoanLiberation, tempNumeroContrato, isVehicle, tempVehicleOperation, tempSeguroId, tempSeguroParcelaId]);
 
+  // REMOVIDO: isValid duplicado
   const isValid = useMemo(() => !Object.values(validationErrors).some(error => error), [validationErrors]);
 
   // --- Effects ---
@@ -501,9 +508,6 @@ export function MovimentarContaModal({
       color: 'text-blue-500',
   }));
   
-  // Tipo auxiliar para o mapeamento de categorias
-  type CategoryOption = Categoria & { value: string; iconComponent: string | React.ReactNode };
-
   const categoryOptions: CategoryOption[] = useMemo(() => availableCategories.map(c => ({
       ...c,
       value: c.id,
@@ -523,7 +527,6 @@ export function MovimentarContaModal({
     return selectedAccount?.initialBalance || 0; 
   }, [selectedAccount]);
 
-  // --- Validation Logic ---
   const validationErrors = useMemo(() => {
     const parsedAmount = parseFromBR(amount);
     
@@ -710,7 +713,6 @@ export function MovimentarContaModal({
                   placeholder="0,00"
                   disabled={!!isAmountAutoFilled}
                 />
-                {/* Botões de adição rápida removidos */}
               </div>
             </div>
           </div>
