@@ -5,16 +5,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { ArrowRight, Calendar, Check, X } from "lucide-react";
-import { PotentialFixedBill, formatCurrency } from "@/types/finance";
+import { PotentialFixedBill, formatCurrency, BillTracker } from "@/types/finance";
 import { useFinance } from "@/contexts/FinanceContext";
 import { format } from "date-fns";
-import { cn } from "@/lib/utils";
+import { cn, parseDateLocal } from "@/lib/utils"; // Importando parseDateLocal
 import { toast } from "sonner";
 
 interface FutureInstallmentSelectorModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  localBills: PotentialFixedBill[]; // Usamos PotentialFixedBill para simplificar a tipagem local
+  localBills: BillTracker[]; // Corrigido para BillTracker[]
   onIncludeBills: (bills: PotentialFixedBill[]) => void;
 }
 
@@ -28,7 +28,7 @@ export function FutureInstallmentSelectorModal({
   
   // Obtém todas as parcelas futuras não pagas
   const allFutureBills = useMemo(() => {
-    return getFutureFixedBills(localBills);
+    return getFutureFixedBills(localBills); // Agora localBills é BillTracker[]
   }, [getFutureFixedBills, localBills]);
 
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());

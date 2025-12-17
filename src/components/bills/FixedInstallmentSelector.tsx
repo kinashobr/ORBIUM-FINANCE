@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { ArrowRight, Calendar, Check, Clock, DollarSign, Repeat, Shield, TrendingDown } from "lucide-react";
-import { PotentialFixedBill, BillSourceType, formatCurrency } from "@/types/finance";
+import { PotentialFixedBill, BillSourceType, formatCurrency, BillTracker } from "@/types/finance";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { FutureInstallmentSelectorModal } from "./FutureInstallmentSelectorModal"; // Import NEW component
@@ -13,6 +13,7 @@ import { FutureInstallmentSelectorModal } from "./FutureInstallmentSelectorModal
 interface FixedInstallmentSelectorProps {
   potentialBills: PotentialFixedBill[];
   onToggleInstallment: (bill: PotentialFixedBill, isChecked: boolean) => void;
+  localBills: BillTracker[]; // Adicionando a prop localBills
 }
 
 const SOURCE_CONFIG: Record<BillSourceType, { icon: React.ElementType; color: string; label: string }> = {
@@ -26,6 +27,7 @@ const SOURCE_CONFIG: Record<BillSourceType, { icon: React.ElementType; color: st
 export function FixedInstallmentSelector({
   potentialBills,
   onToggleInstallment,
+  localBills, // Recebendo a prop
 }: FixedInstallmentSelectorProps) {
   
   const [showFutureModal, setShowFutureModal] = useState(false);
@@ -121,7 +123,7 @@ export function FixedInstallmentSelector({
       <FutureInstallmentSelectorModal
         open={showFutureModal}
         onOpenChange={setShowFutureModal}
-        localBills={potentialBills} // Passamos as bills do mês para que o modal saiba o que já está incluído
+        localBills={localBills} // Passando BillTracker[]
         onIncludeBills={handleIncludeFutureBills}
       />
     </Card>

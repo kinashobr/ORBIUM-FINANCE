@@ -421,6 +421,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             <FixedInstallmentSelector
                 potentialBills={potentialFixedBills}
                 onToggleInstallment={handleToggleFixedBill}
+                localBills={localBills} // Passando localBills
             />
             
             <BillsTrackerList
