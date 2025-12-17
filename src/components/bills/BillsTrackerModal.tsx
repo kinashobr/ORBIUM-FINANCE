@@ -101,19 +101,22 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   }, []);
   
   const handleTogglePaidLocal = useCallback((bill: BillTracker, isChecked: boolean) => {
+    // Usa a data atual do sistema para o pagamento
+    const today = new Date();
+    
     setLocalBills(prev => prev.map(b => {
         if (b.id === bill.id) {
             return { 
                 ...b, 
                 isPaid: isChecked,
-                // Limpa dados de pagamento se desmarcado
-                paymentDate: isChecked ? format(referenceDate, 'yyyy-MM-dd') : undefined,
+                // Usa a data atual do sistema para o pagamento
+                paymentDate: isChecked ? format(today, 'yyyy-MM-dd') : undefined,
                 transactionId: isChecked ? b.transactionId || generateTransactionId() : undefined,
             };
         }
         return b;
     }));
-  }, [referenceDate]);
+  }, []);
 
   // Lógica de Persistência (Salvar e Sair)
   const handleSaveAndClose = () => {
@@ -149,7 +152,8 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         if (isNowPaid && !wasPaid) {
             // A. MARCAR COMO PAGO (Cria Transação)
             const bill = localVersion;
-            const paymentDate = bill.paymentDate || format(referenceDate, 'yyyy-MM-dd');
+            // Usa a data de pagamento registrada no estado local (que foi definida como a data atual)
+            const paymentDate = bill.paymentDate || format(new Date(), 'yyyy-MM-dd'); 
             const transactionId = bill.transactionId || generateTransactionId();
             
             const suggestedAccount = contasMovimento.find(c => c.id === bill.suggestedAccountId);
@@ -196,7 +200,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
               meta: {
                 createdBy: 'system',
                 source: 'bill_tracker',
-                createdAt: format(referenceDate, 'yyyy-MM-dd'),
+                createdAt: format(new Date(), 'yyyy-MM-dd'),
               }
             };
             
