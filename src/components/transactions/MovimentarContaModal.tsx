@@ -138,7 +138,6 @@ const getCategoryOptions = (operationType: OperationType | null, categories: Cat
   return categories.filter(c => c.nature === 'despesa_fixa' || c.nature === 'despesa_variavel');
 };
 
-
 // --- Component Definition ---
 
 export function MovimentarContaModal({
@@ -227,11 +226,20 @@ export function MovimentarContaModal({
     return loan.parcelas.filter(p => !p.paga);
   }, [tempLoanId, loans]);
   
-  const filteredCategories = useMemo(() => {
-    if (!searchCategory) return availableCategories;
+  // Tipo auxiliar para o mapeamento de categorias
+  type CategoryOption = Categoria & { value: string; iconComponent: string | React.ReactNode };
+
+  const categoryOptions: CategoryOption[] = useMemo(() => availableCategories.map(c => ({
+      ...c,
+      value: c.id,
+      iconComponent: c.icon,
+  })), [availableCategories]);
+
+  const filteredCategories: CategoryOption[] = useMemo(() => {
+    if (!searchCategory) return categoryOptions;
     const lowerCaseSearch = searchCategory.toLowerCase();
-    return availableCategories.filter(c => c.label.toLowerCase().includes(lowerCaseSearch));
-  }, [availableCategories, searchCategory]);
+    return categoryOptions.filter(c => c.label.toLowerCase().includes(lowerCaseSearch));
+  }, [categoryOptions, searchCategory]);
   
   const currentBalance = useMemo(() => {
     // Placeholder for current balance, assuming the account object has a 'balance' property
@@ -492,13 +500,7 @@ export function MovimentarContaModal({
       color: 'text-blue-500',
   }));
   
-  const categoryOptions = availableCategories.map(c => ({
-      value: c.id,
-      label: c.label,
-      icon: Tags,
-      nature: c.nature,
-      iconComponent: c.icon,
-  }));
+  const currentCategoryOption = categoryOptions.find(c => c.value === categoryId);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -650,7 +652,7 @@ export function MovimentarContaModal({
                   onChange={(e) => handleAmountChange(e.target.value)}
                   className={cn("h-12 pl-10 text-lg font-semibold border-2 rounded-xl hover:border-primary/50 focus:border-primary focus:ring-2 focus:ring-primary/20", validationErrors.amount && "border-destructive")}
                   placeholder="0,00"
-                  disabled={isAmountAutoFilled}
+                  disabled={!!isAmountAutoFilled}
                 />
                 {!isAmountAutoFilled && (
                     <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex gap-1">
@@ -730,12 +732,12 @@ export function MovimentarContaModal({
                     disabled={isCategoryDisabled}
                   >
                     <SelectTrigger className={cn("h-12 rounded-xl border-2", validationErrors.category && "border-destructive")}>
-                      {categoryId ? (
+                      {currentCategoryOption ? (
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                            {categoryOptions.find(c => c.value === categoryId)?.iconComponent || <Tags className="w-4 h-4" />}
+                            {currentCategoryOption.iconComponent || <Tags className="w-4 h-4" />}
                           </div>
-                          <span>{categoryOptions.find(c => c.value === categoryId)?.label}</span>
+                          <span>{currentCategoryOption.label}</span>
                         </div>
                       ) : (
                         <span className="text-muted-foreground">Selecione uma categoria</span>
