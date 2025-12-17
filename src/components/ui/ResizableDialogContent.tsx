@@ -1,9 +1,9 @@
 import * as React from "react";
-import { DialogContent } from "@/components/ui/dialog";
+import { DialogContent, DialogContentProps } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { X } from "lucide-react";
 
-interface ResizableDialogContentProps extends React.ComponentPropsWithoutRef<typeof DialogContent> {
+interface ResizableDialogContentProps extends DialogContentProps {
   storageKey: string;
   initialWidth: number;
   initialHeight: number;
