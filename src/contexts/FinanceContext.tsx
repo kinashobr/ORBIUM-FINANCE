@@ -144,7 +144,7 @@ const parseCSV = (content: string, accountId: string): ImportedTransaction[] => 
     const descIndex = cols.findIndex(h => normalizeHeader(h).includes('descri'));
 
     if (dataIndex === -1 || valorIndex === -1 || descIndex === -1) {
-        throw new Error(`CSV inválido. Colunas 'Data', 'Valor' e 'Descrição' são obrigatórias. Separador detectado: '${separator}'`);
+        throw new Error(`CSV inválido. Colunas 'Data', 'Valor' e 'Descrição' são obrigatógrias. Separador detectado: '${separator}'`);
     }
 
     const transactions: ImportedTransaction[] = [];
@@ -705,7 +705,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const lookaheadDate = addMonths(targetDate, months);
     
     return emprestimos.reduce((acc, e) => {
-        if (!e.dataInicio || e.meses === 0 || e.status === 'quitado') return acc;
+        if (e.status === 'quitado' || e.status === 'pendente_config') return acc;
 
         let principalDue = 0;
         
@@ -1023,11 +1023,14 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                 const billId = `loan_${loan.id}_${i}`;
                 const dueDateStr = format(dueDate, 'yyyy-MM-dd');
                 
-                const isPaidByTx = transacoesV2.some(t => 
+                // Find the payment transaction
+                const paidTx = transacoesV2.find(t => 
                     t.operationType === 'pagamento_emprestimo' && 
                     t.links?.loanId === `loan_${loan.id}` && 
                     t.links?.parcelaId === i.toString()
                 );
+                
+                const isPaidByTx = !!paidTx;
                 
                 const existing = existingBillsMap.get(billId);
                 
@@ -1037,8 +1040,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                     dueDate: dueDateStr,
                     expectedAmount: loan.parcela,
                     isPaid: isPaidByTx,
-                    paymentDate: isPaidByTx ? transacoesV2.find(t => t.links?.loanId === `loan_${loan.id}` && t.links?.parcelaId === i.toString())?.date : undefined,
-                    transactionId: isPaidByTx ? transacoesV2.find(t => t.links?.loanId === `loan_${loan.id}` && t.links?.parcelaId === i.toString())?.id : undefined,
+                    paymentDate: paidTx?.date, // <-- ADDED
+                    transactionId: paidTx?.id, // <-- ADDED
                     sourceType: 'loan_installment',
                     sourceRef: loan.id.toString(),
                     parcelaNumber: i,
@@ -1062,7 +1065,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                 const billId = `seguro_${seguro.id}_${parcela.numero}`;
                 const dueDateStr = format(dueDate, 'yyyy-MM-dd');
                 
-                const isPaidByTx = parcela.paga;
+                // Find the payment transaction
+                const paidTx = transacoesV2.find(t => 
+                    t.links?.vehicleTransactionId === `${seguro.id}_${parcela.numero}`
+                );
+                
+                const isPaidByTx = !!paidTx;
                 const existing = existingBillsMap.get(billId);
                 
                 const newBill: BillTracker = {
@@ -1071,8 +1079,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                     dueDate: dueDateStr,
                     expectedAmount: parcela.valor,
                     isPaid: isPaidByTx,
-                    paymentDate: isPaidByTx ? transacoesV2.find(t => t.links?.vehicleTransactionId === `${seguro.id}_${parcela.numero}`)?.date : undefined,
-                    transactionId: isPaidByTx ? transacoesV2.find(t => t.links?.vehicleTransactionId === `${seguro.id}_${parcela.numero}`)?.id : undefined,
+                    paymentDate: paidTx?.date, // <-- ADDED
+                    transactionId: paidTx?.id, // <-- ADDED
                     sourceType: 'insurance_installment',
                     sourceRef: seguro.id.toString(),
                     parcelaNumber: parcela.numero,
