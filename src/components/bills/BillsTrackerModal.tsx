@@ -5,7 +5,7 @@ import { Calendar, CheckCircle2, Clock, TrendingUp, TrendingDown, DollarSign, Ca
 import { useFinance } from "@/contexts/FinanceContext";
 import { BillsTrackerList } from "./BillsTrackerList";
 import { BillsContextSidebar } from "./BillsContextSidebar";
-import { FixedInstallmentSelector } from "./FixedInstallmentSelector";
+// import { FixedInstallmentSelector } from "./FixedInstallmentSelector"; // REMOVED
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { BillTracker, formatCurrency, TransacaoCompleta, getDomainFromOperation, generateTransactionId, generateBillId, PotentialFixedBill } from "@/types/finance";
@@ -15,7 +15,7 @@ import { ResizableSidebar } from "../transactions/ResizableSidebar";
 import { ResizableDialogContent } from "../ui/ResizableDialogContent";
 import { parseDateLocal } from "@/lib/utils";
 import { isSameMonth } from "date-fns";
-import { AllInstallmentsReviewModal } from "./AllInstallmentsReviewModal"; // IMPORT NEW component
+import { AllInstallmentsReviewModal } from "./AllInstallmentsReviewModal";
 
 interface BillsTrackerModalProps {
   open: boolean;
@@ -74,7 +74,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     
   }, [open, referenceDate, getBillsForMonth, monthlyRevenueForecast, previousMonthRevenue]);
 
-  // Calcula as parcelas fixas potenciais (Empréstimos/Seguros)
+  // Calcula as parcelas fixas potenciais (Empréstimos/Seguros) - Mantido para a lógica de inclusão/exclusão
   const potentialFixedBills = useMemo(() => {
     // Passa localBills para que o seletor saiba quais já estão incluídas
     return getPotentialFixedBillsForMonth(referenceDate, localBills);
@@ -364,6 +364,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                       netForecast={netForecast}
                       isMobile={true}
                       onSaveAndClose={handleSaveAndClose}
+                      onOpenAllInstallments={() => setShowAllInstallmentsModal(true)}
                     />
                   </div>
                 </DrawerContent>
@@ -409,18 +410,13 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
               pendingCount={pendingCount}
               netForecast={netForecast}
               onSaveAndClose={handleSaveAndClose}
+              onOpenAllInstallments={() => setShowAllInstallmentsModal(true)}
             />
           </ResizableSidebar>
 
           <div className="flex-1 overflow-y-auto px-4 pt-2 pb-2 space-y-4">
             
-            <FixedInstallmentSelector
-                potentialBills={potentialFixedBills}
-                onToggleInstallment={handleToggleFixedBill}
-                localBills={localBills}
-                referenceDate={referenceDate}
-                onOpenAllInstallments={() => setShowAllInstallmentsModal(true)} // NEW HANDLER
-            />
+            {/* FixedInstallmentSelector REMOVED */}
             
             <BillsTrackerList
               bills={localBills}
@@ -433,7 +429,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
           </div>
         </div>
         
-        {/* All Installments Review Modal (Replaces FutureInstallmentSelectorModal) */}
+        {/* All Installments Review Modal */}
         <AllInstallmentsReviewModal
             open={showAllInstallmentsModal}
             onOpenChange={setShowAllInstallmentsModal}
