@@ -34,7 +34,7 @@ const SOURCE_CONFIG: Record<BillSourceType, { icon: React.ElementType; color: st
   loan_installment: { icon: Building2, color: 'text-orange-500', label: 'Empréstimo' },
   insurance_installment: { icon: Shield, color: 'text-blue-500', label: 'Seguro' },
   fixed_expense: { icon: Repeat, color: 'text-purple-500', label: 'Fixa' },
-  variable_expense: { icon: DollarSign, color: 'text-warning', label: 'Variável' },
+  variable_expense: { icon: TrendingDown, color: 'text-warning', label: 'Variável' },
   ad_hoc: { icon: Info, color: 'text-primary', label: 'Avulsa' },
 };
 
@@ -62,6 +62,8 @@ const columnHeaders: { key: ColumnKey, label: string, align?: 'center' | 'right'
   { key: 'actions', label: 'Ações', align: 'center' },
 ];
 
+const STORAGE_KEY = 'bills_column_widths';
+
 export function BillsTrackerList({
   bills,
   onUpdateBill,
@@ -78,12 +80,10 @@ export function BillsTrackerList({
     dueDate: format(currentDate, 'yyyy-MM-dd'),
   });
   
-  const [adHocType, setAdHocType] = useState<'fixed_expense' | 'variable_expense'>('variable_expense');
-
   // --- Column Resizing State and Logic ---
   const [columnWidths, setColumnWidths] = useState<Record<ColumnKey, number>>(() => {
     try {
-      const saved = localStorage.getItem('bills_column_widths');
+      const saved = localStorage.getItem(STORAGE_KEY);
       return saved ? JSON.parse(saved) : INITIAL_WIDTHS;
     } catch {
       return INITIAL_WIDTHS;
@@ -91,7 +91,7 @@ export function BillsTrackerList({
   });
   
   useEffect(() => {
-    localStorage.setItem('bills_column_widths', JSON.stringify(columnWidths));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(columnWidths));
   }, [columnWidths]);
 
   const [resizingColumn, setResizingColumn] = useState<ColumnKey | null>(null);
@@ -163,16 +163,14 @@ export function BillsTrackerList({
       return;
     }
     
-    const suggestedCategoryId = categoriasV2.find(c => 
-        (adHocType === 'fixed_expense' && c.nature === 'despesa_fixa') ||
-        (adHocType === 'variable_expense' && c.nature === 'despesa_variavel')
-    )?.id;
+    // Sugerir categoria de despesa variável para contas avulsas
+    const suggestedCategoryId = categoriasV2.find(c => c.nature === 'despesa_variavel')?.id;
 
     onAddBill({
       description: newBillData.description,
       dueDate: newBillData.dueDate,
       expectedAmount: amount,
-      sourceType: adHocType,
+      sourceType: 'ad_hoc', // Usar 'ad_hoc' para contas manuais
       suggestedAccountId: contasMovimento.find(c => c.accountType === 'conta_corrente')?.id,
       suggestedCategoryId: suggestedCategoryId,
     });
@@ -182,8 +180,8 @@ export function BillsTrackerList({
   };
   
   const handleExcludeBill = (bill: BillTracker) => {
-    if (bill.sourceType === 'loan_installment' || bill.sourceType === 'insurance_installment') {
-        toast.error("Não é possível excluir parcelas de empréstimo ou seguro.");
+    if (bill.sourceType !== 'ad_hoc') {
+        toast.error("Não é possível excluir contas geradas automaticamente.");
         return;
     }
     
@@ -197,8 +195,8 @@ export function BillsTrackerList({
   };
   
   const handleUpdateExpectedAmount = (bill: BillTracker, newAmount: number) => {
-    if (bill.sourceType === 'loan_installment' || bill.sourceType === 'insurance_installment') {
-        toast.error("Valor de parcelas fixas deve ser alterado no cadastro do Empréstimo/Seguro.");
+    if (bill.sourceType !== 'ad_hoc') {
+        toast.error("Valor de contas automáticas deve ser alterado na fonte (Empréstimo/Seguro/Categoria Fixa).");
         return;
     }
     
@@ -242,11 +240,11 @@ export function BillsTrackerList({
 
   return (
     <div className="space-y-4 h-full flex flex-col">
-      {/* Adição Rápida (Ad-Hoc) - SEMPRE VISÍVEL E MINIMALISTA */}
+      {/* Adição Rápida (Ad-Hoc) */}
       <div className="glass-card p-3 shrink-0">
-        <div className="grid grid-cols-[1fr_100px_100px_40px] gap-2 items-end mb-2">
+        <div className="grid grid-cols-[1fr_100px_100px_40px] gap-2 items-end">
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Descrição</Label>
+            <Label className="text-xs text-muted-foreground">Descrição (Avulsa)</Label>
             <Input
               value={newBillData.description}
               onChange={(e) => setNewBillData(prev => ({ ...prev, description: e.target.value }))}
@@ -282,27 +280,6 @@ export function BillsTrackerList({
           >
             <Plus className="w-4 h-4" />
           </Button>
-        </div>
-        
-        {/* Seleção de Tipo para Ad-Hoc */}
-        <div className="flex items-center gap-2">
-            <Label className="text-xs text-muted-foreground">Tipo de Despesa:</Label>
-            <Button
-                variant={adHocType === 'fixed_expense' ? "default" : "outline"}
-                size="sm"
-                className="h-6 text-xs px-2 gap-1"
-                onClick={() => setAdHocType('fixed_expense')}
-            >
-                <Repeat className="w-3 h-3" /> Fixa
-            </Button>
-            <Button
-                variant={adHocType === 'variable_expense' ? "default" : "outline"}
-                size="sm"
-                className="h-6 text-xs px-2 gap-1"
-                onClick={() => setAdHocType('variable_expense')}
-            >
-                <TrendingDown className="w-3 h-3" /> Variável
-            </Button>
         </div>
       </div>
 
@@ -349,7 +326,11 @@ export function BillsTrackerList({
                 const isOverdue = dueDate < currentDate && !bill.isPaid;
                 const isPaid = bill.isPaid;
                 
-                const isEditable = bill.sourceType !== 'loan_installment' && bill.sourceType !== 'insurance_installment';
+                // Apenas contas ad-hoc podem ser excluídas
+                const isAdHoc = bill.sourceType === 'ad_hoc';
+                
+                // Apenas contas ad-hoc podem ter o valor editado
+                const isEditable = isAdHoc;
                 
                 return (
                   <TableRow 
@@ -419,7 +400,7 @@ export function BillsTrackerList({
                     </TableCell>
                     
                     <TableCell className="text-center p-2 text-base" style={{ width: columnWidths.actions }}>
-                      {isEditable && !isPaid && (
+                      {isAdHoc && !isPaid && (
                         <Button 
                           variant="ghost" 
                           size="icon" 

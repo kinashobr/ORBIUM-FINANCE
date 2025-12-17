@@ -11,7 +11,7 @@ import { BillTracker, formatCurrency, TransacaoCompleta, getDomainFromOperation,
 import { Drawer, DrawerContent, DrawerTrigger } from "@/components/ui/drawer";
 import { toast } from "sonner";
 import { ResizableSidebar } from "../transactions/ResizableSidebar";
-import { ResizableDialogContent } from "../ui/ResizableDialogContent"; // NEW IMPORT
+import { ResizableDialogContent } from "../ui/ResizableDialogContent";
 
 interface BillsTrackerModalProps {
   open: boolean;
@@ -121,158 +121,145 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     setMonthlyRevenueForecast(localRevenueForecast);
     
     // 2. Sincroniza o estado local com o estado global (BillsTracker)
-    // Filtra as contas que foram excluídas localmente (isExcluded)
-    const billsToPersist = localBills.filter(b => !b.isExcluded);
     
-    // 3. Processa as mudanças de pagamento e gera transações
     const newTransactions: TransacaoCompleta[] = [];
-    const updatedBillsTracker: BillTracker[] = [];
-    
-    const paidBills = new Map(localBills.filter(b => b.isPaid).map(b => [b.id, b]));
-    const unpaidBills = new Map(localBills.filter(b => !b.isPaid).map(b => [b.id, b]));
     
     // Bills do contexto original (para comparação)
     const originalBillsMap = new Map(billsForPeriod.map(b => [b.id, b]));
     
-    // Itera sobre as contas originais para ver o que mudou
-    billsForPeriod.forEach(originalBill => {
-        const localVersion = localBills.find(b => b.id === originalBill.id);
+    // Itera sobre as contas locais para processar mudanças
+    localBills.forEach(localVersion => {
+        const originalBill = originalBillsMap.get(localVersion.id);
         
-        if (!localVersion || localVersion.isExcluded) {
-            // Se excluído localmente, não faz nada (será filtrado na próxima chamada de getBillsForPeriod)
-            return;
-        }
-        
-        const wasPaid = originalBill.isPaid;
-        const isNowPaid = localVersion.isPaid;
-        
-        if (isNowPaid && !wasPaid) {
-            // A. MARCAR COMO PAGO (Cria Transação)
-            const bill = localVersion;
-            const paymentDate = bill.paymentDate || format(referenceDate, 'yyyy-MM-dd');
-            const transactionId = bill.transactionId || generateTransactionId();
-            
-            const suggestedAccount = contasMovimento.find(c => c.id === bill.suggestedAccountId);
-            const suggestedCategory = categoriasV2.find(c => c.id === bill.suggestedCategoryId);
-            
-            if (!suggestedAccount) {
-                toast.error(`Erro: Conta de débito para ${bill.description} não encontrada.`);
+        // A. Processar exclusão/inclusão de Ad-Hoc
+        if (localVersion.sourceType === 'ad_hoc') {
+            if (localVersion.isExcluded && originalBill && !originalBill.isExcluded) {
+                // Excluído localmente (deve ser deletado do billsTracker)
+                deleteBill(localVersion.id);
                 return;
             }
-            
-            let operationType: TransacaoCompleta['operationType'] = 'despesa';
-            let loanIdLink: string | null = null;
-            let parcelaIdLink: string | null = null;
-            let vehicleTransactionIdLink: string | null = null;
-            
-            if (bill.sourceType === 'loan_installment' && bill.sourceRef && bill.parcelaNumber) {
-              operationType = 'pagamento_emprestimo';
-              loanIdLink = `loan_${bill.sourceRef}`;
-              parcelaIdLink = bill.parcelaNumber.toString();
-            } else if (bill.sourceType === 'insurance_installment' && bill.sourceRef && bill.parcelaNumber) {
-              operationType = 'despesa';
-              vehicleTransactionIdLink = `${bill.sourceRef}_${bill.parcelaNumber}`;
+            if (!originalBill && !localVersion.isExcluded) {
+                // Novo Ad-Hoc (deve ser adicionado ao billsTracker)
+                const { id, isPaid, ...rest } = localVersion;
+                addBill(rest);
             }
+        }
+        
+        // B. Processar mudanças de pagamento (apenas se não for excluído)
+        if (!localVersion.isExcluded) {
+            const wasPaid = originalBill?.isPaid || false;
+            const isNowPaid = localVersion.isPaid;
+            
+            if (isNowPaid && !wasPaid) {
+                // MARCAR COMO PAGO (Cria Transação)
+                const bill = localVersion;
+                const paymentDate = bill.paymentDate || format(referenceDate, 'yyyy-MM-dd');
+                const transactionId = bill.transactionId || generateTransactionId();
+                
+                const suggestedAccount = contasMovimento.find(c => c.id === bill.suggestedAccountId);
+                
+                if (!suggestedAccount) {
+                    toast.error(`Erro: Conta de débito para ${bill.description} não encontrada.`);
+                    return;
+                }
+                
+                let operationType: TransacaoCompleta['operationType'] = 'despesa';
+                let loanIdLink: string | null = null;
+                let parcelaIdLink: string | null = null;
+                let vehicleTransactionIdLink: string | null = null;
+                
+                if (bill.sourceType === 'loan_installment' && bill.sourceRef && bill.parcelaNumber) {
+                  operationType = 'pagamento_emprestimo';
+                  loanIdLink = `loan_${bill.sourceRef}`;
+                  parcelaIdLink = bill.parcelaNumber.toString();
+                } else if (bill.sourceType === 'insurance_installment' && bill.sourceRef && bill.parcelaNumber) {
+                  operationType = 'despesa';
+                  vehicleTransactionIdLink = `${bill.sourceRef}_${bill.parcelaNumber}`;
+                } else if (bill.sourceType === 'fixed_expense' || bill.sourceType === 'variable_expense' || bill.sourceType === 'ad_hoc') {
+                    operationType = 'despesa';
+                }
 
-            const newTransaction: TransacaoCompleta = {
-              id: transactionId,
-              date: paymentDate,
-              accountId: suggestedAccount.id,
-              flow: 'out',
-              operationType,
-              domain: getDomainFromOperation(operationType),
-              amount: bill.expectedAmount,
-              categoryId: bill.suggestedCategoryId || null,
-              description: bill.description,
-              links: {
-                investmentId: null,
-                loanId: loanIdLink,
-                transferGroupId: null,
-                parcelaId: parcelaIdLink,
-                vehicleTransactionId: vehicleTransactionIdLink,
-              },
-              conciliated: false,
-              attachments: [],
-              meta: {
-                createdBy: 'system',
-                source: 'bill_tracker',
-                createdAt: format(referenceDate, 'yyyy-MM-dd'),
-              }
-            };
-            
-            newTransactions.push(newTransaction);
-            
-            // Marca no contexto (Empréstimo/Seguro)
-            if (bill.sourceType === 'loan_installment' && bill.sourceRef && bill.parcelaNumber) {
-                const loanId = parseInt(bill.sourceRef);
-                if (!isNaN(loanId)) {
-                    markLoanParcelPaid(loanId, bill.expectedAmount, paymentDate, bill.parcelaNumber);
-                }
-            } else if (bill.sourceType === 'insurance_installment' && bill.sourceRef && bill.parcelaNumber) {
-                const seguroId = parseInt(bill.sourceRef);
-                if (!isNaN(seguroId)) {
-                    markSeguroParcelPaid(seguroId, bill.parcelaNumber, transactionId);
-                }
-            }
-            
-            // Atualiza o Bill Tracker com o transactionId e status final
-            updatedBillsTracker.push({ ...localVersion, transactionId });
-            
-        } else if (!isNowPaid && wasPaid) {
-            // B. DESMARCAR COMO PAGO (Remove Transação)
-            const bill = originalBill;
-            
-            if (bill.transactionId) {
-                // Remove do contexto (Empréstimo/Seguro)
+                const newTransaction: TransacaoCompleta = {
+                  id: transactionId,
+                  date: paymentDate,
+                  accountId: suggestedAccount.id,
+                  flow: 'out',
+                  operationType,
+                  domain: getDomainFromOperation(operationType),
+                  amount: bill.expectedAmount,
+                  categoryId: bill.suggestedCategoryId || null,
+                  description: bill.description,
+                  links: {
+                    investmentId: null,
+                    loanId: loanIdLink,
+                    transferGroupId: null,
+                    parcelaId: parcelaIdLink,
+                    vehicleTransactionId: vehicleTransactionIdLink,
+                  },
+                  conciliated: false,
+                  attachments: [],
+                  meta: {
+                    createdBy: 'system',
+                    source: 'bill_tracker',
+                    createdAt: format(referenceDate, 'yyyy-MM-dd'),
+                  }
+                };
+                
+                newTransactions.push(newTransaction);
+                
+                // Marca no contexto (Empréstimo/Seguro)
                 if (bill.sourceType === 'loan_installment' && bill.sourceRef && bill.parcelaNumber) {
                     const loanId = parseInt(bill.sourceRef);
                     if (!isNaN(loanId)) {
-                        unmarkLoanParcelPaid(loanId);
+                        markLoanParcelPaid(loanId, bill.expectedAmount, paymentDate, bill.parcelaNumber);
                     }
                 } else if (bill.sourceType === 'insurance_installment' && bill.sourceRef && bill.parcelaNumber) {
                     const seguroId = parseInt(bill.sourceRef);
                     if (!isNaN(seguroId)) {
-                        unmarkSeguroParcelPaid(seguroId, bill.parcelaNumber);
+                        markSeguroParcelPaid(seguroId, bill.parcelaNumber, transactionId);
                     }
                 }
                 
-                // Remove a transação do contexto global
-                setTransacoesV2(prev => prev.filter(t => t.id !== bill.transactionId));
+                // Atualiza o Bill Tracker (apenas para Ad-Hoc, pois os outros são gerados)
+                if (bill.sourceType === 'ad_hoc') {
+                    updateBill(bill.id, { isPaid: true, transactionId, paymentDate });
+                }
+                
+            } else if (!isNowPaid && wasPaid) {
+                // DESMARCAR COMO PAGO (Remove Transação)
+                const bill = originalBill!;
+                
+                if (bill.transactionId) {
+                    // Remove do contexto (Empréstimo/Seguro)
+                    if (bill.sourceType === 'loan_installment' && bill.sourceRef && bill.parcelaNumber) {
+                        const loanId = parseInt(bill.sourceRef);
+                        if (!isNaN(loanId)) {
+                            unmarkLoanParcelPaid(loanId);
+                        }
+                    } else if (bill.sourceType === 'insurance_installment' && bill.sourceRef && bill.parcelaNumber) {
+                        const seguroId = parseInt(bill.sourceRef);
+                        if (!isNaN(seguroId)) {
+                            unmarkSeguroParcelPaid(seguroId, bill.parcelaNumber);
+                        }
+                    }
+                    
+                    // Remove a transação do contexto global
+                    setTransacoesV2(prev => prev.filter(t => t.id !== bill.transactionId));
+                }
+                
+                // Atualiza o Bill Tracker (apenas para Ad-Hoc)
+                if (bill.sourceType === 'ad_hoc') {
+                    updateBill(bill.id, { isPaid: false, paymentDate: undefined, transactionId: undefined });
+                }
+            } else if (localVersion.sourceType === 'ad_hoc' && originalBill) {
+                // C. Nenhuma mudança de status de pagamento, mas pode ter mudado suggestedAccountId/expectedAmount
+                updateBill(localVersion.id, localVersion);
             }
-            
-            // Atualiza o Bill Tracker com status final
-            updatedBillsTracker.push({ ...localVersion, isPaid: false, paymentDate: undefined, transactionId: undefined });
-            
-        } else {
-            // C. Nenhuma mudança de status de pagamento, mas pode ter mudado suggestedAccountId/expectedAmount
-            updatedBillsTracker.push(localVersion);
         }
     });
     
-    // 4. Adiciona novas transações ao contexto
+    // 3. Adiciona novas transações ao contexto
     newTransactions.forEach(t => addTransacaoV2(t));
-    
-    // 5. Atualiza o BillsTracker no contexto (apenas para Bills Ad-Hoc e atualizações de suggestedAccountId/expectedAmount)
-    
-    // Bills que precisam de update/delete no contexto
-    const billsToUpdateOrDelete = localBills.filter(b => originalBillsMap.has(b.id) && (b.isPaid !== originalBillsMap.get(b.id)?.isPaid || b.isExcluded || b.suggestedAccountId !== originalBillsMap.get(b.id)?.suggestedAccountId || b.expectedAmount !== originalBillsMap.get(b.id)?.expectedAmount));
-    
-    // Bills que precisam ser adicionadas (novas Ad-Hoc)
-    const billsToAddNew = localBills.filter(b => !originalBillsMap.has(b.id));
-    
-    // Executa as operações no contexto global
-    billsToUpdateOrDelete.forEach(b => {
-        if (b.isExcluded) {
-            deleteBill(b.id);
-        } else {
-            updateBill(b.id, b);
-        }
-    });
-    billsToAddNew.forEach(b => {
-        // Adiciona apenas as propriedades necessárias para o addBill
-        const { id, isPaid, ...rest } = b;
-        addBill(rest);
-    });
     
     onOpenChange(false);
     toast.success("Contas pagas e alterações salvas!");
@@ -304,7 +291,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
       >
         
         {/* Header Principal - Ultra Compacto */}
-        <DialogHeader className="border-b pb-2 pt-3 px-4 shrink-0" onMouseDown={(e) => e.stopPropagation()}>
+        <DialogHeader className="border-b pb-2 pt-3 px-4 shrink-0 dialog-header-drag-area">
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
               <Calendar className="w-4 h-4 text-primary" />
