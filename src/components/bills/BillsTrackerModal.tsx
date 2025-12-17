@@ -124,40 +124,26 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     setMonthlyRevenueForecast(localRevenueForecast);
     
     // 2. Sincroniza o estado local com o estado global (BillsTracker)
-    // Filtra as contas que foram excluídas localmente (isExcluded)
-    const billsToPersist = localBills.filter(b => !b.isExcluded);
-    
-    // 3. Processa as mudanças de pagamento e gera transações
-    const newTransactions: TransacaoCompleta[] = [];
-    const updatedBillsTracker: BillTracker[] = [];
-    
-    const paidBills = new Map(localBills.filter(b => b.isPaid).map(b => [b.id, b]));
-    const unpaidBills = new Map(localBills.filter(b => !b.isPaid).map(b => [b.id, b]));
     
     // Bills do contexto original (para comparação)
     const originalBillsMap = new Map(billsForPeriod.map(b => [b.id, b]));
     
-    // Itera sobre as contas originais para ver o que mudou
-    billsForPeriod.forEach(originalBill => {
-        const localVersion = localBills.find(b => b.id === originalBill.id);
+    const newTransactions: TransacaoCompleta[] = [];
+    
+    // Itera sobre as contas locais para ver o que mudou
+    localBills.forEach(localVersion => {
+        const originalBill = originalBillsMap.get(localVersion.id);
         
-        if (!localVersion || localVersion.isExcluded) {
-            // Se excluído localmente, não faz nada (será filtrado na próxima chamada de getBillsForPeriod)
-            return;
-        }
-        
-        const wasPaid = originalBill.isPaid;
+        const wasPaid = originalBill?.isPaid || false;
         const isNowPaid = localVersion.isPaid;
         
+        // --- A. Processamento de Pagamento (Cria Transação) ---
         if (isNowPaid && !wasPaid) {
-            // A. MARCAR COMO PAGO (Cria Transação)
             const bill = localVersion;
-            // Usa a data de pagamento registrada no estado local (que foi definida como a data atual)
             const paymentDate = bill.paymentDate || format(new Date(), 'yyyy-MM-dd'); 
             const transactionId = bill.transactionId || generateTransactionId();
             
             const suggestedAccount = contasMovimento.find(c => c.id === bill.suggestedAccountId);
-            const suggestedCategory = categoriasV2.find(c => c.id === bill.suggestedCategoryId);
             
             if (!suggestedAccount) {
                 toast.error(`Erro: Conta de débito para ${bill.description} não encontrada.`);
@@ -219,12 +205,13 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                 }
             }
             
-            // Atualiza o Bill Tracker com o transactionId e status final
-            updatedBillsTracker.push({ ...localVersion, transactionId });
+            // Atualiza o Bill Tracker global para persistir o status de pagamento/exclusão/ajustes
+            updateBill(localVersion.id, { ...localVersion, transactionId });
             
-        } else if (!isNowPaid && wasPaid) {
-            // B. DESMARCAR COMO PAGO (Remove Transação)
-            const bill = originalBill;
+        } 
+        // --- B. Processamento de Estorno (Remove Transação) ---
+        else if (!isNowPaid && wasPaid) {
+            const bill = originalBill!; // Deve existir se wasPaid for true
             
             if (bill.transactionId) {
                 // Remove do contexto (Empréstimo/Seguro)
@@ -244,39 +231,28 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                 setTransacoesV2(prev => prev.filter(t => t.id !== bill.transactionId));
             }
             
-            // Atualiza o Bill Tracker com status final
-            updatedBillsTracker.push({ ...localVersion, isPaid: false, paymentDate: undefined, transactionId: undefined });
+            // Atualiza o Bill Tracker global
+            updateBill(localVersion.id, { ...localVersion, isPaid: false, paymentDate: undefined, transactionId: undefined });
             
-        } else {
-            // C. Nenhuma mudança de status de pagamento, mas pode ter mudado suggestedAccountId/expectedAmount
-            updatedBillsTracker.push(localVersion);
+        } 
+        // --- C. Processamento de Alterações (Exclusão/Valor/Conta) ---
+        else if (originalBill && (localVersion.isExcluded !== originalBill.isExcluded || localVersion.expectedAmount !== originalBill.expectedAmount || localVersion.suggestedAccountId !== originalBill.suggestedAccountId)) {
+            
+            if (localVersion.isExcluded) {
+                deleteBill(localVersion.id);
+            } else {
+                updateBill(localVersion.id, localVersion);
+            }
+        }
+        // --- D. Adicionar novas contas Ad-Hoc ---
+        else if (!originalBill && localVersion.sourceType === 'ad_hoc') {
+            const { id, isPaid, ...rest } = localVersion;
+            addBill(rest);
         }
     });
     
     // 4. Adiciona novas transações ao contexto
     newTransactions.forEach(t => addTransacaoV2(t));
-    
-    // 5. Atualiza o BillsTracker no contexto (apenas para Bills Ad-Hoc e atualizações de suggestedAccountId/expectedAmount)
-    
-    // Bills que precisam de update/delete no contexto
-    const billsToUpdateOrDelete = localBills.filter(b => originalBillsMap.has(b.id) && (b.isPaid !== originalBillsMap.get(b.id)?.isPaid || b.isExcluded || b.suggestedAccountId !== originalBillsMap.get(b.id)?.suggestedAccountId || b.expectedAmount !== originalBillsMap.get(b.id)?.expectedAmount));
-    
-    // Bills que precisam ser adicionadas (novas Ad-Hoc)
-    const billsToAddNew = localBills.filter(b => !originalBillsMap.has(b.id));
-    
-    // Executa as operações no contexto global
-    billsToUpdateOrDelete.forEach(b => {
-        if (b.isExcluded) {
-            deleteBill(b.id);
-        } else {
-            updateBill(b.id, b);
-        }
-    });
-    billsToAddNew.forEach(b => {
-        // Adiciona apenas as propriedades necessárias para o addBill
-        const { id, isPaid, ...rest } = b;
-        addBill(rest);
-    });
     
     onOpenChange(false);
     toast.success("Contas pagas e alterações salvas!");

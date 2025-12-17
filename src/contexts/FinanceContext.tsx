@@ -22,6 +22,7 @@ import {
   generateStatementId, // <-- NEW IMPORT
   OperationType, // <-- NEW IMPORT
   getFlowTypeFromOperation, // <-- NEW IMPORT
+  BillSourceType,
 } from "@/types/finance";
 import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format, isWithinInterval } from "date-fns"; // Import date-fns helpers
 import { parseDateLocal } from "@/lib/utils"; // Importando a nova função
@@ -310,7 +311,7 @@ interface FinanceContextType {
   setTransacoesV2: Dispatch<SetStateAction<TransacaoCompleta[]>>;
   addTransacaoV2: (transaction: TransacaoCompleta) => void;
   
-  // Standardization Rules (NEW)
+  // Standardization Rules
   standardizationRules: StandardizationRule[];
   addStandardizationRule: (rule: Omit<StandardizationRule, "id">) => void;
   deleteStandardizationRule: (id: string) => void;
@@ -972,19 +973,26 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const prevMonth = subMonths(date, 1);
     const prevMonthYear = format(prevMonth, 'yyyy-MM');
     
+    // 1. Carregar todas as contas persistidas (ad-hoc e atualizações)
     const existingBillsMap = new Map<string, BillTracker>();
     
     billsTracker.forEach(bill => {
         const billDate = parseDateLocal(bill.dueDate);
         
-        if (bill.sourceType === 'ad_hoc' && (isSameMonth(billDate, date) || !bill.isPaid)) {
-            existingBillsMap.set(bill.id, bill);
-        }
-        
-        if (isSameMonth(billDate, date)) {
+        // Inclui contas ad-hoc do mês atual ou contas pagas de meses anteriores (para histórico)
+        if (isSameMonth(billDate, date) || bill.isPaid) {
             existingBillsMap.set(bill.id, bill);
         }
     });
+    
+    // 2. Função auxiliar para verificar se uma despesa já foi paga por uma transação
+    const checkTransactionPayment = (categoryId: string, monthYear: string): TransacaoCompleta | undefined => {
+        return transacoesV2.find(t => 
+            (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo') && 
+            t.categoryId === categoryId && 
+            t.date.startsWith(monthYear)
+        );
+    };
     
     const getPreviousMonthExpense = (categoryId: string): number => {
         const tx = transacoesV2.filter(t => 
@@ -995,6 +1003,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         return tx.reduce((acc, t) => acc + t.amount, 0);
     };
     
+    // 3. Gerar/Atualizar Parcelas de Empréstimo
     emprestimos.forEach(loan => {
         if (loan.status !== 'ativo' || !loan.dataInicio || loan.meses === 0) return;
         
@@ -1013,34 +1022,29 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                 
                 const existing = existingBillsMap.get(billId);
                 
-                if (isPaidByTx) {
-                    if (existing) {
-                        existingBillsMap.set(billId, { ...existing, isPaid: true });
-                    }
-                    return; 
-                }
-                
-                if (!existing) {
-                    const newBill: BillTracker = {
-                        id: billId,
-                        description: `Parcela ${i}/${loan.meses} - ${loan.contrato}`,
-                        dueDate: dueDateStr,
-                        expectedAmount: loan.parcela,
-                        isPaid: false,
-                        sourceType: 'loan_installment',
-                        sourceRef: loan.id.toString(),
-                        parcelaNumber: i,
-                        suggestedAccountId: loan.contaCorrenteId,
-                        suggestedCategoryId: categoriasV2.find(c => c.label === 'Pag. Empréstimo')?.id,
-                    };
-                    existingBillsMap.set(billId, newBill);
-                }
+                const newBill: BillTracker = {
+                    id: billId,
+                    description: `Parcela ${i}/${loan.meses} - ${loan.contrato}`,
+                    dueDate: dueDateStr,
+                    expectedAmount: loan.parcela,
+                    isPaid: isPaidByTx,
+                    paymentDate: isPaidByTx ? transacoesV2.find(t => t.links?.loanId === `loan_${loan.id}` && t.links?.parcelaId === i.toString())?.date : undefined,
+                    transactionId: isPaidByTx ? transacoesV2.find(t => t.links?.loanId === `loan_${loan.id}` && t.links?.parcelaId === i.toString())?.id : undefined,
+                    sourceType: 'loan_installment',
+                    sourceRef: loan.id.toString(),
+                    parcelaNumber: i,
+                    suggestedAccountId: loan.contaCorrenteId,
+                    suggestedCategoryId: categoriasV2.find(c => c.label === 'Pag. Empréstimo')?.id,
+                    isExcluded: existing?.isExcluded,
+                };
+                existingBillsMap.set(billId, newBill);
                 
                 break;
             }
         }
     });
     
+    // 4. Gerar/Atualizar Parcelas de Seguro
     segurosVeiculo.forEach(seguro => {
         seguro.parcelas.forEach(parcela => {
             const dueDate = parseDateLocal(parcela.vencimento);
@@ -1052,32 +1056,27 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                 const isPaidByTx = parcela.paga;
                 const existing = existingBillsMap.get(billId);
                 
-                if (isPaidByTx) {
-                    if (existing) {
-                        existingBillsMap.set(billId, { ...existing, isPaid: true });
-                    }
-                    return;
-                }
-                
-                if (!existing) {
-                    const newBill: BillTracker = {
-                        id: billId,
-                        description: `Seguro ${seguro.numeroApolice} - Parcela ${parcela.numero}/${seguro.numeroParcelas}`,
-                        dueDate: dueDateStr,
-                        expectedAmount: parcela.valor,
-                        isPaid: false,
-                        sourceType: 'insurance_installment',
-                        sourceRef: seguro.id.toString(),
-                        parcelaNumber: parcela.numero,
-                        suggestedAccountId: contasMovimento.find(c => c.accountType === 'conta_corrente')?.id,
-                        suggestedCategoryId: categoriasV2.find(c => c.label.toLowerCase() === 'seguro')?.id,
-                    };
-                    existingBillsMap.set(billId, newBill);
-                }
+                const newBill: BillTracker = {
+                    id: billId,
+                    description: `Seguro ${seguro.numeroApolice} - Parcela ${parcela.numero}/${seguro.numeroParcelas}`,
+                    dueDate: dueDateStr,
+                    expectedAmount: parcela.valor,
+                    isPaid: isPaidByTx,
+                    paymentDate: isPaidByTx ? transacoesV2.find(t => t.links?.vehicleTransactionId === `${seguro.id}_${parcela.numero}`)?.date : undefined,
+                    transactionId: isPaidByTx ? transacoesV2.find(t => t.links?.vehicleTransactionId === `${seguro.id}_${parcela.numero}`)?.id : undefined,
+                    sourceType: 'insurance_installment',
+                    sourceRef: seguro.id.toString(),
+                    parcelaNumber: parcela.numero,
+                    suggestedAccountId: contasMovimento.find(c => c.accountType === 'conta_corrente')?.id,
+                    suggestedCategoryId: categoriasV2.find(c => c.label.toLowerCase() === 'seguro')?.id,
+                    isExcluded: existing?.isExcluded,
+                };
+                existingBillsMap.set(billId, newBill);
             }
         });
     });
     
+    // 5. Gerar/Atualizar Despesas Fixas (não-seguro)
     const fixedExpenseCategories = categoriasV2.filter(c => c.nature === 'despesa_fixa' && c.label.toLowerCase() !== 'seguro');
     
     fixedExpenseCategories.forEach(cat => {
@@ -1085,41 +1084,29 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         const dueDateStr = format(dueDate, 'yyyy-MM-dd');
         const billId = `fixed_${cat.id}_${monthYear}`;
         
-        const isPaidByTx = transacoesV2.some(t => 
-            t.operationType === 'despesa' && 
-            t.categoryId === cat.id && 
-            t.date.startsWith(monthYear)
-        );
-        
         const existing = existingBillsMap.get(billId);
+        const paidTx = checkTransactionPayment(cat.id, monthYear);
         
-        if (isPaidByTx) {
-            if (existing) {
-                existingBillsMap.set(billId, { ...existing, isPaid: true });
-            }
-            return;
-        }
+        const isPaidByTx = !!paidTx;
         
-        if (!existing) {
-            const estimatedAmount = getPreviousMonthExpense(cat.id);
-            
-            const newBill: BillTracker = {
-                id: billId,
-                description: cat.label,
-                dueDate: dueDateStr,
-                expectedAmount: estimatedAmount || 0,
-                isPaid: false,
-                sourceType: 'fixed_expense',
-                sourceRef: cat.id,
-                suggestedAccountId: contasMovimento.find(c => c.accountType === 'conta_corrente')?.id,
-                suggestedCategoryId: cat.id,
-            };
-            existingBillsMap.set(billId, newBill);
-        } else {
-            existingBillsMap.set(billId, { ...existing, isPaid: isPaidByTx });
-        }
+        const newBill: BillTracker = {
+            id: billId,
+            description: cat.label,
+            dueDate: dueDateStr,
+            expectedAmount: existing?.expectedAmount || getPreviousMonthExpense(cat.id) || 0,
+            isPaid: isPaidByTx,
+            paymentDate: paidTx?.date,
+            transactionId: paidTx?.id,
+            sourceType: 'fixed_expense',
+            sourceRef: cat.id,
+            suggestedAccountId: existing?.suggestedAccountId || contasMovimento.find(c => c.accountType === 'conta_corrente')?.id,
+            suggestedCategoryId: cat.id,
+            isExcluded: existing?.isExcluded,
+        };
+        existingBillsMap.set(billId, newBill);
     });
     
+    // 6. Gerar/Atualizar Despesas Variáveis (apenas para estimativa)
     const variableExpenseCategories = categoriasV2.filter(c => c.nature === 'despesa_variavel');
     
     variableExpenseCategories.forEach(cat => {
@@ -1127,41 +1114,29 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         const dueDateStr = format(dueDate, 'yyyy-MM-dd');
         const billId = `variable_${cat.id}_${monthYear}`;
         
-        const isPaidByTx = transacoesV2.some(t => 
-            t.operationType === 'despesa' && 
-            t.categoryId === cat.id && 
-            t.date.startsWith(monthYear)
-        );
-        
         const existing = existingBillsMap.get(billId);
+        const paidTx = checkTransactionPayment(cat.id, monthYear);
         
-        if (isPaidByTx) {
-            if (existing) {
-                existingBillsMap.set(billId, { ...existing, isPaid: true });
-            }
-            return;
-        }
+        const isPaidByTx = !!paidTx;
         
-        if (!existing) {
-            const estimatedAmount = getPreviousMonthExpense(cat.id);
-            
-            const newBill: BillTracker = {
-                id: billId,
-                description: cat.label,
-                dueDate: dueDateStr,
-                expectedAmount: estimatedAmount || 0,
-                isPaid: false,
-                sourceType: 'variable_expense',
-                sourceRef: cat.id,
-                suggestedAccountId: contasMovimento.find(c => c.accountType === 'conta_corrente')?.id,
-                suggestedCategoryId: cat.id,
-            };
-            existingBillsMap.set(billId, newBill);
-        } else {
-            existingBillsMap.set(billId, { ...existing, isPaid: isPaidByTx });
-        }
+        const newBill: BillTracker = {
+            id: billId,
+            description: cat.label,
+            dueDate: dueDateStr,
+            expectedAmount: existing?.expectedAmount || getPreviousMonthExpense(cat.id) || 0,
+            isPaid: isPaidByTx,
+            paymentDate: paidTx?.date,
+            transactionId: paidTx?.id,
+            sourceType: 'variable_expense',
+            sourceRef: cat.id,
+            suggestedAccountId: existing?.suggestedAccountId || contasMovimento.find(c => c.accountType === 'conta_corrente')?.id,
+            suggestedCategoryId: cat.id,
+            isExcluded: existing?.isExcluded,
+        };
+        existingBillsMap.set(billId, newBill);
     });
     
+    // 7. Filtrar e retornar
     return Array.from(existingBillsMap.values())
         .filter(b => !b.isExcluded || isSameMonth(parseDateLocal(b.dueDate), date))
         .sort((a, b) => parseDateLocal(a.dueDate).getTime() - parseDateLocal(b.dueDate).getTime());
