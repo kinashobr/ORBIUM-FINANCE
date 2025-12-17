@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, Dispatch, SetStateAction } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, Dispatch, SetStateAction, ReactNode } from "react";
 import {
   Categoria, TransacaoCompleta,
   DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES,
