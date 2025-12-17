@@ -64,7 +64,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   useEffect(() => {
     if (!open) return;
     
-    // 1. Carrega APENAS as contas persistidas (ad-hoc ou fixas que já foram salvas)
+    // 1. Carrega APENAS as contas persistidas (ad-hoc, vencidas no mês, ou pagas no mês)
     const persistedBills = getBillsForMonth(referenceDate);
     
     setLocalBills(persistedBills);
@@ -152,7 +152,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             setLocalBills(prev => prev.map(b => 
                 b.id === existingBill.id ? { ...b, isExcluded: false } : b
             ));
-            toast.info("Parcela reativada na lista.");
+            toast.info("Parcela reativada no planejamento.");
             return;
         }
         
@@ -197,18 +197,16 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     setMonthlyRevenueForecast(localRevenueForecast);
     
     const originalBillsMap = new Map(originalMonthBills.map(b => [b.id, b]));
+    const localBillIds = new Set(localBills.map(b => b.id));
     
     const newTransactions: TransacaoCompleta[] = [];
     const transactionsToRemove: string[] = [];
     
-    // 1. Filtra todas as contas que NÃO são do mês atual
-    let finalBillsTracker: BillTracker[] = billsTracker.filter(b => {
-        const billDate = parseDateLocal(b.dueDate);
-        const isCurrentMonth = isSameMonth(billDate, referenceDate);
-        return !isCurrentMonth;
-    });
+    // 1. Filtra o billsTracker original, removendo APENAS as contas que foram carregadas no localBills
+    // Isso garante que contas de outros meses (futuras não pagas, ou passadas) permaneçam.
+    let finalBillsTracker: BillTracker[] = billsTracker.filter(b => !localBillIds.has(b.id));
     
-    // 2. Processa as contas locais (do mês atual)
+    // 2. Processa as contas locais (do mês atual, incluindo adiantadas)
     localBills.forEach(localVersion => {
         const original = originalBillsMap.get(localVersion.id);
         
@@ -313,12 +311,11 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         else {
             // Ação: Manutenção de estado (Ad-hoc, ou fixas que mudaram isExcluded, ou pagas que não mudaram)
             // Se a conta não foi excluída, ou se é uma conta fixa (loan/insurance) que foi paga/excluída, mantemos o registro local.
-            // A única exceção é se for uma conta ad-hoc/fixed/variable que foi excluída (isExcluded: true) e não paga.
             
+            // Contas ad-hoc/fixed/variable que foram excluídas (isExcluded: true) e não pagas são descartadas.
             if (localVersion.isPaid || !localVersion.isExcluded || localVersion.sourceType === 'loan_installment' || localVersion.sourceType === 'insurance_installment') {
                 finalBillsTracker.push(localVersion);
             }
-            // Contas ad-hoc/fixed/variable que foram excluídas (isExcluded: true) e não pagas são descartadas.
         }
     });
     

@@ -970,14 +970,24 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   // SIMPLIFICADO: Retorna apenas contas persistidas (ad-hoc ou modificações salvas)
   const getBillsForMonth = useCallback((date: Date): BillTracker[] => {
     
-    // Retorna apenas as contas que pertencem ao mês de referência
+    // Retorna as contas que:
+    // 1. Têm vencimento no mês de referência (dueDate)
+    // OU
+    // 2. Estão pagas E a data de pagamento (paymentDate) é no mês de referência.
     const filteredBills = billsTracker.filter(bill => {
-        const billDate = parseDateLocal(bill.dueDate);
-        return isSameMonth(billDate, date);
+        const billDueDate = parseDateLocal(bill.dueDate);
+        const isDueInMonth = isSameMonth(billDueDate, date);
+        
+        let isPaidInMonth = false;
+        if (bill.isPaid && bill.paymentDate) {
+            const billPaymentDate = parseDateLocal(bill.paymentDate);
+            isPaidInMonth = isSameMonth(billPaymentDate, date);
+        }
+        
+        return isDueInMonth || isPaidInMonth;
     });
     
-    // Remove contas que foram explicitamente excluídas (isExcluded)
-    // Nota: Mantemos as contas pagas, mesmo que excluídas, para fins de histórico no modal.
+    // Remove contas que foram explicitamente excluídas (isExcluded) E não estão pagas
     const finalBills = filteredBills.filter(b => !b.isExcluded || b.isPaid);
     
     // Ordena
@@ -1007,13 +1017,17 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         schedule.forEach(item => {
             const dueDate = getDueDate(loan.dataInicio!, item.parcela);
             
-            if (isWithinInterval(dueDate, { start: monthStart, end: monthEnd })) {
-                const isPaid = transacoesV2.some(t => 
-                    t.operationType === 'pagamento_emprestimo' &&
-                    t.links?.loanId === `loan_${loan.id}` &&
-                    t.links?.parcelaId === String(item.parcela)
-                );
-                
+            // Considera parcelas que vencem no mês OU que já foram pagas (adiantadas)
+            const isDueInMonth = isWithinInterval(dueDate, { start: monthStart, end: monthEnd });
+            
+            const isPaid = transacoesV2.some(t => 
+                t.operationType === 'pagamento_emprestimo' && 
+                t.links?.loanId === `loan_${loan.id}` &&
+                t.links?.parcelaId === String(item.parcela)
+            );
+            
+            // Se a parcela já foi paga, ela não é mais 'potencial' para inclusão/exclusão, mas precisamos rastreá-la se for do mês.
+            if (isDueInMonth || isPaid) {
                 const sourceRef = String(loan.id);
                 
                 potentialBills.push({
@@ -1036,7 +1050,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         seguro.parcelas.forEach(parcela => {
             const dueDate = parseDateLocal(parcela.vencimento);
             
-            if (isWithinInterval(dueDate, { start: monthStart, end: monthEnd })) {
+            const isDueInMonth = isWithinInterval(dueDate, { start: monthStart, end: monthEnd });
+            
+            if (isDueInMonth || parcela.paga) {
                 const sourceRef = String(seguro.id);
                 
                 potentialBills.push({
