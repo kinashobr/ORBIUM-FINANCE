@@ -23,6 +23,11 @@ interface BillsTrackerModalProps {
 // Tipo auxiliar para links parciais
 type PartialTransactionLinks = Partial<TransactionLinks>;
 
+// Predicado de tipo para BillTracker
+const isBillTracker = (bill: BillDisplayItem): bill is BillTracker => {
+    return bill.type === 'tracker';
+};
+
 export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps) {
   const { 
     billsTracker, 
@@ -104,10 +109,11 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     deleteBill(id);
   }, [deleteBill]);
   
-  const handleAddBill = useCallback((bill: Omit<BillTracker, "id" | "isPaid">) => {
+  const handleAddBill = useCallback((bill: Omit<BillTracker, "id" | "isPaid" | "type">) => {
     const newBill: BillTracker = {
       ...bill,
       id: generateBillId(),
+      type: 'tracker',
       isPaid: false,
       isExcluded: false,
     };
@@ -116,7 +122,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   
   const handleTogglePaid = useCallback((bill: BillTracker, isChecked: boolean) => {
     // Esta função só deve ser chamada para BillTracker, não ExternalPaidBill
-    if ((bill as BillDisplayItem).type === 'external_paid') return;
+    if (!isBillTracker(bill)) return;
     
     const trackerBill = bill as BillTracker;
 
@@ -255,6 +261,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         
         const newBill: BillTracker = {
             id: generateBillId(),
+            type: 'tracker',
             description,
             dueDate, // Mantém a data de vencimento original
             expectedAmount,
@@ -461,7 +468,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                 {/* Lista de Contas */}
                 <div className="flex-1 min-h-0">
                     <BillsTrackerList
-                        bills={combinedBills} {/* <-- USANDO LISTA COMBINADA */}
+                        bills={combinedBills}
                         onUpdateBill={handleUpdateBill}
                         onDeleteBill={handleDeleteBill}
                         onAddBill={handleAddBill}

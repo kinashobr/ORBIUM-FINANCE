@@ -25,7 +25,7 @@ interface BillsTrackerListProps {
   bills: BillDisplayItem[]; // <-- ALTERADO PARA BillDisplayItem[]
   onUpdateBill: (id: string, updates: Partial<BillTracker>) => void;
   onDeleteBill: (id: string) => void;
-  onAddBill: (bill: Omit<BillTracker, "id" | "isPaid">) => void;
+  onAddBill: (bill: Omit<BillTracker, "id" | "isPaid" | "type">) => void;
   onTogglePaid: (bill: BillTracker, isChecked: boolean) => void;
   currentDate: Date;
 }
@@ -66,6 +66,10 @@ const columnHeaders: { key: ColumnKey, label: string, align?: 'center' | 'right'
   { key: 'amount', label: 'Valor', align: 'right' },
   { key: 'actions', label: 'Ações', align: 'center' },
 ];
+
+// Predicados de tipo
+const isBillTracker = (bill: BillDisplayItem): bill is BillTracker => bill.type === 'tracker';
+const isExternalPaidBill = (bill: BillDisplayItem): bill is ExternalPaidBill => bill.type === 'external_paid';
 
 export function BillsTrackerList({
   bills,
@@ -248,9 +252,9 @@ export function BillsTrackerList({
 
   const sortedBills = useMemo(() => {
     // Filtra apenas BillTracker que não estão excluídos
-    const trackerBills = bills.filter((b): b is BillTracker => b.type !== 'external_paid' && !b.isExcluded);
+    const trackerBills = bills.filter(isBillTracker).filter(b => !b.isExcluded);
     // Filtra apenas ExternalPaidBill
-    const externalBills = bills.filter((b): b is ExternalPaidBill => b.type === 'external_paid');
+    const externalBills = bills.filter(isExternalPaidBill);
     
     const pending = trackerBills.filter(b => !b.isPaid);
     const paidTracker = trackerBills.filter(b => b.isPaid);
@@ -264,7 +268,7 @@ export function BillsTrackerList({
     return [...pending, ...allPaid];
   }, [bills]);
   
-  const totalPending = sortedBills.filter(b => b.type !== 'external_paid' && !b.isPaid).reduce((acc, b) => acc + b.expectedAmount, 0);
+  const totalPending = sortedBills.filter(b => isBillTracker(b) && !b.isPaid).reduce((acc, b) => acc + b.expectedAmount, 0);
 
   const formatDate = (dateStr: string) => {
     const date = parseDateLocal(dateStr);
@@ -389,7 +393,7 @@ export function BillsTrackerList({
             </TableHeader>
             <TableBody>
               {sortedBills.map((bill) => {
-                const isExternalPaid = bill.type === 'external_paid';
+                const isExternalPaid = isExternalPaidBill(bill);
                 const config = SOURCE_CONFIG[bill.sourceType] || SOURCE_CONFIG.ad_hoc;
                 const Icon = config.icon;
                 const dueDate = parseDateLocal(bill.dueDate);
@@ -397,13 +401,13 @@ export function BillsTrackerList({
                 const isPaid = bill.isPaid;
                 
                 // Apenas contas ad-hoc, fixed_expense ou variable_expense podem ter valor alterado
-                const isAmountEditable = !isExternalPaid && bill.sourceType !== 'loan_installment' && bill.sourceType !== 'insurance_installment';
+                const isAmountEditable = isBillTracker(bill) && bill.sourceType !== 'loan_installment' && bill.sourceType !== 'insurance_installment';
                 
                 // A data de vencimento pode ser alterada se não estiver paga (para qualquer tipo de conta)
-                const isDateEditable = !isExternalPaid && !isPaid;
+                const isDateEditable = isBillTracker(bill) && !isPaid;
                 
                 // A categoria é editável apenas para contas avulsas/fixas genéricas e se não estiver paga
-                const isCategoryEditable = !isExternalPaid && (bill.sourceType === 'ad_hoc' || bill.sourceType === 'fixed_expense' || bill.sourceType === 'variable_expense') && !isPaid;
+                const isCategoryEditable = isBillTracker(bill) && (bill.sourceType === 'ad_hoc' || bill.sourceType === 'fixed_expense' || bill.sourceType === 'variable_expense') && !isPaid;
                 
                 const currentCategory = expenseCategories.find(c => c.id === bill.suggestedCategoryId);
                 
@@ -570,7 +574,7 @@ export function BillsTrackerList({
                             variant="ghost" 
                             size="icon" 
                             className="h-8 w-8 text-muted-foreground"
-                            onClick={() => toast.info(`Transação ID: ${bill.transactionId}`)}
+                            onClick={() => toast.info(`Transação ID: ${(bill as BillTracker).transactionId}`)}
                           >
                             <Info className="w-4 h-4" />
                           </Button>

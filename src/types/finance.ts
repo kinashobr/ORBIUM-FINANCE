@@ -219,6 +219,7 @@ export type BillSourceType = 'loan_installment' | 'insurance_installment' | 'fix
 
 export interface BillTracker {
   id: string;
+  type: 'tracker'; // NOVO: Para diferenciação
   description: string;
   dueDate: string; // YYYY-MM-DD
   expectedAmount: number;
@@ -256,7 +257,7 @@ export interface PotentialFixedBill {
 // NOVO: Tipo para Despesas Pagas Externamente (somente leitura)
 export interface ExternalPaidBill {
   id: string; // Transaction ID
-  type: 'external_paid';
+  type: 'external_paid'; // NOVO: Para diferenciação
   dueDate: string; // Transaction Date
   paymentDate: string; // Transaction Date
   expectedAmount: number; // Transaction Amount
