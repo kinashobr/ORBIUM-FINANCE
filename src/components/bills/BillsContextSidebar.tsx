@@ -12,13 +12,13 @@ interface BillsContextSidebarProps {
   localRevenueForecast: number;
   setLocalRevenueForecast: (value: number) => void;
   previousMonthRevenue: number;
-  totalExpectedExpense: number; // Total PENDENTE
+  totalExpectedExpense: number;
   totalPaid: number;
   pendingCount: number;
-  netForecast: number; // Saldo Previsto (Receita - Total PENDENTE)
+  netForecast: number;
   isMobile?: boolean;
   onSaveAndClose: () => void;
-  onOpenAllInstallments?: () => void; // NEW PROP
+  onOpenAllInstallments?: () => void;
 }
 
 export function BillsContextSidebar({
@@ -80,7 +80,6 @@ export function BillsContextSidebar({
           Contexto
         </h3>
         
-        {/* Saldo Previsto (Maior Destaque) */}
         <Card className={cn(
           "p-3 shadow-lg",
           netForecast >= 0 ? "stat-card-positive" : "stat-card-negative"
@@ -104,7 +103,6 @@ export function BillsContextSidebar({
 
         <Separator />
 
-        {/* Itens de Apoio */}
         <div className="space-y-3">
           {items.map(item => (
             <div key={item.id} className="space-y-0.5">
@@ -134,7 +132,6 @@ export function BillsContextSidebar({
         </div>
       </div>
       
-      {/* Botão de Ação para Parcelas Fixas */}
       {onOpenAllInstallments && (
         <div className="pt-3">
             <Button 
@@ -148,7 +145,6 @@ export function BillsContextSidebar({
         </div>
       )}
       
-      {/* Botão Salvar e Sair (Fixo no final) */}
       <div className={cn("mt-auto pt-3", isMobile && "pt-0")}>
         <Button onClick={onSaveAndClose} className="w-full gap-2">
           <Save className="w-4 h-4" />
