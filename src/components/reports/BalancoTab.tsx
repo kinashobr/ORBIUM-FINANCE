@@ -1,101 +1,89 @@
 import { useMemo, useCallback } from "react";
-import { TrendingUp, TrendingDown, Scale, Wallet, Building2, Car, CreditCard, Banknote, PiggyBank, Bitcoin, Target, ShieldCheck, ChevronRight, Droplets, Shield } from "lucide-react";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart } from "recharts";
+import { TrendingUp, TrendingDown, Scale, Wallet, CreditCard, Droplets, ShieldCheck, ArrowRight } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { useFinance } from "@/contexts/FinanceContext";
 import { ReportCard } from "./ReportCard";
 import { ExpandablePanel } from "./ExpandablePanel";
-import { DetailedIndicatorBadge } from "./DetailedIndicatorBadge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { cn, parseDateLocal } from "@/lib/utils";
-import { format, startOfDay, endOfDay, addMonths, isBefore, isAfter, isSameDay, differenceInDays } from "date-fns";
-import { ComparisonDateRanges, DateRange, ACCOUNT_TYPE_LABELS } from "@/types/finance";
-import { EvolucaoPatrimonialChart } from "@/components/dashboard/EvolucaoPatrimonialChart";
+import { addMonths } from "date-fns";
+import { ComparisonDateRanges, DateRange } from "@/types/finance";
 
-const COLORS = { success: "hsl(142, 76%, 36%)", warning: "hsl(38, 92%, 50%)", danger: "hsl(0, 72%, 51%)", primary: "hsl(199, 89%, 48%)", accent: "hsl(270, 80% 60%)", muted: "hsl(215, 20% 55%)", gold: "hsl(45, 93%, 47%)", cyan: "hsl(180, 70%, 50%)" };
-const PIE_COLORS = [COLORS.primary, COLORS.accent, COLORS.success, COLORS.warning, COLORS.gold, COLORS.cyan, COLORS.danger];
+const COLORS = { success: "hsl(142, 76%, 36%)", danger: "hsl(0, 72%, 51%)", primary: "hsl(199, 89%, 48%)", accent: "hsl(270, 80% 60%)" };
 
-const formatCurrency = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
-const formatPercent = (v: number) => `${v.toFixed(1)}%`;
+const formatCurrency = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export function BalancoTab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
-  const { transacoesV2, contasMovimento, emprestimos, segurosVeiculo, getAtivosTotal, getPassivosTotal, calculateBalanceUpToDate, getValorFipeTotal, getSegurosAApropriar, getSegurosAPagar, calculateLoanPrincipalDueInNextMonths, getLoanPrincipalRemaining } = useFinance();
+  const { transacoesV2, contasMovimento, getAtivosTotal, getPassivosTotal, calculateBalanceUpToDate, getValorFipeTotal, getSegurosAApropriar, getSegurosAPagar, calculateLoanPrincipalDueInNextMonths, getLoanPrincipalRemaining } = useFinance();
   const { range1, range2 } = dateRanges;
 
   const calculateBalanco = useCallback((range: DateRange) => {
     const date = range.to || new Date();
-    const saldos = Object.fromEntries(contasMovimento.map(c => [c.id, calculateBalanceUpToDate(c.id, date, transacoesV2, contasMovimento)]));
-
-    const ativosCirculantes = contasMovimento.filter(c => ['corrente', 'poupanca', 'reserva', 'renda_fixa', 'cripto'].includes(c.accountType)).reduce((acc, c) => acc + Math.max(0, saldos[c.id] || 0), 0);
-    const segurosAApropriar = getSegurosAApropriar(date);
     const totalAtivos = getAtivosTotal(date);
+    const totalPassivos = getPassivosTotal(date);
+    const pl = totalAtivos - totalPassivos;
 
-    const totalLoanPrincipal = getLoanPrincipalRemaining(date);
+    const cash = contasMovimento.filter(c => ['corrente', 'poupanca', 'reserva', 'renda_fixa'].includes(c.accountType))
+      .reduce((acc, c) => acc + Math.max(0, calculateBalanceUpToDate(c.id, date, transacoesV2, contasMovimento)), 0);
+
     const loanShortTerm = calculateLoanPrincipalDueInNextMonths(date, 12);
-    
     const cardDebt = transacoesV2.filter(t => {
       const acc = contasMovimento.find(a => a.id === t.accountId);
       return acc?.accountType === 'cartao_credito' && parseDateLocal(t.date) <= addMonths(date, 1);
     }).reduce((acc, t) => acc + (t.flow === 'out' ? t.amount : -t.amount), 0);
 
-    const segurosAPagar = getSegurosAPagar(date);
-    const totalPassivos = getPassivosTotal(date) + Math.max(0, cardDebt);
-    const pl = totalAtivos - totalPassivos;
-
-    return {
-      ativos: { total: totalAtivos, circulante: ativosCirculantes + segurosAApropriar, imobilizado: getValorFipeTotal(date) },
-      passivos: { total: totalPassivos, curtoPrazo: loanShortTerm + Math.max(0, cardDebt), longoPrazo: totalPassivos - (loanShortTerm + Math.max(0, cardDebt)) },
-      pl,
-      saldos
-    };
-  }, [contasMovimento, transacoesV2, calculateBalanceUpToDate, getAtivosTotal, getPassivosTotal, getValorFipeTotal, getSegurosAApropriar, getSegurosAPagar, calculateLoanPrincipalDueInNextMonths, getLoanPrincipalRemaining]);
+    return { totalAtivos, totalPassivos, pl, cash, curtoPrazo: loanShortTerm + Math.max(0, cardDebt) };
+  }, [contasMovimento, transacoesV2, calculateBalanceUpToDate, getAtivosTotal, getPassivosTotal, calculateLoanPrincipalDueInNextMonths]);
 
   const b1 = useMemo(() => calculateBalanco(range1), [calculateBalanco, range1]);
   const b2 = useMemo(() => calculateBalanco(range2), [calculateBalanco, range2]);
 
   const varPL = b2.pl !== 0 ? ((b1.pl - b2.pl) / Math.abs(b2.pl)) * 100 : 0;
+  const varAtivos = b2.totalAtivos !== 0 ? ((b1.totalAtivos - b2.totalAtivos) / Math.abs(b2.totalAtivos)) * 100 : 0;
+
+  const chartData = [
+    { name: 'Ativos', p1: b1.totalAtivos, p2: b2.totalAtivos },
+    { name: 'Passivos', p1: b1.totalPassivos, p2: b2.totalPassivos },
+    { name: 'Patrimônio', p1: b1.pl, p2: b2.pl }
+  ];
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <ReportCard title="Ativo Total" value={formatCurrency(b1.ativos.total)} status="success" icon={<TrendingUp className="w-5 h-5" />} />
-        <ReportCard title="Passivo Total" value={formatCurrency(b1.passivos.total)} status="danger" icon={<TrendingDown className="w-5 h-5" />} />
-        <ReportCard title="Patrimônio Líquido" value={formatCurrency(b1.pl)} status={b1.pl >= 0 ? "success" : "danger"} icon={<Scale className="w-5 h-5" />} />
-        <ReportCard title="Variação PL" value={formatPercent(varPL)} trend={varPL} status={varPL >= 0 ? "success" : "danger"} icon={<Droplets className="w-5 h-5" />} />
+        <ReportCard title="Ativo Total" value={formatCurrency(b1.totalAtivos)} trend={varAtivos} trendLabel="vs P2" status="success" icon={<TrendingUp className="w-5 h-5" />} />
+        <ReportCard title="Passivo Total" value={formatCurrency(b1.totalPassivos)} trend={b2.totalPassivos ? ((b1.totalPassivos - b2.totalPassivos)/b2.totalPassivos)*100 : 0} trendLabel="vs P2" status="danger" icon={<TrendingDown className="w-5 h-5" />} />
+        <ReportCard title="Patrimônio Líquido" value={formatCurrency(b1.pl)} trend={varPL} trendLabel="vs P2" status={b1.pl >= 0 ? "success" : "danger"} icon={<Scale className="w-5 h-5" />} />
+        <ReportCard title="Liquidez Corrente" value={(b1.cash / (b1.curtoPrazo || 1)).toFixed(2) + 'x'} status={b1.cash / (b1.curtoPrazo || 1) > 1.2 ? "success" : "warning"} icon={<Droplets className="w-5 h-5" />} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ExpandablePanel title="ATIVO" icon={<Wallet className="w-4 h-4" />} badge={formatCurrency(b1.ativos.total)} badgeStatus="success">
-          <Table>
-            <TableBody>
-              <TableRow className="bg-success/5"><TableCell colSpan={2} className="font-bold text-success">CIRCULANTE (Liquidez)</TableCell></TableRow>
-              {contasMovimento.filter(c => ['corrente', 'poupanca', 'reserva', 'renda_fixa', 'cripto'].includes(c.accountType)).map(c => (
-                <TableRow key={c.id}><TableCell className="pl-6">{c.name}</TableCell><TableCell className="text-right text-success">{formatCurrency(b1.saldos[c.id] || 0)}</TableCell></TableRow>
-              ))}
-              <TableRow className="bg-primary/5"><TableCell colSpan={2} className="font-bold text-primary">NÃO CIRCULANTE (Imobilizado)</TableCell></TableRow>
-              <TableRow><TableCell className="pl-6">Veículos (FIPE)</TableCell><TableCell className="text-right">{formatCurrency(b1.ativos.imobilizado)}</TableCell></TableRow>
-            </TableBody>
-          </Table>
+        <ExpandablePanel title="Estrutura Patrimonial" icon={<ShieldCheck className="w-4 h-4" />}>
+          <div className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" />
+                <YAxis tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
+                <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                <Legend />
+                <Bar dataKey="p1" name="Período 1" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="p2" name="Período 2" fill={COLORS.accent} radius={[4, 4, 0, 0]} opacity={0.6} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </ExpandablePanel>
 
-        <ExpandablePanel title="PASSIVO" icon={<CreditCard className="w-4 h-4" />} badge={formatCurrency(b1.passivos.total)} badgeStatus="danger">
+        <ExpandablePanel title="Variações de Saldo" icon={<Wallet className="w-4 h-4" />}>
           <Table>
             <TableBody>
-              <TableRow className="bg-warning/5"><TableCell colSpan={2} className="font-bold text-warning">CURTO PRAZO (12 meses)</TableCell></TableRow>
-              <TableRow><TableCell className="pl-6">Dívidas e Cartões</TableCell><TableCell className="text-right text-destructive">{formatCurrency(b1.passivos.curtoPrazo)}</TableCell></TableRow>
-              <TableRow className="bg-destructive/5"><TableCell colSpan={2} className="font-bold text-destructive">LONGO PRAZO</TableCell></TableRow>
-              <TableRow><TableCell className="pl-6">Financiamentos</TableCell><TableCell className="text-right">{formatCurrency(b1.passivos.longoPrazo)}</TableCell></TableRow>
+              <TableRow className="font-bold bg-muted/20"><TableCell>Item</TableCell><TableCell className="text-right">P1</TableCell><TableCell className="text-right">P2</TableCell></TableRow>
+              <TableRow><TableCell>Disponibilidades (Caixa)</TableCell><TableCell className="text-right text-success">{formatCurrency(b1.cash)}</TableCell><TableCell className="text-right opacity-50">{formatCurrency(b2.cash)}</TableCell></TableRow>
+              <TableRow><TableCell>Obrigações Curto Prazo</TableCell><TableCell className="text-right text-destructive">{formatCurrency(b1.curtoPrazo)}</TableCell><TableCell className="text-right opacity-50">{formatCurrency(b2.curtoPrazo)}</TableCell></TableRow>
+              <TableRow className="font-bold"><TableCell>Capital de Giro Líquido</TableCell><TableCell className="text-right">{formatCurrency(b1.cash - b1.curtoPrazo)}</TableCell><TableCell className="text-right opacity-50">{formatCurrency(b2.cash - b2.curtoPrazo)}</TableCell></TableRow>
             </TableBody>
           </Table>
         </ExpandablePanel>
       </div>
-
-      <ExpandablePanel title="Indicadores de Solvência" icon={<ShieldCheck className="w-4 h-4" />}>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <DetailedIndicatorBadge title="Liquidez Corrente" value={(b1.ativos.circulante / (b1.passivos.curtoPrazo || 1)).toFixed(2) + 'x'} status={b1.ativos.circulante / (b1.passivos.curtoPrazo || 1) > 1.5 ? "success" : "warning"} descricao="Capacidade de pagar dívidas imediatas." formula="Ativo Circulante / Passivo Curto Prazo" />
-          <DetailedIndicatorBadge title="Endividamento" value={formatPercent((b1.passivos.total / b1.ativos.total) * 100)} status={(b1.passivos.total / b1.ativos.total) < 0.4 ? "success" : "danger"} descricao="Comprometimento do patrimônio com terceiros." formula="Passivo Total / Ativo Total" />
-          <DetailedIndicatorBadge title="Indice de Solvência" value={(b1.ativos.total / (b1.passivos.total || 1)).toFixed(2) + 'x'} status={b1.ativos.total / (b1.passivos.total || 1) > 2 ? "success" : "danger"} descricao="Segurança total do patrimônio." formula="Ativo Total / Passivo Total" />
-        </div>
-      </ExpandablePanel>
     </div>
   );
 }
