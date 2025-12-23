@@ -9,6 +9,7 @@ import {
   Percent,
   CreditCard,
   ArrowRight,
+  ChevronRight,
 } from "lucide-react";
 import {
   BarChart,
@@ -19,9 +20,6 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
-  PieChart as RechartsPie,
-  Pie,
-  Cell,
 } from "recharts";
 import { useFinance } from "@/contexts/FinanceContext";
 import { ReportCard } from "./ReportCard";
@@ -38,8 +36,6 @@ const COLORS = {
   accent: "hsl(270, 80% 60%)",
 };
 
-const PIE_COLORS = [COLORS.primary, COLORS.accent, COLORS.success, COLORS.warning, "hsl(45, 93%, 47%)", "hsl(180, 70%, 50%)", COLORS.danger];
-
 const formatCurrency = (value: number) => `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 interface DREItemProps {
@@ -49,11 +45,12 @@ interface DREItemProps {
   type: 'receita' | 'despesa' | 'subtotal' | 'resultado';
   icon?: React.ReactNode;
   level?: number;
+  isHeader?: boolean;
 }
 
-function DREItem({ label, value1, value2, type, icon, level = 0 }: DREItemProps) {
+function DREItem({ label, value1, value2, type, icon, level = 0, isHeader = false }: DREItemProps) {
   const diff = value2 !== undefined ? value1 - value2 : 0;
-  const percent = value2 ? (diff / Math.abs(value2)) * 100 : 0;
+  const percent = value2 && value2 !== 0 ? (diff / Math.abs(value2)) * 100 : 0;
   
   const typeClasses = {
     receita: "text-success",
@@ -63,21 +60,31 @@ function DREItem({ label, value1, value2, type, icon, level = 0 }: DREItemProps)
   };
   
   return (
-    <div className={cn("flex items-center justify-between py-2 px-4 border-b border-border/50", typeClasses[type], level > 0 && `pl-${4 + level * 4}`)}>
+    <div className={cn(
+      "flex items-center justify-between py-2 px-4 border-b border-border/50 transition-colors hover:bg-muted/10", 
+      typeClasses[type], 
+      level > 0 && "pl-8",
+      isHeader && "bg-muted/20 font-bold uppercase text-[10px] tracking-wider text-muted-foreground"
+    )}>
       <div className="flex items-center gap-2">
         {icon}
-        <span className="text-sm">{label}</span>
+        <span className={cn("text-sm", isHeader && "text-muted-foreground")}>{label}</span>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-6">
         {value2 !== undefined && (
-          <span className="text-xs text-muted-foreground line-through opacity-50">
-            {formatCurrency(value2)}
-          </span>
+          <div className="text-right w-24 opacity-40">
+            <span className="text-xs block">{formatCurrency(value2)}</span>
+          </div>
         )}
-        <div className="text-right">
+        <div className="text-right w-32">
           <span className="font-medium block">{formatCurrency(value1)}</span>
-          {value2 !== undefined && (
-            <span className={cn("text-[10px] font-bold", percent > 0 ? (type === 'receita' ? "text-success" : "text-destructive") : (type === 'receita' ? "text-destructive" : "text-success"))}>
+          {value2 !== undefined && value2 !== 0 && (
+            <span className={cn(
+              "text-[10px] font-bold", 
+              percent > 0 
+                ? (type === 'receita' ? "text-success" : "text-destructive") 
+                : (type === 'receita' ? "text-destructive" : "text-success")
+            )}>
               {percent > 0 ? '▲' : '▼'} {Math.abs(percent).toFixed(1)}%
             </span>
           )}
@@ -101,6 +108,7 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
     const categoriasMap = new Map(categoriasV2.map(c => [c.id, c]));
     const seguroCategory = categoriasV2.find(c => c.label.toLowerCase() === 'seguro');
 
+    // Apropriação de Seguros
     let accruedInsurance = 0;
     segurosVeiculo.forEach(s => {
       const vStart = parseDateLocal(s.vigenciaInicio);
@@ -160,57 +168,67 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
   const comparison = useMemo(() => {
     if (!dre1 || !dre2) return null;
     const factor = dre1.days / dre2.days;
-    const normValue = (val: number) => val * factor;
+    const norm = (val: number) => val * factor;
+    
     return {
-      receita: { v1: dre1.totalReceitas, v2: normValue(dre2.totalReceitas) },
-      despesa: { v1: dre1.totalFixas + dre1.totalVariaveis, v2: normValue(dre2.totalFixas + dre2.totalVariaveis) },
-      resultado: { v1: dre1.resultadoLiquido, v2: normValue(dre2.resultadoLiquido) }
+      receita: norm(dre2.totalReceitas),
+      fixas: norm(dre2.totalFixas),
+      variaveis: norm(dre2.totalVariaveis),
+      juros: norm(dre2.jurosEmprestimos),
+      resultado: norm(dre2.resultadoLiquido),
+      receitasMap: new Map(Array.from(dre2.receitasMap.entries()).map(([k, v]) => [k, norm(v)])),
+      fixasMap: new Map(Array.from(dre2.fixasMap.entries()).map(([k, v]) => [k, norm(v)])),
+      variaveisMap: new Map(Array.from(dre2.variaveisMap.entries()).map(([k, v]) => [k, norm(v)]))
     };
   }, [dre1, dre2]);
 
   if (!dre1) return null;
 
-  const mixData = [
-    { name: 'Fixas', p1: dre1.totalFixas, p2: comparison?.despesa.v2 ? (dre2?.totalFixas || 0) * (dre1.days / (dre2?.days || 1)) : 0 },
-    { name: 'Variáveis', p1: dre1.totalVariaveis, p2: comparison?.despesa.v2 ? (dre2?.totalVariaveis || 0) * (dre1.days / (dre2?.days || 1)) : 0 },
-    { name: 'Juros', p1: dre1.jurosEmprestimos, p2: comparison?.despesa.v2 ? (dre2?.jurosEmprestimos || 0) * (dre1.days / (dre2?.days || 1)) : 0 }
-  ];
-
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <ReportCard title="Receita (Normalizada)" value={formatCurrency(dre1.totalReceitas)} trend={comparison ? ((dre1.totalReceitas - comparison.receita.v2) / Math.abs(comparison.receita.v2)) * 100 : undefined} trendLabel="vs P2" status="success" icon={<TrendingUp className="w-5 h-5" />} />
-        <ReportCard title="Despesa (Normalizada)" value={formatCurrency(dre1.totalFixas + dre1.totalVariaveis)} trend={comparison ? (( (dre1.totalFixas + dre1.totalVariaveis) - comparison.despesa.v2) / Math.abs(comparison.despesa.v2)) * 100 : undefined} trendLabel="vs P2" status="danger" icon={<TrendingDown className="w-5 h-5" />} />
-        <ReportCard title="Resultado Líquido" value={formatCurrency(dre1.resultadoLiquido)} trend={comparison ? ((dre1.resultadoLiquido - comparison.resultado.v2) / Math.abs(comparison.resultado.v2)) * 100 : undefined} trendLabel="vs P2" status={dre1.resultadoLiquido >= 0 ? "success" : "danger"} icon={<DollarSign className="w-5 h-5" />} />
+        <ReportCard title="Receita Bruta" value={formatCurrency(dre1.totalReceitas)} trend={comparison ? ((dre1.totalReceitas - comparison.receita) / Math.abs(comparison.receita)) * 100 : undefined} trendLabel="vs P2" status="success" icon={<TrendingUp className="w-5 h-5" />} />
+        <ReportCard title="Despesa Total" value={formatCurrency(dre1.totalFixas + dre1.totalVariaveis + dre1.jurosEmprestimos)} trend={comparison ? (((dre1.totalFixas + dre1.totalVariaveis + dre1.jurosEmprestimos) - (comparison.fixas + comparison.variaveis + comparison.juros)) / Math.abs(comparison.fixas + comparison.variaveis + comparison.juros)) * 100 : undefined} trendLabel="vs P2" status="danger" icon={<TrendingDown className="w-5 h-5" />} />
+        <ReportCard title="Resultado Líquido" value={formatCurrency(dre1.resultadoLiquido)} trend={comparison ? ((dre1.resultadoLiquido - comparison.resultado) / Math.abs(comparison.resultado)) * 100 : undefined} trendLabel="vs P2" status={dre1.resultadoLiquido >= 0 ? "success" : "danger"} icon={<DollarSign className="w-5 h-5" />} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ExpandablePanel title="DRE Comparativa" subtitle="Valores de P2 normalizados pela duração de P1" icon={<Receipt className="w-4 h-4" />}>
-          <div className="glass-card p-0">
-            <DREItem label="RECEITA BRUTA" value1={dre1.totalReceitas} value2={comparison?.receita.v2} type="receita" icon={<Plus className="w-4 h-4" />} />
-            <DREItem label="(-) DESPESAS FIXAS" value1={dre1.totalFixas} value2={dre2 ? dre2.totalFixas * (dre1.days / dre2.days) : undefined} type="despesa" icon={<Minus className="w-4 h-4" />} />
-            <DREItem label="(-) DESPESAS VARIÁVEIS" value1={dre1.totalVariaveis} value2={dre2 ? dre2.totalVariaveis * (dre1.days / dre2.days) : undefined} type="despesa" icon={<Minus className="w-4 h-4" />} />
-            <DREItem label="(-) JUROS" value1={dre1.jurosEmprestimos} value2={dre2 ? dre2.jurosEmprestimos * (dre1.days / dre2.days) : undefined} type="despesa" icon={<CreditCard className="w-4 h-4" />} />
-            <DREItem label="RESULTADO LÍQUIDO" value1={dre1.resultadoLiquido} value2={comparison?.resultado.v2} type="resultado" icon={<DollarSign className="w-4 h-4" />} />
+      <ExpandablePanel title="Demonstrativo de Resultado Detalhado" subtitle="Comparação de categorias (P2 normalizado)" icon={<Receipt className="w-4 h-4" />}>
+        <div className="glass-card p-0 overflow-hidden">
+          {/* Cabeçalho da Tabela */}
+          <div className="flex items-center justify-between py-2 px-4 bg-muted/50 border-b border-border font-bold text-[10px] uppercase tracking-widest text-muted-foreground">
+            <span>Descrição da Conta</span>
+            <div className="flex gap-6">
+              <span className="w-24 text-right">P2 (Norm.)</span>
+              <span className="w-32 text-right">Período 1</span>
+            </div>
           </div>
-        </ExpandablePanel>
 
-        <ExpandablePanel title="Mix de Gastos (P1 vs P2)" icon={<Percent className="w-4 h-4" />}>
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={mixData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" />
-                <YAxis tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
-                <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                <Legend />
-                <Bar dataKey="p1" name="Período 1" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
-                <Bar dataKey="p2" name="Período 2 (Norm.)" fill={COLORS.accent} radius={[4, 4, 0, 0]} opacity={0.6} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </ExpandablePanel>
-      </div>
+          {/* RECEITAS */}
+          <DREItem label="RECEITAS OPERACIONAIS" value1={dre1.totalReceitas} value2={comparison?.receita} type="subtotal" icon={<Plus className="w-4 h-4 text-success" />} />
+          {Array.from(dre1.receitasMap.entries()).map(([label, val]) => (
+            <DREItem key={label} label={label} value1={val} value2={comparison?.receitasMap.get(label)} type="receita" level={1} />
+          ))}
+
+          {/* DESPESAS FIXAS */}
+          <DREItem label="DESPESAS FIXAS (ESTRUTURA)" value1={dre1.totalFixas} value2={comparison?.fixas} type="subtotal" icon={<Minus className="w-4 h-4 text-destructive" />} />
+          {Array.from(dre1.fixasMap.entries()).map(([label, val]) => (
+            <DREItem key={label} label={label} value1={val} value2={comparison?.fixasMap.get(label)} type="despesa" level={1} />
+          ))}
+
+          {/* DESPESAS VARIÁVEIS */}
+          <DREItem label="DESPESAS VARIÁVEIS (CONSUMO)" value1={dre1.totalVariaveis} value2={comparison?.variaveis} type="subtotal" icon={<Minus className="w-4 h-4 text-destructive" />} />
+          {Array.from(dre1.variaveisMap.entries()).map(([label, val]) => (
+            <DREItem key={label} label={label} value1={val} value2={comparison?.variaveisMap.get(label)} type="despesa" level={1} />
+          ))}
+
+          {/* FINANCEIRO */}
+          <DREItem label="RESULTADO FINANCEIRO (JUROS)" value1={dre1.jurosEmprestimos} value2={comparison?.juros} type="subtotal" icon={<CreditCard className="w-4 h-4 text-orange-500" />} />
+          <DREItem label="Juros de Empréstimos/Financ." value1={dre1.jurosEmprestimos} value2={comparison?.juros} type="despesa" level={1} />
+
+          {/* RESULTADO FINAL */}
+          <DREItem label="LUCRO / PREJUÍZO LÍQUIDO" value1={dre1.resultadoLiquido} value2={comparison?.resultado} type="resultado" icon={<ArrowRight className="w-5 h-5" />} />
+        </div>
+      </ExpandablePanel>
     </div>
   );
 }
