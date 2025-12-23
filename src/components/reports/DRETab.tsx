@@ -163,9 +163,9 @@ export function DRETab({ dateRanges }: DRETabProps) {
   const calculateDRE = useCallback((transactions: TransacaoCompleta[]) => {
     const categoriasMap = new Map(categoriasV2.map(c => [c.id, c]));
 
-    // 1. RECEITA BRUTA (Apenas Receitas Operacionais, EXCLUINDO Rendimentos)
+    // 1. RECEITA BRUTA (Apenas Receitas Operacionais, EXCLUINDO Rendimentos e Saldo Inicial)
     const transacoesReceitaBruta = transactions.filter(t => 
-      t.operationType === 'receita' && t.operationType !== 'initial_balance'
+      t.operationType === 'receita'
     );
 
     const receitasBrutasAgrupadas = new Map<string, number>();
