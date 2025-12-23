@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useCallback } from "react";
 import {
   TrendingUp,
   TrendingDown,
@@ -11,17 +11,8 @@ import {
   Plus,
   Equal,
   Percent,
-  ArrowUpRight,
-  ArrowDownRight,
-  Wallet,
-  CreditCard,
-  Target,
 } from "lucide-react";
 import {
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -33,17 +24,15 @@ import {
   Cell,
   ComposedChart,
   Line,
+  Bar,
 } from "recharts";
 import { useFinance } from "@/contexts/FinanceContext";
 import { ReportCard } from "./ReportCard";
 import { ExpandablePanel } from "./ExpandablePanel";
-import { IndicatorBadge } from "./IndicatorBadge";
-import { DetailedIndicatorBadge } from "./DetailedIndicatorBadge";
 import { cn, parseDateLocal } from "@/lib/utils";
-import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval, startOfDay, endOfDay, differenceInMonths } from "date-fns";
+import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ComparisonDateRanges, DateRange } from "@/types/finance";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TransacaoCompleta } from "@/types/finance";
 
 const COLORS = {
@@ -66,8 +55,6 @@ const PIE_COLORS = [
   COLORS.cyan,
   COLORS.danger,
 ];
-
-type KPIStatus = "success" | "warning" | "danger" | "neutral";
 
 interface DRETabProps {
   dateRanges: ComparisonDateRanges;
@@ -131,7 +118,6 @@ const CustomPieLabel = ({ cx, cy, midAngle, outerRadius, percent, name }: any) =
   );
 };
 
-
 export function DRETab({ dateRanges }: DRETabProps) {
   const {
     transacoesV2,
@@ -163,7 +149,6 @@ export function DRETab({ dateRanges }: DRETabProps) {
   const calculateDRE = useCallback((transactions: TransacaoCompleta[]) => {
     const categoriasMap = new Map(categoriasV2.map(c => [c.id, c]));
 
-    // 1. RECEITA BRUTA (Apenas Receitas Operacionais, EXCLUINDO Rendimentos e Saldo Inicial)
     const transacoesReceitaBruta = transactions.filter(t => 
       t.operationType === 'receita'
     );
@@ -183,7 +168,6 @@ export function DRETab({ dateRanges }: DRETabProps) {
     receitasBrutas.sort((a, b) => b.valor - a.valor);
     const totalReceitaBruta = receitasBrutas.reduce((acc, r) => acc + r.valor, 0);
 
-    // 2. DESPESAS OPERACIONAIS
     const despesasFixas: { categoria: string; valor: number }[] = [];
     const despesasVariaveis: { categoria: string; valor: number }[] = [];
     
@@ -219,7 +203,6 @@ export function DRETab({ dateRanges }: DRETabProps) {
     const resultadoBruto = totalReceitaBruta - totalDespesasFixas;
     const resultadoOperacional = resultadoBruto - totalDespesasVariaveis;
 
-    // 3. RESULTADO FINANCEIRO (Rendimentos - Juros)
     const totalRendimentos = transactions
       .filter(t => t.operationType === 'rendimento')
       .reduce((acc, t) => acc + t.amount, 0);
@@ -340,10 +323,10 @@ export function DRETab({ dateRanges }: DRETabProps) {
           title="Variação do RL"
           value={`${variacaoRL.percent.toFixed(1)}%`}
           trend={variacaoRL.percent}
-          trendLabel="Período 2"
+          trendLabel="anterior"
           status={variacaoRL.percent >= 0 ? "success" : "danger"}
           icon={<Percent className="w-5 h-5" />}
-          tooltip={`Variação do Resultado Líquido vs Período 2`}
+          tooltip={`Variação do Resultado Líquido vs período anterior`}
           delay={150}
         />
       </div>
