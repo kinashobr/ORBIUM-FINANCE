@@ -7,18 +7,13 @@ import { useFinance } from "@/contexts/FinanceContext";
 import { BillTracker, PotentialFixedBill, BillSourceType, formatCurrency, generateBillId, TransactionLinks, OperationType, BillDisplayItem, ExternalPaidBill } from "@/types/finance";
 import { BillsTrackerList } from "./BillsTrackerList";
 import { FixedBillsList } from "./FixedBillsList";
-import { BillsSidebarKPIs } from "./BillsSidebarKPIs"; // NEW IMPORT
-import { FixedBillSelectorModal } from "./FixedBillSelectorModal"; // NEW IMPORT
+import { BillsSidebarKPIs } from "./BillsSidebarKPIs";
+import { FixedBillSelectorModal } from "./FixedBillSelectorModal";
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { parseDateLocal } from "@/lib/utils";
-import { ResizableDialogContent } from "../ui/ResizableDialogContent"; // IMPORTANDO
-
-interface BillsTrackerModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
+import { ResizableDialogContent } from "../ui/ResizableDialogContent";
 
 // Tipo auxiliar para links parciais
 type PartialTransactionLinks = Partial<TransactionLinks>;
@@ -37,7 +32,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     getBillsForMonth, 
     getPotentialFixedBillsForMonth,
     getFutureFixedBills,
-    getOtherPaidExpensesForMonth, // <-- NOVO
+    getOtherPaidExpensesForMonth,
     contasMovimento,
     addTransacaoV2,
     setTransacoesV2,
@@ -58,28 +53,24 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   // Contas gerenciadas pelo tracker (pendentes e pagas via tracker)
   const trackerManagedBills = useMemo(() => getBillsForMonth(currentDate), [getBillsForMonth, currentDate]);
   
-  // NEW: Obter pagamentos externos (somente leitura)
+  // Obter pagamentos externos (somente leitura)
   const externalPaidBills = useMemo(() => 
     getOtherPaidExpensesForMonth(currentDate) 
   , [getOtherPaidExpensesForMonth, currentDate]);
   
-  // NEW: Lista combinada e ordenada para exibição
+  // Lista combinada e ordenada para exibição
   const combinedBills: BillDisplayItem[] = useMemo(() => {
-    // 1. Criar um mapa de IDs de transações pagas pelo tracker para deduplicação
     const trackerPaidTxIds = new Set(trackerManagedBills
         .filter(b => b.isPaid && b.transactionId)
         .map(b => b.transactionId!)
     );
     
-    // 2. Adicionar contas gerenciadas pelo tracker (pendentes e pagas)
     const trackerBills: BillDisplayItem[] = trackerManagedBills;
     
-    // 3. Adicionar contas pagas externamente, garantindo que não sejam duplicatas
     const externalBills: BillDisplayItem[] = externalPaidBills.filter(externalBill => 
         !trackerPaidTxIds.has(externalBill.id)
     );
     
-    // 4. Combinar
     return [...trackerBills, ...externalBills];
   }, [trackerManagedBills, externalPaidBills]);
   
@@ -92,15 +83,19 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   , [getFutureFixedBills, currentDate, trackerManagedBills]);
   
   // CÁLCULOS AJUSTADOS PARA O SIDEBAR
+  // A pagar (Pendentes): Apenas itens do trackerManagedBills que não estão pagos e não estão excluídos
   const totalUnpaidBills = useMemo(() => 
-    combinedBills.filter(b => !b.isPaid).reduce((acc, b) => acc + b.expectedAmount, 0)
-  , [combinedBills]);
+    trackerManagedBills
+      .filter(b => !b.isPaid && !b.isExcluded)
+      .reduce((acc, b) => acc + b.expectedAmount, 0)
+  , [trackerManagedBills]);
   
-  const totalPaidBills = useMemo(() => 
-    combinedBills.filter(b => b.isPaid).reduce((acc, b) => acc + b.expectedAmount, 0)
-  , [combinedBills]);
-  
-  const totalExpectedExpense = totalUnpaidBills + totalPaidBills; // Total de despesas do mês (pendentes + pagas)
+  // Total Pago: Itens do tracker marcados como pagos + itens externos (extrato)
+  const totalPaidBills = useMemo(() => {
+    const trackerPaid = trackerManagedBills.filter(b => b.isPaid).reduce((acc, b) => acc + b.expectedAmount, 0);
+    const externalPaid = externalPaidBills.reduce((acc, b) => acc + b.expectedAmount, 0);
+    return trackerPaid + externalPaid;
+  }, [trackerManagedBills, externalPaidBills]);
 
   // --- Handlers ---
   
@@ -128,13 +123,11 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   }, [setBillsTracker]);
   
   const handleTogglePaid = useCallback((bill: BillTracker, isChecked: boolean) => {
-    // Esta função só deve ser chamada para BillTracker, não ExternalPaidBill
     if (!isBillTracker(bill)) return;
     
     const trackerBill = bill as BillTracker;
 
     if (isChecked) {
-      // Mark as paid and create transaction
       const account = contasMovimento.find(c => c.id === trackerBill.suggestedAccountId);
       const category = categoriasV2.find(c => c.id === trackerBill.suggestedCategoryId);
       
@@ -148,8 +141,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
       }
       
       const transactionId = `bill_tx_${trackerBill.id}`;
-      
-      // Usar o tipo auxiliar para links
       const baseLinks: PartialTransactionLinks = {};
       let description = trackerBill.description;
       
@@ -161,34 +152,25 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         const scheduleItem = calculateLoanAmortizationAndInterest(loanId, trackerBill.parcelaNumber);
         
         if (scheduleItem) {
-            // Link to loan and parcela
             baseLinks.loanId = `loan_${loanId}`;
             baseLinks.parcelaId = String(trackerBill.parcelaNumber);
-            
-            // Update description to reflect payment details
             const loan = emprestimos.find(e => e.id === loanId);
             description = `Pagamento Empréstimo ${loan?.contrato || 'N/A'} - P${trackerBill.parcelaNumber}/${loan?.meses || 'N/A'}`;
-            
-            // ** AÇÃO CRÍTICA: Atualizar Entidade V2 (Empréstimo) **
             markLoanParcelPaid(loanId, trackerBill.expectedAmount, format(new Date(), 'yyyy-MM-dd'), trackerBill.parcelaNumber);
         }
       }
       
       if (trackerBill.sourceType === 'insurance_installment' && trackerBill.sourceRef && trackerBill.parcelaNumber) {
-        // Link to vehicle transaction (Seguro ID_Parcela Num)
         baseLinks.vehicleTransactionId = `${trackerBill.sourceRef}_${trackerBill.parcelaNumber}`;
-        
         const seguroId = parseInt(trackerBill.sourceRef);
         const seguro = segurosVeiculo.find(s => s.id === seguroId);
         description = `Pagamento Seguro ${seguro?.numeroApolice || 'N/A'} - P${trackerBill.parcelaNumber}/${seguro?.numeroParcelas || 'N/A'}`;
-        
-        // ** AÇÃO CRÍTICA: Atualizar Entidade V2 (Seguro) **
         markSeguroParcelPaid(seguroId, trackerBill.parcelaNumber, transactionId);
       }
       
       const newTransaction = {
         id: transactionId,
-        date: format(new Date(), 'yyyy-MM-dd'), // Use today's date as payment date
+        date: format(new Date(), 'yyyy-MM-dd'),
         accountId: account.id,
         flow: 'out' as const,
         operationType: operationType,
@@ -214,8 +196,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
       };
       
       addTransacaoV2(newTransaction);
-      
-      // Update Bill Tracker
       updateBill(trackerBill.id, { 
         isPaid: true, 
         transactionId, 
@@ -225,31 +205,21 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
       toast.success(`Conta "${trackerBill.description}" paga e transação criada!`);
       
     } else {
-      // Unmark as paid and delete transaction
       if (trackerBill.transactionId) {
-        
-        // ** AÇÃO CRÍTICA: Reverter Entidade V2 (Seguro/Empréstimo) **
         if (trackerBill.sourceType === 'loan_installment' && trackerBill.sourceRef && trackerBill.parcelaNumber) {
             unmarkLoanParcelPaid(parseInt(trackerBill.sourceRef)); 
         }
-        
         if (trackerBill.sourceType === 'insurance_installment' && trackerBill.sourceRef && trackerBill.parcelaNumber) {
             unmarkSeguroParcelPaid(parseInt(trackerBill.sourceRef), trackerBill.parcelaNumber);
         }
-        
-        // Remove transaction ID from bill tracker
         setBillsTracker(prev => prev.map(b => {
             if (b.id === trackerBill.id) {
                 return { ...b, isPaid: false, transactionId: undefined, paymentDate: undefined };
             }
             return b;
         }));
-        
-        // Remove a transação real
         setTransacoesV2(prev => prev.filter(t => t.id !== trackerBill.transactionId));
-        
         toast.info("Conta desmarcada como paga e transação excluída.");
-        
       } else {
         updateBill(trackerBill.id, { isPaid: false, paymentDate: undefined });
       }
@@ -259,16 +229,14 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   const handleToggleFixedBill = useCallback((potentialBill: PotentialFixedBill, isChecked: boolean) => {
     const { sourceType, sourceRef, parcelaNumber, dueDate, expectedAmount, description, isPaid } = potentialBill;
     
-    // 1. Se for para incluir (marcar)
     if (isChecked) {
-        // Lógica de adiantamento: Se for uma conta futura E não estiver paga
         const isFutureBill = parseDateLocal(dueDate) > endOfMonth(currentDate);
         
         const newBill: BillTracker = {
             id: generateBillId(),
             type: 'tracker',
             description,
-            dueDate, // Mantém a data de vencimento original
+            dueDate,
             expectedAmount,
             sourceType,
             sourceRef,
@@ -279,16 +247,12 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                 (sourceType === 'insurance_installment' && c.label.toLowerCase().includes('seguro'))
             )?.id || null,
             isExcluded: false,
-            
-            // *** LÓGICA DE ADIANTAMENTO APLICADA AQUI ***
             isPaid: isFutureBill && !isPaid,
             paymentDate: isFutureBill && !isPaid ? format(new Date(), 'yyyy-MM-dd') : undefined,
-            transactionId: isFutureBill && !isPaid ? `bill_tx_temp_${generateBillId()}` : undefined, // ID temporário para rastreamento
+            transactionId: isFutureBill && !isPaid ? `bill_tx_temp_${generateBillId()}` : undefined,
         };
         
-        // Se for adiantamento, criamos a transação imediatamente
         if (newBill.isPaid && newBill.transactionId) {
-            // Se for adiantamento, criamos a transação real imediatamente
             const account = contasMovimento.find(c => c.id === newBill.suggestedAccountId);
             const category = categoriasV2.find(c => c.id === newBill.suggestedCategoryId);
             
@@ -304,7 +268,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             const operationType: OperationType = newBill.sourceType === 'loan_installment' ? 'pagamento_emprestimo' : 'despesa';
             const domain = newBill.sourceType === 'loan_installment' ? 'financing' : 'operational';
             
-            // Lógica de vinculação e atualização de entidades V2 (Empréstimo/Seguro)
             if (newBill.sourceType === 'loan_installment' && newBill.sourceRef && newBill.parcelaNumber) {
                 const loanId = parseInt(newBill.sourceRef);
                 baseLinks.loanId = `loan_${loanId}`;
@@ -350,13 +313,11 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             toast.success(`Adiantamento de parcela futura registrado e pago hoje!`);
             
         } else {
-            // Se for uma conta do mês atual ou já paga (apenas marcando a inclusão)
             setBillsTracker(prev => [...prev, newBill]);
             toast.success("Conta fixa incluída na lista do mês.");
         }
         
     } else {
-        // 2. Se for para excluir (desmarcar)
         const billToRemove = billsTracker.find(b => 
             b.sourceType === sourceType && 
             b.sourceRef === sourceRef && 
@@ -365,33 +326,22 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         
         if (billToRemove) {
             if (billToRemove.isPaid) {
-                // Se a conta foi paga (adiantada ou não), precisamos reverter o pagamento
                 if (billToRemove.transactionId) {
-                    // Reverter Entidade V2 (Empréstimo/Seguro)
                     if (billToRemove.sourceType === 'loan_installment' && billToRemove.sourceRef && billToRemove.parcelaNumber) {
                         unmarkLoanParcelPaid(parseInt(billToRemove.sourceRef)); 
                     }
                     if (billToRemove.sourceType === 'insurance_installment' && billToRemove.sourceRef && billToRemove.parcelaNumber) {
                         unmarkSeguroParcelPaid(parseInt(billToRemove.sourceRef), billToRemove.parcelaNumber);
                     }
-                    
-                    // Remover a transação gerada pelo Bill Tracker
                     setTransacoesV2(prev => prev.filter(t => t.id !== billToRemove.transactionId));
-                    
-                    // Remove a conta do Bills Tracker
                     setBillsTracker(prev => prev.filter(b => b.id !== billToRemove.id));
                     toast.info("Adiantamento estornado e parcela removida.");
                     return;
                 }
-                
                 toast.error("Não é possível remover contas fixas já pagas sem Transaction ID.");
                 return;
             }
-            
-            // Remove completamente se for uma conta futura (que não deveria estar no billsTracker)
-            // Ou marca como excluída se for uma conta do mês atual (para não aparecer na lista)
             const isFutureBill = parseDateLocal(dueDate) > endOfMonth(currentDate);
-            
             if (isFutureBill) {
                 setBillsTracker(prev => prev.filter(b => b.id !== billToRemove.id));
                 toast.info("Parcela futura removida da lista.");
@@ -438,22 +388,16 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             </DialogTitle>
           </DialogHeader>
           
-          {/* NOVO LAYOUT: Sidebar + Main Content */}
           <div className="flex flex-1 overflow-hidden p-6 pt-4 gap-6">
-            
-            {/* Sidebar KPIs (25% width) */}
             <div className="w-1/4 shrink-0 overflow-y-auto">
                 <BillsSidebarKPIs 
                     currentDate={currentDate}
-                    totalPendingBills={totalUnpaidBills} // <-- USANDO APENAS O QUE FALTA PAGAR
-                    totalPaidBills={totalPaidBills} // <-- NOVO PROP
+                    totalPendingBills={totalUnpaidBills}
+                    totalPaidBills={totalPaidBills}
                 />
             </div>
             
-            {/* Main Content (75% width) */}
             <div className="flex-1 flex flex-col min-w-0 space-y-4">
-                
-                {/* Botões de Gerenciamento Fixo */}
                 <div className="flex gap-3 shrink-0">
                     <Button 
                         variant="outline" 
@@ -471,7 +415,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                     </Button>
                 </div>
                 
-                {/* Lista de Contas */}
                 <div className="flex-1 min-h-0">
                     <BillsTrackerList
                         bills={combinedBills}
@@ -487,7 +430,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         </ResizableDialogContent>
       </Dialog>
       
-      {/* Fixed Bill Selector Modal */}
       {showFixedBillSelector && (
         <FixedBillSelectorModal
             open={showFixedBillSelector}
