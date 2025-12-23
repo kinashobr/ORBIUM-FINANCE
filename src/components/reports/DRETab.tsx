@@ -207,14 +207,17 @@ export function DRETab({ dateRanges }: DRETabProps) {
                 const vigenciaInicio = parseDateLocal(seguro.vigenciaInicio);
                 const vigenciaFim = parseDateLocal(seguro.vigenciaFim);
                 
+                // Apropriação só ocorre se a vigência do seguro se sobrepõe ao período do relatório
+                if (isAfter(vigenciaInicio, range.to) || isBefore(vigenciaFim, range.from)) return;
+
                 const totalMonths = differenceInMonths(vigenciaFim, vigenciaInicio) + 1;
                 if (totalMonths <= 0) return;
                 
                 const monthlyAccrual = seguro.valorTotal / totalMonths;
                 
                 // Determine the intersection of the insurance vigency and the reporting period (range)
-                const accrualStart = vigenciaInicio > range.from ? vigenciaInicio : range.from;
-                const accrualEnd = vigenciaFim < range.to ? vigenciaFim : range.to;
+                const accrualStart = vigenciaInicio > range.from! ? vigenciaInicio : range.from!;
+                const accrualEnd = vigenciaFim < range.to! ? vigenciaFim : range.to!;
                 
                 if (accrualStart <= accrualEnd) {
                     // Calculate months to accrue based on the intersection
@@ -230,7 +233,7 @@ export function DRETab({ dateRanges }: DRETabProps) {
     // --- 2b. Filter transactions (Exclude cash insurance payments, asset purchases, and initial_balance) ---
     const transacoesDespesaOperacional = transactions.filter(t => 
       t.operationType !== 'initial_balance' && // EXCLUIR SALDO INICIAL
-      t.operationType === 'despesa' && // FIXED: Exclude 'veiculo' operation type
+      t.operationType !== 'veiculo' && // EXCLUIR COMPRA/VENDA DE VEÍCULO
       t.flow === 'out' &&
       // EXCLUDE cash payments for insurance if they are linked to the 'Seguro' category
       (t.categoryId !== seguroCategory?.id)

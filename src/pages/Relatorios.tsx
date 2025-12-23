@@ -7,7 +7,8 @@ import { IndicadoresTab } from "@/components/reports/IndicadoresTab";
 import { Scale, Receipt, Activity } from "lucide-react";
 import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
 import { DateRange, ComparisonDateRanges } from "@/types/finance";
-import { startOfMonth, endOfMonth, subDays } from "date-fns";
+import { startOfMonth, endOfMonth, subDays, format } from "date-fns"; // Import format
+import { ptBR } from "date-fns/locale"; // Import ptBR locale
 import { useFinance } from "@/contexts/FinanceContext";
 
 const Relatorios = () => {
@@ -16,6 +17,17 @@ const Relatorios = () => {
   const handlePeriodChange = useCallback((ranges: ComparisonDateRanges) => {
     setDateRanges(ranges);
   }, [setDateRanges]);
+
+  const formatRange = (range: DateRange) => {
+    if (!range.from && !range.to) return "Todo o período";
+    if (!range.from || !range.to) return "Período incompleto";
+    
+    const from = format(range.from, 'dd/MM/yyyy', { locale: ptBR });
+    const to = format(range.to, 'dd/MM/yyyy', { locale: ptBR });
+    
+    if (from === to) return from;
+    return `${from} - ${to}`;
+  };
 
   return (
     <MainLayout>
@@ -28,6 +40,15 @@ const Relatorios = () => {
             </h1>
             <p className="text-muted-foreground mt-1">
               Análise contábil profissional • Balanço, DRE e Indicadores
+            </p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Período Principal: <span className="font-medium text-foreground">{formatRange(dateRanges.range1)}</span>
+              {dateRanges.range2.from && (
+                <>
+                  <span className="mx-2">|</span>
+                  Período Comparativo: <span className="font-medium text-foreground">{formatRange(dateRanges.range2)}</span>
+                </>
+              )}
             </p>
           </div>
           <PeriodSelector 

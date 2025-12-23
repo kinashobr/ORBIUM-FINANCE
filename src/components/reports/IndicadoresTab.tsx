@@ -299,13 +299,13 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
     // Ativos
     // Contas Circulantes (incluindo Renda Fixa e Poupança)
     const contasLiquidas = saldosPorConta.filter(c => 
-      ['conta_corrente', 'poupanca', 'reserva_emergencia', 'aplicacao_renda_fixa'].includes(c.accountType)
+      ['corrente', 'poupanca', 'reserva', 'renda_fixa'].includes(c.accountType)
     );
     const caixaTotal = contasLiquidas.reduce((acc, c) => acc + Math.max(0, c.saldo), 0);
 
     // Contas Não Circulantes (Apenas Cripto e Objetivos)
     const contasInvestimentoNaoCirculante = saldosPorConta.filter(c => 
-      ['criptoativos', 'objetivos_financeiros'].includes(c.accountType)
+      ['cripto', 'objetivo'].includes(c.accountType)
     );
     const investimentosTotal = contasInvestimentoNaoCirculante.reduce((acc, c) => acc + Math.max(0, c.saldo), 0);
     
@@ -321,7 +321,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
     const saldoDevedorCartoes = contasMovimento
       .filter(c => c.accountType === 'cartao_credito')
       .reduce((acc, c) => {
-        const balance = saldosPorConta[c.id] || 0;
+        const balance = saldosPorConta.find(s => s.id === c.id)?.saldo || 0;
         return acc + Math.abs(Math.min(0, balance)); // Only negative balance is liability
       }, 0);
       
@@ -355,7 +355,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
     
     // Receitas do período (Accrual/Cash basis is the same for Revenue)
     const calcReceitas = (trans: typeof transacoesV2) => trans
-      .filter(t => t.operationType === 'receita' || t.operationType === 'rendimento')
+      .filter(t => t.operationType !== 'initial_balance' && (t.operationType === 'receita' || t.operationType === 'rendimento'))
       .reduce((acc, t) => acc + t.amount, 0);
       
     const receitasMesAtual = calcReceitas(transacoesPeriodo);
@@ -373,13 +373,16 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
                 const vigenciaInicio = parseDateLocal(seguro.vigenciaInicio);
                 const vigenciaFim = parseDateLocal(seguro.vigenciaFim);
                 
+                // Apropriação só ocorre se a vigência do seguro se sobrepõe ao período do relatório
+                if (isAfter(vigenciaInicio, range.to) || isBefore(vigenciaFim, range.from)) return;
+
                 const totalMonths = differenceInMonths(vigenciaFim, vigenciaInicio) + 1;
                 if (totalMonths <= 0) return;
                 
                 const monthlyAccrual = seguro.valorTotal / totalMonths;
                 
-                const accrualStart = vigenciaInicio > range.from ? vigenciaInicio : range.from;
-                const accrualEnd = vigenciaFim < range.to ? vigenciaFim : range.to;
+                const accrualStart = vigenciaInicio > range.from! ? vigenciaInicio : range.from!;
+                const accrualEnd = vigenciaFim < range.to! ? vigenciaFim : range.to!;
                 
                 if (accrualStart <= accrualEnd) {
                     const monthsToAccrue = differenceInMonths(accrualEnd, accrualStart) + 1;
@@ -399,8 +402,11 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
     let despesasMesAtualCash = 0;
     
     const transacoesDespesaOperacional = transacoesPeriodo.filter(t => 
-      (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo' || t.operationType === 'veiculo') &&
-      t.flow === 'out'
+      t.operationType !== 'initial_balance' && // EXCLUIR SALDO INICIAL
+      t.operationType !== 'veiculo' && // EXCLUIR COMPRA/VENDA DE VEÍCULO
+      t.flow === 'out' &&
+      // EXCLUDE cash insurance payments if they are linked to the 'Seguro' category
+      (t.categoryId !== seguroCategory?.id)
     );
     
     transacoesDespesaOperacional.forEach(t => {

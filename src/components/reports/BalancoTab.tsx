@@ -319,10 +319,10 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
     const transacoesPeriodo = filterTransactionsByRange(range);
     const calcularResultado = (transacoes: typeof transacoesV2) => {
       const entradas = transacoes
-        .filter(t => t.flow === 'in' && t.operationType !== 'transferencia' && t.operationType !== 'liberacao_emprestimo' && t.operationType !== 'resgate')
+        .filter(t => t.operationType !== 'initial_balance' && t.flow === 'in' && t.operationType !== 'transferencia' && t.operationType !== 'liberacao_emprestimo' && t.operationType !== 'resgate')
         .reduce((acc, t) => acc + t.amount, 0);
       const saidas = transacoes
-        .filter(t => t.flow === 'out' && t.operationType !== 'transferencia' && t.operationType !== 'aplicacao')
+        .filter(t => t.operationType !== 'initial_balance' && t.flow === 'out' && t.operationType !== 'transferencia' && t.operationType !== 'aplicacao')
         .reduce((acc, t) => acc + t.amount, 0);
       return entradas - saidas;
     };
@@ -937,7 +937,7 @@ export function BalancoTab({ dateRanges }: BalancoTabProps) {
             trend={getTrend(variacoes.circulantes || 0)}
             trendLabel={range2.from ? `${(variacoes.circulantes || 0).toFixed(1)}% vs P2` : undefined}
             descricao="Capacidade de pagar dívidas de curto prazo. Ideal: acima de 1.5x"
-            formula="Ativo Circulante / Passivo Circulante"
+            formula="Ativo Circulante / Passivo Circulante (12 meses)"
             sparklineData={generateSparkline(metricas.liquidezCorrente.valor, getTrend(variacoes.circulantes || 0))}
             icon={<Banknote className="w-4 h-4" />}
           />
