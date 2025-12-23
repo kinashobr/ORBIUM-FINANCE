@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -91,17 +93,33 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   [getFutureFixedBills, currentDate, trackerManagedBills]);
 
   // CÁLCULOS AJUSTADOS PARA O SIDEBAR
-  const totalUnpaidBills = useMemo(() => 
-    combinedBills
+  const totalUnpaidBills = useMemo(() => {
+    const unpaid = combinedBills
       .filter(b => !b.isPaid)
-      .reduce((acc, b) => acc + b.expectedAmount, 0), 
-  [combinedBills]);
+      .reduce((acc, b) => acc + b.expectedAmount, 0);
+    
+    console.log('DEBUG - BillsTrackerModal - totalUnpaidBills calculation:', {
+      totalBills: combinedBills.length,
+      unpaidBills: combinedBills.filter(b => !b.isPaid).map(b => ({ type: b.type, description: b.description, amount: b.expectedAmount, isPaid: b.isPaid })),
+      totalUnpaid: unpaid
+    });
+    
+    return unpaid;
+  }, [combinedBills]);
   
-  const totalPaidBills = useMemo(() => 
-    combinedBills
+  const totalPaidBills = useMemo(() => {
+    const paid = combinedBills
       .filter(b => b.isPaid)
-      .reduce((acc, b) => acc + b.expectedAmount, 0), 
-  [combinedBills]);
+      .reduce((acc, b) => acc + b.expectedAmount, 0);
+    
+    console.log('DEBUG - BillsTrackerModal - totalPaidBills calculation:', {
+      totalBills: combinedBills.length,
+      paidBills: combinedBills.filter(b => b.isPaid).map(b => ({ type: b.type, description: b.description, amount: b.expectedAmount, isPaid: b.isPaid })),
+      totalPaid: paid
+    });
+    
+    return paid;
+  }, [combinedBills]);
   
   const totalExpectedExpense = totalUnpaidBills + totalPaidBills; // Total de despesas do mês (pendentes + pagas)
 
@@ -137,7 +155,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     
     if (isChecked) {
       // Mark as paid and create transaction
-      const account = contasMovimento.find(c => c.id === trackerBill.suggestedAccountId);
+      const account = contasMovimento.find(c => c.accountId === trackerBill.suggestedAccountId);
       const category = categoriasV2.find(c => c.id === trackerBill.suggestedCategoryId);
       
       if (!account) {

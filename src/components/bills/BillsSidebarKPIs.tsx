@@ -49,6 +49,16 @@ export function BillsSidebarKPIs({ currentDate, totalPendingBills, totalPaidBill
       ? (projectedBalance > initialBalance ? 'success' : 'warning') 
       : 'danger';
 
+    console.log('DEBUG - BillsSidebarKPIs - calculos:', {
+      initialBalance,
+      monthlyRevenueForecast,
+      totalPendingBills,
+      totalPaidBills,
+      totalExpensesForMonth,
+      projectedBalance,
+      status
+    });
+
     return {
       initialBalance,
       revenuePrevMonth,
