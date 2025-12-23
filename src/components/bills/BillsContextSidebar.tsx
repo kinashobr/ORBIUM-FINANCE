@@ -12,13 +12,13 @@ interface BillsContextSidebarProps {
   localRevenueForecast: number;
   setLocalRevenueForecast: (value: number) => void;
   previousMonthRevenue: number;
-  totalExpectedExpense: number; // Total PENDENTE
+  totalExpectedExpense: number; 
   totalPaid: number;
   pendingCount: number;
-  netForecast: number; // Saldo Previsto (Receita - Total PENDENTE)
+  netForecast: number; /
   isMobile?: boolean;
   onSaveAndClose: () => void;
-  onOpenAllInstallments?: () => void; // NEW PROP
+  onOpenAllInstallments?: () => void; 
 }
 
 export function BillsContextSidebar({
