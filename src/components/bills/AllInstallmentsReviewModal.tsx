@@ -19,7 +19,7 @@ interface AllInstallmentsReviewModalProps {
   onToggleInstallment: (potentialBill: PotentialFixedBill, isChecked: boolean) => void;
 }
 
-
+// Componente auxiliar para renderizar a tabela de parcelas
 const InstallmentTable = ({
     installments,
     referenceDate,
@@ -144,12 +144,12 @@ export function AllInstallmentsReviewModal({
   const { getPotentialFixedBillsForMonth, getFutureFixedBills } = useFinance();
   const [activeTab, setActiveTab] = useState('loan');
 
-
+  // Combina as parcelas potenciais do mês atual e as futuras
   const allFixedInstallments = useMemo(() => {
     const currentMonthBills = getPotentialFixedBillsForMonth(referenceDate, localBills);
     const futureBills = getFutureFixedBills(referenceDate, localBills);
     
-
+    // Usa um Map para garantir a unicidade baseada na chave
     const combinedMap = new Map<string, PotentialFixedBill>();
     
     [...currentMonthBills, ...futureBills].forEach(bill => {
@@ -176,7 +176,7 @@ export function AllInstallmentsReviewModal({
         toast.info("Parcelas pagas não podem ser removidas ou adicionadas aqui. Use a lista principal para estornar.");
         return;
     }
-
+    // Toggle inclusion status
     onToggleInstallment(bill, !bill.isIncluded);
   }, [onToggleInstallment]);
 
