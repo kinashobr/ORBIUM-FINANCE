@@ -1,5 +1,3 @@
-
-Você disse:
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -8,7 +6,6 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tags, TrendingUp, TrendingDown, Repeat } from "lucide-react";
 import { Categoria, CategoryNature, CATEGORY_NATURE_LABELS, generateCategoryId, getCategoryTypeFromNature } from "@/types/finance";
-import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface CategoryFormModalProps {
@@ -20,12 +17,7 @@ interface CategoryFormModalProps {
   hasTransactions?: boolean;
 }
 
-const EMOJI_OPTIONS = [
-  '💰', '📈', '📉', '💳', '🏦', '🏠', '🚗', '✈️', '🍽️', '🛒', '💊', '🎮', '💻', '📚', '🎁', '💡',
-  '🛡️', '🏥', '🎓', '📱', '☕', '🍕', '⛽', '🛠️', '💍', '🐾', '👶', '🎉', '🏖️', '🧾', '💼', '👔',
-  '🌳', '💧', '🔥', '⚡', '🗑️', '🔔', '🔒', '🔑', '🔨', '⚙️', '🔗', '📊', '🧮', '📝', '📅', '✉️',
-  '📦', '💵', '💶', '💷', '🪙', '💎', '👑', '🗺️', '🚢', '🚂', '🚌', '🚲', '🛴', '🚁', '🚀', '🛰️',
-];
+const EMOJI_OPTIONS = ['📦', '🍽️', '🚗', '🏠', '💊', '🎮', '💰', '💻', '📈', '🛡️', '✈️', '👕', '📚', '🎁', '💡'];
 
 export function CategoryFormModal({
   open,
@@ -115,17 +107,17 @@ export function CategoryFormModal({
 
           <div className="space-y-2">
             <Label>Ícone</Label>
-            <div className="flex flex-wrap gap-2 p-2 border rounded-md max-h-40 overflow-y-auto">
+            <div className="flex flex-wrap gap-2 p-2 border rounded-md">
               {EMOJI_OPTIONS.map((emoji) => (
                 <button
                   key={emoji}
                   type="button"
                   onClick={() => setIcon(emoji)}
-                  className={w-8 h-8 flex items-center justify-center text-lg rounded-md transition-all ${
+                  className={`w-8 h-8 flex items-center justify-center text-lg rounded-md transition-all ${
                     icon === emoji 
                       ? "bg-primary text-primary-foreground ring-2 ring-primary" 
                       : "hover:bg-muted"
-                  }}
+                  }`}
                 >
                   {emoji}
                 </button>
