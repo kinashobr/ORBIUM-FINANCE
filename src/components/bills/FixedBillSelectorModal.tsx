@@ -12,9 +12,19 @@ interface FixedBillSelectorModalProps {
   onOpenChange: (open: boolean) => void;
   mode: "current" | "future";
   currentDate: Date;
+  // Propriedades opcionais para compatibilidade com outros componentes
+  potentialFixedBills?: PotentialFixedBill[];
+  onToggleFixedBill?: (potential: PotentialFixedBill, isChecked: boolean) => void;
 }
 
-export function FixedBillSelectorModal({ open, onOpenChange, mode, currentDate }: FixedBillSelectorModalProps) {
+export function FixedBillSelectorModal({ 
+  open, 
+  onOpenChange, 
+  mode, 
+  currentDate,
+  potentialFixedBills: externalBills,
+  onToggleFixedBill: externalToggle
+}: FixedBillSelectorModalProps) {
   const { 
     getPotentialFixedBillsForMonth, 
     getFutureFixedBills, 
@@ -23,11 +33,20 @@ export function FixedBillSelectorModal({ open, onOpenChange, mode, currentDate }
   } = useFinance();
 
   const localBills = getBillsForMonth(currentDate);
-  const potentialFixedBills = mode === "current" 
+  
+  // Usa as parcelas externas se fornecidas, caso contrário calcula internamente
+  const potentialFixedBills = externalBills || (mode === "current" 
     ? getPotentialFixedBillsForMonth(currentDate, localBills)
-    : getFutureFixedBills(currentDate, localBills);
+    : getFutureFixedBills(currentDate, localBills));
 
-  const onToggleFixedBill = (potential: PotentialFixedBill, isChecked: boolean) => {
+  const handleToggleFixedBill = (potential: PotentialFixedBill, isChecked: boolean) => {
+    // Se houver uma função de toggle externa, usa ela
+    if (externalToggle) {
+      externalToggle(potential, isChecked);
+      return;
+    }
+
+    // Caso contrário, usa a lógica interna padrão
     if (isChecked) {
       setBillsTracker(prev => [
         ...prev,
@@ -89,7 +108,7 @@ export function FixedBillSelectorModal({ open, onOpenChange, mode, currentDate }
                </div>
                <FixedBillsList 
                   bills={potentialFixedBills} 
-                  onToggleFixedBill={onToggleFixedBill}
+                  onToggleFixedBill={handleToggleFixedBill}
                   mode={mode}
                />
             </div>

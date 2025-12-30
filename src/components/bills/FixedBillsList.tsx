@@ -1,6 +1,15 @@
 import React from "react";
-import { Building2, Shield, Repeat, DollarSign, Info, ShoppingCart, Plus, Trash2, Calendar, ArrowRight } from "lucide-center";
-import { Building2 as Building, Shield as Security, Repeat as Recurrent, DollarSign as Money, Info as Help, ShoppingCart as Purchase, Plus as Add, Trash2 as Remove, Calendar as DateIcon } from "lucide-react";
+import { 
+  Building2 as Building, 
+  Shield as Security, 
+  Repeat as Recurrent, 
+  DollarSign as Money, 
+  Info as Help, 
+  ShoppingCart as Purchase, 
+  Plus as Add, 
+  Trash2 as Remove, 
+  Calendar as DateIcon 
+} from "lucide-react";
 import { BillSourceType, PotentialFixedBill, formatCurrency } from "@/types/finance";
 import { Button } from "@/components/ui/button";
 import { cn, parseDateLocal } from "@/lib/utils";
