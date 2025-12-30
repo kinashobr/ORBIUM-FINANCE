@@ -32,6 +32,7 @@ interface BillsTrackerModalProps {
 
 export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps) {
   const { 
+    billsTracker,
     setBillsTracker, 
     updateBill, 
     deleteBill, 
@@ -363,7 +364,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             toast.info("Conta fixa removida da lista.");
         }
     }
-  }, [setBillsTracker, contasMovimento, categoriasV2, billsTracker, currentDate, addTransacaoV2, markLoanParcelPaid, markSeguroParcelPaid, unmarkLoanParcelPaid, unmarkSeguroParcelPaid, setTransacoesV2, transacoesV2]);
+  }, [setBillsTracker, billsTracker, contasMovimento, categoriasV2, currentDate, addTransacaoV2, markLoanParcelPaid, markSeguroParcelPaid, unmarkLoanParcelPaid, unmarkSeguroParcelPaid, setTransacoesV2, transacoesV2]);
 
   return (
     <>
