@@ -375,7 +375,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     <Dialog open={open} onOpenChange={onOpenChange}>
       <ResizableDialogContent 
         storageKey="bills_tracker_modal"
-        initialWidth={1200}
+        initialWidth={1300}
         initialHeight={800}
         minWidth={900}
         minHeight={600}
