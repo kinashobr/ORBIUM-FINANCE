@@ -424,9 +424,9 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                   </Button>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setShowAddPurchaseDialog(true)} className="gap-2 border-pink-200 text-pink-600 hover:bg-pink-50">
+                  <Button variant="outline" size="sm" onClick={() => setShowAddPurchaseDialog(true)} className="gap-2">
                     <ShoppingCart className="w-4 h-4" />
-                    Parcelado
+                    Compra Parcelada
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => { setFixedBillSelectorMode('current'); setShowFixedBillSelector(true); }} className="gap-2">
                     <Settings className="w-4 h-4" />
