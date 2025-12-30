@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,16 @@ interface BillsSidebarKPIsProps {
   totalPaidBills?: number; // Valor que JÁ foi pago no mês
 }
 
+// Helper para formatar número para string BR
+const formatToBR = (value: number) => value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// Helper para converter string BR para float
+const parseFromBR = (value: string): number => {
+    const cleaned = value.replace(/[^\d,]/g, '');
+    const parsed = parseFloat(cleaned.replace(',', '.'));
+    return isNaN(parsed) ? 0 : parsed;
+};
+
 export function BillsSidebarKPIs({ currentDate, totalPendingBills, totalPaidBills = 0 }: BillsSidebarKPIsProps) {
   const { 
     monthlyRevenueForecast, 
@@ -27,7 +37,13 @@ export function BillsSidebarKPIs({ currentDate, totalPendingBills, totalPaidBill
     transacoesV2,
   } = useFinance();
   
-  const [forecastInput, setForecastInput] = useState(monthlyRevenueForecast.toFixed(2));
+  // Inicializa o estado do input usando o formato BR
+  const [forecastInput, setForecastInput] = useState(() => formatToBR(monthlyRevenueForecast));
+  
+  // Sincroniza o input quando o monthlyRevenueForecast muda externamente
+  useEffect(() => {
+      setForecastInput(formatToBR(monthlyRevenueForecast));
+  }, [monthlyRevenueForecast]);
 
   // Contas de alta liquidez para cálculo de saldo inicial
   const highLiquidityAccountIds = useMemo(() => 
@@ -72,19 +88,35 @@ export function BillsSidebarKPIs({ currentDate, totalPendingBills, totalPaidBill
   }, [currentDate, highLiquidityAccountIds, calculateBalanceUpToDate, transacoesV2, contasMovimento, getRevenueForPreviousMonth, monthlyRevenueForecast, totalPendingBills, totalPaidBills]);
   
   const handleUpdateForecast = () => {
-    const parsed = parseFloat(forecastInput.replace(',', '.'));
+    const parsed = parseFromBR(forecastInput);
     if (isNaN(parsed) || parsed < 0) {
       toast.error("Valor de previsão inválido.");
       return;
     }
     setMonthlyRevenueForecast(parsed);
+    setForecastInput(formatToBR(parsed)); // Garante que o input reflita o valor formatado
     toast.success("Previsão de receita atualizada!");
   };
   
   const handleSuggestForecast = () => {
-    setForecastInput(calculos.revenuePrevMonth.toFixed(2));
-    setMonthlyRevenueForecast(calculos.revenuePrevMonth);
+    const suggestedValue = calculos.revenuePrevMonth;
+    setForecastInput(formatToBR(suggestedValue));
+    setMonthlyRevenueForecast(suggestedValue);
     toast.info("Previsão ajustada para a receita do mês anterior.");
+  };
+  
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value;
+    // Permite apenas dígitos, vírgula e ponto (para o usuário digitar)
+    value = value.replace(/[^\d,.]/g, '');
+    
+    // Lógica simples para garantir que apenas uma vírgula seja usada como separador decimal
+    const parts = value.split(',');
+    if (parts.length > 2) {
+        value = parts[0] + ',' + parts.slice(1).join('');
+    }
+    
+    setForecastInput(value);
   };
 
   return (
@@ -117,7 +149,7 @@ export function BillsSidebarKPIs({ currentDate, totalPendingBills, totalPaidBill
                     type="text"
                     inputMode="decimal"
                     value={forecastInput}
-                    onChange={(e) => setForecastInput(e.target.value)}
+                    onChange={handleInputChange}
                     onBlur={handleUpdateForecast}
                     placeholder="0,00"
                     className="h-8 text-sm"
