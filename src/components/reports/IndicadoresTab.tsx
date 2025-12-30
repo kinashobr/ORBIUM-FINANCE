@@ -480,22 +480,28 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div className="flex items-center gap-1 text-xs text-blue-500 cursor-help">
+                        <div className="flex items-center gap-1 text-xs text-blue-500 cursor-help hover:text-blue-600 transition-colors">
                           <AlertCircle className="w-3 h-3" />
                           Variáveis Disponíveis
                         </div>
                       </TooltipTrigger>
-                      <TooltipContent side="right" className="w-80 p-3">
-                        <p className="font-bold mb-2">Use estas variáveis:</p>
-                        <div className="space-y-1">
+                      <TooltipContent 
+                        side="top" 
+                        sideOffset={5}
+                        className="w-[calc(100vw-4rem)] sm:w-80 p-3 bg-popover border-border shadow-lg"
+                      >
+                        <p className="font-bold mb-2 text-sm">Use estas variáveis:</p>
+                        <div className="space-y-1.5 max-h-[40vh] overflow-y-auto pr-2">
                           {Object.entries(FORMULA_VARIABLES).map(([key, desc]) => (
-                            <div key={key} className="flex flex-col border-b border-border pb-1 mb-1 last:border-0">
-                              <code className="text-blue-600 font-bold">{key}</code>
-                              <span className="text-[10px] text-muted-foreground">{desc}</span>
+                            <div key={key} className="flex flex-col border-b border-border/50 pb-1.5 mb-1.5 last:border-0 last:mb-0 last:pb-0">
+                              <code className="text-blue-500 font-bold text-xs">{key}</code>
+                              <span className="text-[10px] text-muted-foreground leading-tight">{desc}</span>
                             </div>
                           ))}
                         </div>
-                        <p className="mt-2 text-[10px] italic">Ex: (RECEITAS - DESPESAS) / RECEITAS * 100</p>
+                        <p className="mt-2 text-[10px] italic border-t border-border pt-2 text-muted-foreground">
+                          Ex: (RECEITAS - DESPESAS) / RECEITAS * 100
+                        </p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
