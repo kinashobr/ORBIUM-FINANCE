@@ -27,12 +27,7 @@ export function FixedBillSelectorModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* 
-        Nota: DialogContent do shadcn/ui por padrão renderiza um botão 'X' (close). 
-        Para evitar duplicidade com o botão que colocamos no DialogHeader, 
-        garantimos que o botão do cabeçalho seja o único visualmente integrado.
-      */}
-      <DialogContent className="max-w-4xl p-0 overflow-hidden [&>button]:hidden">
+      <DialogContent className="max-w-[75vw] p-0 overflow-hidden [&>button]:hidden">
         <DialogHeader className="px-6 pt-6 pb-4 border-b">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -64,7 +59,7 @@ export function FixedBillSelectorModal({
           </div>
         </DialogHeader>
 
-        <div className="p-6 max-h-[60vh] overflow-y-auto">
+        <div className="p-6 max-h-[75vh] overflow-y-auto">
           <FixedBillsList
             bills={potentialFixedBills}
             onToggle={onToggleFixedBill}
