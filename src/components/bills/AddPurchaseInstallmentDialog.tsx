@@ -84,7 +84,8 @@ export function AddPurchaseInstallmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[75vw] p-0 overflow-hidden">
+      <DialogContent className="max-w-xl p-0 overflow-hidden">
+        {/* Cabeçalho no padrão Nova Movimentação */}
         <DialogHeader className="px-6 pt-6 pb-4 bg-primary/10">
           <div className="flex items-start gap-3">
             <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
@@ -102,8 +103,10 @@ export function AddPurchaseInstallmentDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="px-6 pb-6 space-y-6 mt-4">
+          {/* Seção 1: Dados da Compra */}
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Valor Total */}
               <div className="space-y-2">
                 <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                   <DollarSign className="w-3.5 h-3.5" /> Valor Total *
@@ -121,6 +124,7 @@ export function AddPurchaseInstallmentDialog({
                 </div>
               </div>
 
+              {/* Número de Parcelas */}
               <div className="space-y-2">
                 <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                   <Hash className="w-3.5 h-3.5" /> Qtd. Parcelas *
@@ -140,6 +144,7 @@ export function AddPurchaseInstallmentDialog({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Primeira Parcela */}
               <div className="space-y-2">
                 <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                   <Calendar className="w-3.5 h-3.5" /> 1º Vencimento *
@@ -155,6 +160,7 @@ export function AddPurchaseInstallmentDialog({
                 </div>
               </div>
 
+              {/* Conta Sugerida */}
               <div className="space-y-2">
                 <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                   <Wallet className="w-3.5 h-3.5" /> Conta Sugerida
@@ -178,12 +184,14 @@ export function AddPurchaseInstallmentDialog({
             </div>
           </div>
 
+          {/* Seção 2: Classificação */}
           <div className="space-y-4">
             <h4 className="font-semibold text-sm text-foreground flex items-center gap-2">
               <Tags className="w-4 h-4 text-primary" /> Classificação e Detalhes
             </h4>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Categoria */}
               <div className="space-y-2">
                 <Label className="text-sm font-medium text-foreground">Categoria Sugerida</Label>
                 <Select 
@@ -203,6 +211,7 @@ export function AddPurchaseInstallmentDialog({
                 </Select>
               </div>
 
+              {/* Descrição */}
               <div className="space-y-2">
                 <Label className="text-sm font-medium text-foreground">Descrição da Compra *</Label>
                 <div className="relative">
