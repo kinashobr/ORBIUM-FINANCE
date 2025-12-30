@@ -87,7 +87,7 @@ export function BillsTrackerList({
     dueDate: format(currentDate, 'yyyy-MM-dd'),
   });
   
-  const [adHocType, setAdHocType] = useState<'fixed_expense' | 'variable_expense'>('variable_expense');
+  // REMOVED: adHocType state
 
   // --- Column Resizing State and Logic ---
   const [columnWidths, setColumnWidths] = useState<Record<ColumnKey, number>>(() => {
@@ -172,16 +172,14 @@ export function BillsTrackerList({
       return;
     }
     
-    const suggestedCategoryId = categoriasV2.find(c => 
-        (adHocType === 'fixed_expense' && c.nature === 'despesa_fixa') ||
-        (adHocType === 'variable_expense' && c.nature === 'despesa_variavel')
-    )?.id;
+    // Default to 'ad_hoc' and null category ID
+    const suggestedCategoryId = null; 
 
     onAddBill({
       description: newBillData.description,
       dueDate: newBillData.dueDate,
       expectedAmount: amount,
-      sourceType: adHocType,
+      sourceType: 'ad_hoc', // Default to ad_hoc
       suggestedAccountId: contasMovimento.find(c => c.accountType === 'corrente')?.id,
       suggestedCategoryId: suggestedCategoryId,
     });
@@ -223,8 +221,20 @@ export function BillsTrackerList({
   const handleUpdateSuggestedCategory = (bill: BillTracker, newCategoryId: string) => {
     // Apenas permite alteração se for uma conta avulsa ou fixa genérica
     if (bill.sourceType === 'ad_hoc' || bill.sourceType === 'fixed_expense' || bill.sourceType === 'variable_expense') {
-        onUpdateBill(bill.id, { suggestedCategoryId: newCategoryId });
-        toast.success("Categoria atualizada!");
+        
+        const selectedCategory = categoriasV2.find(c => c.id === newCategoryId);
+        let newSourceType: BillSourceType = bill.sourceType;
+        
+        if (selectedCategory) {
+            if (selectedCategory.nature === 'despesa_fixa') {
+                newSourceType = 'fixed_expense';
+            } else if (selectedCategory.nature === 'despesa_variavel') {
+                newSourceType = 'variable_expense';
+            }
+        }
+        
+        onUpdateBill(bill.id, { suggestedCategoryId: newCategoryId, sourceType: newSourceType });
+        toast.success("Categoria e tipo atualizados!");
     } else {
         toast.error("A categoria para parcelas fixas é definida automaticamente.");
     }
@@ -294,7 +304,7 @@ export function BillsTrackerList({
     <div className="space-y-4 h-full flex flex-col">
       {/* Adição Rápida (Ad-Hoc) - SEMPRE VISÍVEL E MINIMALISTA */}
       <div className="glass-card p-3 shrink-0">
-        <div className="grid grid-cols-[1fr_100px_100px_40px] gap-2 items-end mb-2">
+        <div className="grid grid-cols-[1fr_100px_100px_40px] gap-2 items-end">
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Descrição</Label>
             <Input
@@ -334,26 +344,7 @@ export function BillsTrackerList({
           </Button>
         </div>
         
-        {/* Seleção de Tipo para Ad-Hoc */}
-        <div className="flex items-center gap-2">
-            <Label className="text-xs text-muted-foreground">Tipo de Despesa:</Label>
-            <Button
-                variant={adHocType === 'fixed_expense' ? "default" : "outline"}
-                size="sm"
-                className="h-6 text-xs px-2 gap-1"
-                onClick={() => setAdHocType('fixed_expense')}
-            >
-                <Repeat className="w-3 h-3" /> Fixa
-            </Button>
-            <Button
-                variant={adHocType === 'variable_expense' ? "default" : "outline"}
-                size="sm"
-                className="h-6 text-xs px-2 gap-1"
-                onClick={() => setAdHocType('variable_expense')}
-            >
-                <TrendingDown className="w-3 h-3" /> Variável
-            </Button>
-        </div>
+        {/* REMOVED: Seleção de Tipo para Ad-Hoc */}
       </div>
 
       {/* Tabela de Contas (Consolidada) */}
