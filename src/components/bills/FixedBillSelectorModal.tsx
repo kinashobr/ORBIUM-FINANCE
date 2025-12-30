@@ -57,20 +57,20 @@ export function FixedBillSelectorModal({ open, onOpenChange, mode, currentDate }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl p-0 overflow-hidden border-none shadow-2xl">
-        <DialogHeader className={cn(
-            "p-6 text-white",
-            isAdvance ? "bg-gradient-to-br from-primary to-primary/80" : "bg-gradient-to-br from-accent to-accent/80"
-        )}>
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md">
+      <DialogContent className="max-w-[75vw] p-0 overflow-hidden border-border shadow-xl rounded-3xl">
+        <DialogHeader className="p-6 border-b bg-muted/20">
+          <div className="flex items-start gap-4">
+            <div className={cn(
+              "p-3 rounded-2xl",
+              isAdvance ? "bg-primary/10 text-primary" : "bg-accent/10 text-accent"
+            )}>
               {isAdvance ? <FastForward className="w-6 h-6" /> : <Settings2 className="w-6 h-6" />}
             </div>
             <div>
-              <DialogTitle className="text-xl font-bold">
+              <DialogTitle className="text-xl font-bold text-foreground">
                 {isAdvance ? "Adiantar Parcelas" : "Gerenciar Contas Fixas"}
               </DialogTitle>
-              <DialogDescription className="text-white/80 font-medium">
+              <DialogDescription className="text-muted-foreground mt-1">
                 {isAdvance 
                   ? "Selecione parcelas de meses futuros para pagar agora" 
                   : `Selecione quais parcelas automáticas devem aparecer em ${format(currentDate, 'MMMM', { locale: ptBR })}`
@@ -80,10 +80,10 @@ export function FixedBillSelectorModal({ open, onOpenChange, mode, currentDate }
           </div>
         </DialogHeader>
 
-        <div className="p-6 max-h-[60vh] overflow-y-auto bg-background/50 backdrop-blur-sm">
+        <div className="p-6 max-h-[70vh] overflow-y-auto bg-background">
           {potentialFixedBills.length > 0 ? (
-            <div className="space-y-4">
-               <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 p-3 rounded-xl border">
+            <div className="space-y-6">
+               <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/40 p-3 rounded-xl border border-border/50">
                  <AlertCircle className="w-4 h-4 text-primary" />
                  <span>As parcelas selecionadas serão adicionadas à sua lista de controle mensal.</span>
                </div>
@@ -94,11 +94,14 @@ export function FixedBillSelectorModal({ open, onOpenChange, mode, currentDate }
                />
             </div>
           ) : (
-            <div className="py-12 text-center space-y-3">
-              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto opacity-50">
-                <CheckCircle2 className="w-8 h-8" />
+            <div className="py-16 text-center space-y-4">
+              <div className="w-20 h-20 bg-muted/30 rounded-full flex items-center justify-center mx-auto">
+                <CheckCircle2 className="w-10 h-10 text-muted-foreground/50" />
               </div>
-              <p className="text-muted-foreground">Tudo certo! Nenhuma parcela pendente encontrada.</p>
+              <div className="space-y-1">
+                <p className="text-lg font-medium text-foreground/80">Tudo certo!</p>
+                <p className="text-sm text-muted-foreground">Nenhuma parcela pendente encontrada para este critério.</p>
+              </div>
             </div>
           )}
         </div>

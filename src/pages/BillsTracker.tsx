@@ -47,32 +47,32 @@ export default function BillsTracker() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0">
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
           <Button
             variant="outline"
             onClick={() => setIsPurchaseDialogOpen(true)}
-            className="rounded-xl border-pink-500/50 text-pink-500 hover:bg-pink-500/10 gap-2 shrink-0 h-10"
+            className="rounded-xl border-pink-500/30 text-pink-600 hover:bg-pink-500/10 gap-2 shrink-0 h-10 px-4 font-semibold"
           >
             <ShoppingCart className="w-4 h-4" />
-            <span className="hidden sm:inline">Parcelado</span>
+            <span>Parcelado</span>
           </Button>
 
           <Button
             variant="outline"
             onClick={() => setIsManageModalOpen(true)}
-            className="rounded-xl gap-2 shrink-0 h-10"
+            className="rounded-xl gap-2 shrink-0 h-10 px-4"
           >
             <Settings2 className="w-4 h-4" />
-            <span className="hidden sm:inline">Gerenciar Fixas</span>
+            <span>Gerenciar Fixas</span>
           </Button>
 
           <Button
             variant="outline"
             onClick={() => setIsAdvanceModalOpen(true)}
-            className="rounded-xl gap-2 shrink-0 h-10"
+            className="rounded-xl gap-2 shrink-0 h-10 px-4"
           >
             <FastForward className="w-4 h-4" />
-            <span className="hidden sm:inline">Adiantar Parcelas</span>
+            <span>Adiantar Parcelas</span>
           </Button>
         </div>
       </div>
