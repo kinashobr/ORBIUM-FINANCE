@@ -465,7 +465,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
             <DialogHeader>
               <DialogTitle>Criar Indicador Personalizado</DialogTitle>
               <DialogDescription>
-                Use variáveis de **Fluxo** (mês) para desempenho e **Estoque** (saldo) para saúde patrimonial.
+                Defina métricas customizadas utilizando as variáveis do sistema e operadores matemáticos padrão (+, -, *, /).
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-6 py-4">
@@ -474,7 +474,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
                   <Label htmlFor="nome">Nome do Indicador</Label>
                   <Input
                     id="nome"
-                    placeholder="Ex: Capacidade de Poupança"
+                    placeholder="Ex: Eficiência Operacional"
                     value={newIndicator.nome}
                     onChange={(e) => setNewIndicator({ ...newIndicator, nome: e.target.value })}
                   />
@@ -515,7 +515,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
                           Dicionário de Variáveis
                         </h4>
                         <p className="text-[10px] text-muted-foreground mt-1">
-                          Fluxo = O que ocorreu no mês. Estoque = Saldo total hoje.
+                          As variáveis abaixo representam dados consolidados do seu sistema.
                         </p>
                       </div>
                       <div className="max-h-[300px] overflow-y-auto p-2">
@@ -535,10 +535,9 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
                         </div>
                       </div>
                       <div className="p-3 bg-blue-500/5 border-t border-blue-500/10">
-                        <div className="text-[10px] font-bold text-blue-600 mb-1 uppercase tracking-wider">Dica Profissional:</div>
+                        <div className="text-[10px] font-bold text-blue-600 mb-1 uppercase tracking-wider">Dica de Uso:</div>
                         <p className="text-[10px] text-blue-600/80 leading-snug">
-                          Para **Capacidade de Poupança**, use: <br/>
-                          <code className="bg-white/50 px-1 rounded font-bold">(LUCRO + PAGAMENTOS_DIVIDA) / RECEITAS * 100</code>
+                          Combine variáveis de **período** (ex: RECEITAS) com variáveis de **posição** (ex: ATIVOS) para criar indicadores de eficiência ou rentabilidade.
                         </p>
                       </div>
                     </PopoverContent>
@@ -546,7 +545,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
                 </div>
                 <Input
                   id="formula"
-                  placeholder="Ex: (LUCRO + PAGAMENTOS_DIVIDA) / RECEITAS * 100"
+                  placeholder="Ex: (RECEITAS - DESPESAS) / RECEITAS * 100"
                   value={newIndicator.formula}
                   onChange={(e) => setNewIndicator({ ...newIndicator, formula: e.target.value.toUpperCase() })}
                 />
