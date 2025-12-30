@@ -111,9 +111,28 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     setCurrentDate(prev => direction === 'prev' ? subMonths(prev, 1) : addMonths(prev, 1));
   };
   
+  // CORREÇÃO: Sincroniza atualizações de contas pagas com a transação correspondente no Extrato
   const handleUpdateBill = useCallback((id: string, updates: Partial<BillTracker>) => {
     updateBill(id, updates);
-  }, [updateBill]);
+    
+    // Se a conta já estiver paga, atualiza a transação vinculada no Extrato
+    const bill = billsTracker.find(b => b.id === id);
+    if (bill?.transactionId) {
+      setTransacoesV2(prev => prev.map(t => {
+        if (t.id === bill.transactionId) {
+          return {
+            ...t,
+            date: updates.paymentDate || t.date,
+            amount: updates.expectedAmount !== undefined ? updates.expectedAmount : t.amount,
+            accountId: updates.suggestedAccountId || t.accountId,
+            categoryId: updates.suggestedCategoryId || t.categoryId,
+            description: updates.description || t.description,
+          };
+        }
+        return t;
+      }));
+    }
+  }, [updateBill, billsTracker, setTransacoesV2]);
 
   const handleDeleteBill = useCallback((id: string) => {
     deleteBill(id);
