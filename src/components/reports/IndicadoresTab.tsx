@@ -96,16 +96,17 @@ interface IndicadoresTabProps {
 }
 
 const FORMULA_VARIABLES = {
-  RECEITAS: "Total de receitas no período",
-  DESPESAS: "Total de despesas no período",
-  LUCRO: "Saldo operacional (Receitas - Despesas)",
-  ATIVOS: "Total de ativos na data final",
-  PASSIVOS: "Total de passivos na data final",
-  PL: "Patrimônio Líquido",
-  CAIXA: "Saldo disponível em contas líquidas",
-  DIVIDAS: "Saldo devedor total (Empréstimos + Cartões)",
-  INVESTIMENTOS: "Saldo total em investimentos",
-  RENDIMENTOS: "Rendimentos de investimentos no período",
+  RECEITAS: "Total de entradas no período (Fluxo)",
+  DESPESAS: "Total de saídas no período (Fluxo)",
+  LUCRO: "Saldo líquido (Receitas - Despesas) (Fluxo)",
+  PAGAMENTOS_DIVIDA: "Total pago em parcelas de empréstimos no período (Fluxo)",
+  RENDIMENTOS: "Rendimentos de investimentos no período (Fluxo)",
+  ATIVOS: "Valor total de bens e direitos (Estoque)",
+  PASSIVOS: "Valor total de obrigações e dívidas (Estoque)",
+  PL: "Patrimônio Líquido (Ativos - Passivos) (Estoque)",
+  CAIXA: "Disponibilidade imediata em contas (Estoque)",
+  DIVIDAS_TOTAL: "Saldo devedor total acumulado (Estoque)",
+  INVESTIMENTOS_TOTAL: "Saldo total aplicado em investimentos (Estoque)",
 };
 
 export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
@@ -149,13 +150,27 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
 
   const evaluateFormula = useCallback((formula: string, variables: Record<string, number>): number => {
     try {
-      const sanitizedFormula = formula.replace(/[^0-9a-zA-Z\s\+\-\*\/\(\)\.]/g, '');
-      const keys = Object.keys(variables);
-      const values = Object.values(variables);
-      const dynamicFn = new Function(...keys, `return (${sanitizedFormula})`);
-      const result = dynamicFn(...values);
+      // Substitui nomes de variáveis por seus valores, tratando nomes longos primeiro
+      let processedFormula = formula.toUpperCase();
+      
+      // Ordenar chaves por tamanho para evitar que DIVIDAS_TOTAL seja substituída por DIVIDAS + _TOTAL
+      const sortedKeys = Object.keys(variables).sort((a, b) => b.length - a.length);
+      
+      sortedKeys.forEach(key => {
+        const value = variables[key];
+        // Usa regex para garantir que substitua apenas a palavra exata
+        const regex = new RegExp(`\\b${key}\\b`, 'g');
+        processedFormula = processedFormula.replace(regex, value.toString());
+      });
+
+      // Sanitização básica antes do eval
+      const sanitizedFormula = processedFormula.replace(/[^0-9\s\+\-\*\/\(\)\.]/g, '');
+      
+      // eslint-disable-next-line no-new-func
+      const result = new Function(`return (${sanitizedFormula})`)();
       return isFinite(result) ? result : 0;
     } catch (e) {
+      console.error("Erro na fórmula:", e);
       return 0;
     }
   }, []);
@@ -287,11 +302,15 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
       .filter(t => t.operationType !== 'initial_balance' && t.flow === 'out')
       .reduce((acc, t) => acc + t.amount, 0);
 
+    const pagamentosDividaPeriodo = transacoesPeriodo
+      .filter(t => t.operationType === 'pagamento_emprestimo')
+      .reduce((acc, t) => acc + t.amount, 0);
+
     const lucroPeriodo = receitasMesAtual - despesasMesAtualCash;
 
     // Métricas de Liquidez
     const liquidezCorrente = passivoCurtoPrazo > 0 ? caixaTotal / passivoCurtoPrazo : caixaTotal > 0 ? 999 : 0;
-    const liquidezSeca = passivoCurtoPrazo > 0 ? (caixaTotal - totalInvestimentos * 0.3) / passivoCurtoPrazo : 0; // Remove 30% de investimentos menos liquidos
+    const liquidezSeca = passivoCurtoPrazo > 0 ? (caixaTotal - totalInvestimentos * 0.3) / passivoCurtoPrazo : 0;
     const liquidezGeral = totalPassivos > 0 ? totalAtivos / totalPassivos : totalAtivos > 0 ? 999 : 0;
     const solvenciaImediata = despesasMesAtualCash > 0 ? contaCorrentePura / (despesasMesAtualCash / 30) : 999;
 
@@ -320,17 +339,19 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
     const mesesSobrevivencia = despesasMesAtualCash > 0 ? caixaTotal / (despesasMesAtualCash / 30) : 999;
     const margemSeguranca = receitasMesAtual > 0 ? (lucroPeriodo / receitasMesAtual) * 100 : 0;
 
+    // NOVO: Dicionário de Variáveis para Fórmulas
     const variables = {
       RECEITAS: receitasMesAtual,
       DESPESAS: despesasMesAtualCash,
       LUCRO: lucroPeriodo,
+      PAGAMENTOS_DIVIDA: pagamentosDividaPeriodo,
+      RENDIMENTOS: rendimentosInvestimentos,
       ATIVOS: totalAtivos,
       PASSIVOS: totalPassivos,
       PL: patrimonioLiquido,
       CAIXA: caixaTotal,
-      DIVIDAS: saldoDevedor,
-      INVESTIMENTOS: totalInvestimentos,
-      RENDIMENTOS: rendimentosInvestimentos,
+      DIVIDAS_TOTAL: saldoDevedor,
+      INVESTIMENTOS_TOTAL: totalInvestimentos,
     };
 
     const calculatedCustoms = customIndicators.map(ci => {
@@ -444,7 +465,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
             <DialogHeader>
               <DialogTitle>Criar Indicador Personalizado</DialogTitle>
               <DialogDescription>
-                Defina um novo indicador financeiro usando variáveis do sistema e fórmulas matemáticas.
+                Use variáveis de **Fluxo** (mês) para desempenho e **Estoque** (saldo) para saúde patrimonial.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-6 py-4">
@@ -453,7 +474,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
                   <Label htmlFor="nome">Nome do Indicador</Label>
                   <Input
                     id="nome"
-                    placeholder="Ex: Taxa de Economia"
+                    placeholder="Ex: Capacidade de Poupança"
                     value={newIndicator.nome}
                     onChange={(e) => setNewIndicator({ ...newIndicator, nome: e.target.value })}
                   />
@@ -494,7 +515,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
                           Dicionário de Variáveis
                         </h4>
                         <p className="text-[10px] text-muted-foreground mt-1">
-                          Clique em uma variável para entender o que ela representa.
+                          Fluxo = O que ocorreu no mês. Estoque = Saldo total hoje.
                         </p>
                       </div>
                       <div className="max-h-[300px] overflow-y-auto p-2">
@@ -505,7 +526,6 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
                                 <code className="text-blue-500 font-bold text-xs bg-blue-500/10 px-1.5 py-0.5 rounded">
                                   {key}
                                 </code>
-                                <HelpCircle className="w-3 h-3 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity" />
                               </div>
                               <span className="text-[10px] text-muted-foreground leading-tight block">
                                 {desc}
@@ -514,18 +534,19 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
                           ))}
                         </div>
                       </div>
-                      <div className="p-3 bg-muted/20 border-t border-border/50">
-                        <div className="text-[10px] font-medium text-muted-foreground mb-1 uppercase tracking-wider">Exemplo de Fórmula:</div>
-                        <code className="text-[10px] block bg-background border border-border/50 p-1.5 rounded text-primary">
-                          (RECEITAS - DESPESAS) / RECEITAS * 100
-                        </code>
+                      <div className="p-3 bg-blue-500/5 border-t border-blue-500/10">
+                        <div className="text-[10px] font-bold text-blue-600 mb-1 uppercase tracking-wider">Dica Profissional:</div>
+                        <p className="text-[10px] text-blue-600/80 leading-snug">
+                          Para **Capacidade de Poupança**, use: <br/>
+                          <code className="bg-white/50 px-1 rounded font-bold">(LUCRO + PAGAMENTOS_DIVIDA) / RECEITAS * 100</code>
+                        </p>
                       </div>
                     </PopoverContent>
                   </Popover>
                 </div>
                 <Input
                   id="formula"
-                  placeholder="Ex: (RECEITAS - DESPESAS) / RECEITAS * 100"
+                  placeholder="Ex: (LUCRO + PAGAMENTOS_DIVIDA) / RECEITAS * 100"
                   value={newIndicator.formula}
                   onChange={(e) => setNewIndicator({ ...newIndicator, formula: e.target.value.toUpperCase() })}
                 />
