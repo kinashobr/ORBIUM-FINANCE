@@ -80,6 +80,16 @@ const getCategoryOptions = (operationType: OperationType | null, categories: Cat
   );
 };
 
+// Helper para formatar número para string BR
+const formatToBR = (value: number) => value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// Helper para converter string BR para float
+const parseFromBR = (value: string): number => {
+    const cleaned = value.replace(/[^\d,]/g, '');
+    const parsed = parseFloat(cleaned.replace(',', '.'));
+    return isNaN(parsed) ? 0 : parsed;
+};
+
 export function MovimentarContaModal({
   open,
   onOpenChange,
@@ -161,7 +171,8 @@ export function MovimentarContaModal({
       if (editingTransaction) {
         setAccountId(editingTransaction.accountId);
         setDate(editingTransaction.date);
-        setAmount(editingTransaction.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+        // Formata o valor para BR ao carregar
+        setAmount(formatToBR(editingTransaction.amount));
         setOperationType(editingTransaction.operationType);
         setCategoryId(editingTransaction.categoryId);
         setDescription(editingTransaction.description);
@@ -228,7 +239,8 @@ export function MovimentarContaModal({
       const parcela = loan?.parcelas.find(p => p.numero === parseInt(tempParcelaId));
       
       if (parcela) {
-        setAmount(parcela.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+        // Formata o valor para BR
+        setAmount(formatToBR(parcela.valor));
         setDescription(`Pagamento Empréstimo ${loan?.numeroContrato || 'N/A'} - Parcela ${parcela.numero}/${loan?.totalParcelas || 'N/A'}`);
       }
     }
@@ -240,26 +252,20 @@ export function MovimentarContaModal({
       const parcela = seguro?.parcelas.find(p => p.numero === parseInt(tempSeguroParcelaId));
       
       if (parcela) {
-        setAmount(parcela.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+        // Formata o valor para BR
+        setAmount(formatToBR(parcela.valor));
         setDescription(`Pagamento Seguro ${seguro?.numeroApolice || 'N/A'} - Parcela ${parcela.numero}/${seguro?.numeroParcelas || 'N/A'}`);
       }
     }
   }, [isInsurancePayment, tempSeguroId, tempSeguroParcelaId, segurosVeiculo]);
 
   const handleAmountChange = (value: string) => {
-    let cleaned = value.replace(/[^\d,.]/g, '');
+    let cleaned = value.replace(/[^\d,]/g, '');
     
-    const parts = cleaned.split(/[,.]/);
+    // Permite apenas uma vírgula como separador decimal
+    const parts = cleaned.split(',');
     if (parts.length > 2) {
-      cleaned = parts.slice(0, -1).join('') + '.' + parts.slice(-1);
-    } else if (cleaned.includes(',')) {
-      cleaned = cleaned.replace(',', '.');
-    } else if (cleaned.includes('.')) {
-      const parts = cleaned.split('.');
-      if (parts.length > 2) {
-        const lastPart = parts.pop();
-        cleaned = parts.join('') + '.' + lastPart;
-      }
+      cleaned = parts[0] + ',' + parts.slice(1).join('');
     }
     
     setAmount(cleaned);
@@ -267,7 +273,8 @@ export function MovimentarContaModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const parsedAmount = parseFloat(amount.replace(',', '.'));
+    // Converte a string BR para float
+    const parsedAmount = parseFromBR(amount);
 
     if (!accountId || !date || parsedAmount <= 0 || !operationType) {
       toast.error("Preencha todos os campos obrigatórios.");
