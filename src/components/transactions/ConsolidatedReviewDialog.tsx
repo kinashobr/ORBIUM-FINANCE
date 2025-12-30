@@ -203,7 +203,7 @@ export function ConsolidatedReviewDialog({
         id: transactionId,
         date: tx.date,
         accountId: tx.accountId,
-        flow: flow,
+        flow,
         operationType: tx.operationType!,
         domain: getDomainFromOperation(tx.operationType!),
         amount: tx.amount,
@@ -453,7 +453,7 @@ export function ConsolidatedReviewDialog({
             
             {/* Coluna Lateral (Controle e Status) - AGORA REDIMENSIONÁVEL */}
             <ResizableSidebar
-                initialWidth={224}
+                initialWidth={350}
                 minWidth={180}
                 maxWidth={350}
                 storageKey="review_sidebar_width"
