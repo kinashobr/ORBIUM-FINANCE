@@ -96,17 +96,17 @@ interface IndicadoresTabProps {
 }
 
 const FORMULA_VARIABLES = {
-  RECEITAS: "Total de entradas no período (Fluxo)",
-  DESPESAS: "Total de saídas no período (Fluxo)",
-  LUCRO: "Saldo líquido (Receitas - Despesas) (Fluxo)",
-  PAGAMENTOS_DIVIDA: "Total pago em parcelas de empréstimos no período (Fluxo)",
-  RENDIMENTOS: "Rendimentos de investimentos no período (Fluxo)",
-  ATIVOS: "Valor total de bens e direitos (Estoque)",
-  PASSIVOS: "Valor total de obrigações e dívidas (Estoque)",
-  PL: "Patrimônio Líquido (Ativos - Passivos) (Estoque)",
-  CAIXA: "Disponibilidade imediata em contas (Estoque)",
-  DIVIDAS_TOTAL: "Saldo devedor total acumulado (Estoque)",
-  INVESTIMENTOS_TOTAL: "Saldo total aplicado em investimentos (Estoque)",
+  RECEITAS: "Total que entrou no período selecionado",
+  DESPESAS: "Total que saiu no período selecionado",
+  LUCRO: "Sobra de caixa (Receitas menos Despesas)",
+  PAGAMENTOS_DIVIDA: "Total pago em parcelas de empréstimos no período",
+  RENDIMENTOS: "Ganhos vindo de investimentos no período",
+  ATIVOS: "Valor total de tudo o que você possui hoje",
+  PASSIVOS: "Valor total de tudo o que você deve hoje",
+  PL: "Sua riqueza real (O que você tem menos o que deve)",
+  CAIXA: "Dinheiro disponível em suas contas agora",
+  DIVIDAS_TOTAL: "Total de dívidas que ainda faltam pagar",
+  INVESTIMENTOS_TOTAL: "Total que você tem aplicado atualmente",
 };
 
 export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
@@ -463,9 +463,9 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
           </DialogTrigger>
           <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Criar Indicador Personalizado</DialogTitle>
+              <DialogTitle>Criar Novo Indicador</DialogTitle>
               <DialogDescription>
-                Defina métricas customizadas utilizando as variáveis do sistema e operadores matemáticos padrão (+, -, *, /).
+                Crie suas próprias fórmulas matemáticas usando as variáveis do sistema para analisar seu patrimônio do seu jeito.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-6 py-4">
@@ -474,13 +474,13 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
                   <Label htmlFor="nome">Nome do Indicador</Label>
                   <Input
                     id="nome"
-                    placeholder="Ex: Eficiência Operacional"
+                    placeholder="Ex: Margem de Economia"
                     value={newIndicator.nome}
                     onChange={(e) => setNewIndicator({ ...newIndicator, nome: e.target.value })}
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="formato">Formato de Exibição</Label>
+                  <Label htmlFor="formato">Como exibir o resultado</Label>
                   <Select 
                     value={newIndicator.formato} 
                     onValueChange={(v) => setNewIndicator({ ...newIndicator, formato: v as any })}
@@ -492,7 +492,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
                       <SelectItem value="percent">Percentual (%)</SelectItem>
                       <SelectItem value="ratio">Razão (x)</SelectItem>
                       <SelectItem value="currency">Moeda (R$)</SelectItem>
-                      <SelectItem value="number">Número</SelectItem>
+                      <SelectItem value="number">Número Simples</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -500,22 +500,22 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
 
               <div className="grid gap-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="formula">Fórmula Matemática</Label>
+                  <Label htmlFor="formula">Fórmula do Indicador</Label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button variant="ghost" size="sm" className="h-7 px-2 gap-1.5 text-blue-500 hover:text-blue-600 hover:bg-blue-50/50">
-                        <AlertCircle className="w-3.5 h-3.5" />
-                        <span className="text-xs font-medium">Variáveis Disponíveis</span>
+                        <HelpCircle className="w-3.5 h-3.5" />
+                        <span className="text-xs font-medium">Ver Variáveis</span>
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent align="end" className="w-80 p-0 shadow-2xl border-border/50">
                       <div className="bg-muted/30 p-3 border-b border-border/50">
                         <h4 className="font-semibold text-sm flex items-center gap-2">
                           <Calculator className="w-4 h-4 text-primary" />
-                          Dicionário de Variáveis
+                          Quais dados posso usar?
                         </h4>
                         <p className="text-[10px] text-muted-foreground mt-1">
-                          As variáveis abaixo representam dados consolidados do seu sistema.
+                          Escolha entre informações do mês selecionado ou saldos atuais.
                         </p>
                       </div>
                       <div className="max-h-[300px] overflow-y-auto p-2">
@@ -535,9 +535,9 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
                         </div>
                       </div>
                       <div className="p-3 bg-blue-500/5 border-t border-blue-500/10">
-                        <div className="text-[10px] font-bold text-blue-600 mb-1 uppercase tracking-wider">Dica de Uso:</div>
+                        <div className="text-[10px] font-bold text-blue-600 mb-1 uppercase tracking-wider">Dica Amigável:</div>
                         <p className="text-[10px] text-blue-600/80 leading-snug">
-                          Combine variáveis de **período** (ex: RECEITAS) com variáveis de **posição** (ex: ATIVOS) para criar indicadores de eficiência ou rentabilidade.
+                          Tente dividir sua sobra do mês (LUCRO) pelo que entrou (RECEITAS) para saber quanto você está economizando!
                         </p>
                       </div>
                     </PopoverContent>
@@ -545,7 +545,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
                 </div>
                 <Input
                   id="formula"
-                  placeholder="Ex: (RECEITAS - DESPESAS) / RECEITAS * 100"
+                  placeholder="Ex: (LUCRO / RECEITAS) * 100"
                   value={newIndicator.formula}
                   onChange={(e) => setNewIndicator({ ...newIndicator, formula: e.target.value.toUpperCase() })}
                 />
@@ -553,7 +553,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
 
               <div className="grid grid-cols-3 gap-4 border-t pt-4">
                 <div className="grid gap-2">
-                  <Label className="text-success">Limite Saudável</Label>
+                  <Label className="text-success">Meta (Saudável)</Label>
                   <Input
                     type="number"
                     value={newIndicator.limiteVerde}
@@ -561,7 +561,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label className="text-warning">Limite Atenção</Label>
+                  <Label className="text-warning">Alerta (Atenção)</Label>
                   <Input
                     type="number"
                     value={newIndicator.limiteAmarelo}
@@ -569,7 +569,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label>Tipo de Lógica</Label>
+                  <Label>Lógica da Cor</Label>
                   <Select 
                     value={newIndicator.invertido ? "true" : "false"} 
                     onValueChange={(v) => setNewIndicator({ ...newIndicator, invertido: v === "true" })}
@@ -578,18 +578,18 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="false">Maior é melhor</SelectItem>
-                      <SelectItem value="true">Menor é melhor</SelectItem>
+                      <SelectItem value="false">Quanto maior, melhor</SelectItem>
+                      <SelectItem value="true">Quanto menor, melhor</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="descricao">Descrição (Aparece no Tooltip)</Label>
+                <Label htmlFor="descricao">O que este indicador explica?</Label>
                 <Textarea
                   id="descricao"
-                  placeholder="Descreva o que este indicador mede..."
+                  placeholder="Descreva brevemente o que este número representa para você..."
                   value={newIndicator.descricao}
                   onChange={(e) => setNewIndicator({ ...newIndicator, descricao: e.target.value })}
                 />
@@ -601,7 +601,7 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
               </Button>
               <Button onClick={handleAddIndicator} className="gap-2">
                 <Save className="w-4 h-4" />
-                Salvar Indicador
+                Criar Indicador
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -610,8 +610,8 @@ export function IndicadoresTab({ dateRanges }: IndicadoresTabProps) {
 
       {indicadores1.custom.length > 0 && (
         <IndicatorGroup
-          title="Indicadores Personalizados"
-          subtitle="Métricas definidas pelo usuário"
+          title="Meus Indicadores"
+          subtitle="Métricas criadas por você"
           icon={<Settings className="w-4 h-4" />}
         >
           {indicadores1.custom.map((ci) => (
