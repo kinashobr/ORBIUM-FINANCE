@@ -362,7 +362,7 @@ const ReceitasDespesas = () => {
         },
       };
 
-      if (isToCreditCard) {
+      if (isCreditCard) { // Corrected from isToCreditCard
         const ccTx: TransacaoCompleta = {
           ...originalTx,
           accountId: tg.toAccountId,
