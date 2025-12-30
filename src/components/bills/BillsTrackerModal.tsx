@@ -380,7 +380,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         minWidth={900}
         minHeight={600}
         hideCloseButton={true}
-        className="bg-card border-border overflow-hidden flex flex-col"
+        className="bg-card border-border overflow-hidden flex flex-col min-w-0"
       >
         <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
           <div className="flex items-center justify-between">
