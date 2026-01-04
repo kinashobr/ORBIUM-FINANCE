@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Plus, CalendarCheck, Repeat, Shield, Building2, DollarSign, Info, X, Settings, ShoppingCart } from "lucide-react";
+import { Plus, CalendarCheck, Repeat, Shield, Building2, DollarSign, Info, X, Settings, ShoppingCart } from "lucide-center";
 import { useFinance } from "@/contexts/FinanceContext";
 import { BillTracker, PotentialFixedBill, BillSourceType, formatCurrency, generateBillId, TransactionLinks, OperationType, BillDisplayItem, ExternalPaidBill } from "@/types/finance";
 import { BillsTrackerList } from "./BillsTrackerList";
@@ -111,11 +111,9 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     setCurrentDate(prev => direction === 'prev' ? subMonths(prev, 1) : addMonths(prev, 1));
   };
   
-  // CORREÇÃO: Sincroniza atualizações de contas pagas com a transação correspondente no Extrato
   const handleUpdateBill = useCallback((id: string, updates: Partial<BillTracker>) => {
     updateBill(id, updates);
     
-    // Se a conta já estiver paga, atualiza a transação vinculada no Extrato
     const bill = billsTracker.find(b => b.id === id);
     if (bill?.transactionId) {
       setTransacoesV2(prev => prev.map(t => {
@@ -281,7 +279,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             sourceType,
             sourceRef,
             parcelaNumber,
-            suggestedAccountId: contasMovimento.find(c => c.accountType === 'corrente')?.id,
+            suggestedAccountId: contasMovimento.find(c => c.id === 'corrente')?.id,
             suggestedCategoryId: categoriasV2.find(c => 
                 (sourceType === 'loan_installment' && c.label.toLowerCase().includes('emprestimo')) ||
                 (sourceType === 'insurance_installment' && c.label.toLowerCase().includes('seguro'))
@@ -395,21 +393,21 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
           minWidth={900}
           minHeight={600}
           hideCloseButton={true}
-          className="bg-card border-border overflow-hidden flex flex-col min-w-0"
+          className="bg-card border-border overflow-hidden flex flex-col min-w-0 p-0"
         >
-          <DialogHeader className="px-6 pt-2 pb-2 border-b shrink-0">
-            <div className="flex items-center justify-between">
+          <DialogHeader className="px-6 py-3 border-b shrink-0">
+            <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
                 <CalendarCheck className="w-5 h-5 text-primary" />
                 <div>
-                  <DialogTitle className="text-lg font-bold">Contas a Pagar</DialogTitle>
-                  <p className="text-xs text-muted-foreground">
-                    Gerencie suas despesas fixas e avulsas do mês de {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
+                  <DialogTitle className="text-lg font-bold leading-none">Contas a Pagar</DialogTitle>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Gestão de despesas de {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="rounded-full h-8 w-8">
+              <div className="flex items-center gap-2 -mr-2">
+                <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="rounded-full h-8 w-8 hover:bg-muted">
                   <X className="w-4 h-4" />
                 </Button>
               </div>
