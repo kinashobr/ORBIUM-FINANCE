@@ -324,8 +324,7 @@ export function BillsTrackerList({
           </Badge>
         </div>
         
-        {/* CORREÇÃO: Adicionando min-h-0 para garantir que o flex-1 funcione corretamente e a rolagem não corte o último item */}
-        <div className="rounded-lg border border-border overflow-y-auto flex-1 min-h-0">
+        <div className="rounded-lg border border-border overflow-y-auto flex-1 min-h-[100px]">
           <Table style={{ minWidth: `${totalWidth}px` }}>
             <TableHeader className="sticky top-0 bg-card z-10">
               <TableRow className="border-border hover:bg-transparent h-10">
