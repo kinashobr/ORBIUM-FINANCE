@@ -397,20 +397,20 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
           hideCloseButton={true}
           className="bg-card border-border overflow-hidden flex flex-col min-w-0"
         >
-          <DialogHeader className="px-6 pt-4 pb-2 border-b shrink-0">
+          <DialogHeader className="px-6 pt-2 pb-2 border-b shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <CalendarCheck className="w-5 h-5 text-primary" />
                 <div>
-                  <DialogTitle className="text-xl">Contas a Pagar</DialogTitle>
-                  <p className="text-sm text-muted-foreground">
+                  <DialogTitle className="text-lg font-bold">Contas a Pagar</DialogTitle>
+                  <p className="text-xs text-muted-foreground">
                     Gerencie suas despesas fixas e avulsas do mês de {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="rounded-full">
-                  <X className="w-5 h-5" />
+                <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="rounded-full h-8 w-8">
+                  <X className="w-4 h-4" />
                 </Button>
               </div>
             </div>
