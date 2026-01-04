@@ -398,10 +398,12 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
           <DialogHeader className="px-6 pt-1 pb-2 border-b shrink-0">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
-                <CalendarCheck className="w-5 h-5 text-primary" />
+                <div className="p-2 bg-primary/10 rounded-lg">
+                    <CalendarCheck className="w-6 h-6 text-primary" />
+                </div>
                 <div>
-                  <DialogTitle className="text-lg font-bold leading-none">Contas a Pagar</DialogTitle>
-                  <p className="text-[10px] text-muted-foreground mt-1">
+                  <DialogTitle className="text-xl font-bold leading-none">Contas a Pagar</DialogTitle>
+                  <p className="text-sm text-muted-foreground mt-1.5">
                     Gestão de despesas de {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
                   </p>
                 </div>
