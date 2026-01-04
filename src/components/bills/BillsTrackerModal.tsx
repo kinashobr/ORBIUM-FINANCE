@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Plus, CalendarCheck, Repeat, Shield, Building2, DollarSign, Info, X, Settings, ShoppingCart } from "lucide-center";
+import { Plus, CalendarCheck, Repeat, Shield, Building2, DollarSign, Info, X, Settings, ShoppingCart } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { BillTracker, PotentialFixedBill, BillSourceType, formatCurrency, generateBillId, TransactionLinks, OperationType, BillDisplayItem, ExternalPaidBill } from "@/types/finance";
 import { BillsTrackerList } from "./BillsTrackerList";
@@ -279,7 +279,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             sourceType,
             sourceRef,
             parcelaNumber,
-            suggestedAccountId: contasMovimento.find(c => c.id === 'corrente')?.id,
+            suggestedAccountId: contasMovimento.find(c => c.accountType === 'corrente')?.id,
             suggestedCategoryId: categoriasV2.find(c => 
                 (sourceType === 'loan_installment' && c.label.toLowerCase().includes('emprestimo')) ||
                 (sourceType === 'insurance_installment' && c.label.toLowerCase().includes('seguro'))
