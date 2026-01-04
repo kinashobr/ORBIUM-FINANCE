@@ -324,7 +324,7 @@ export function BillsTrackerList({
           </Badge>
         </div>
         
-        <div className="rounded-lg border border-border overflow-y-auto flex-1 min-h-[100px]">
+        <div className="rounded-lg border border-border overflow-y-auto flex-1 min-h-[100px] pb-12">
           <Table style={{ minWidth: `${totalWidth}px` }}>
             <TableHeader className="sticky top-0 bg-card z-10">
               <TableRow className="border-border hover:bg-transparent h-10">
